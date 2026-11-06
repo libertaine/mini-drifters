@@ -23,10 +23,17 @@ try {
   });
   await mkdir(new URL('artifacts/', root), { recursive: true });
   for (const [name, engine] of [['chromium', chromium], ['firefox', firefox]]) {
-    const browser = await engine.launch({ headless: true });
+    // The Linux CI container has no audio output device. Mozilla's test backend
+    // supplies fake output devices while keeping native Web Audio processing.
+    // Desktop runs keep their normal backend. Offline renders below remain real.
+    const mockOutput = name === 'firefox' && process.platform === 'linux';
+    const browser = await engine.launch({ headless: true, ...(mockOutput ? {
+      firefoxUserPrefs: { 'media.cubeb.force_mock_context': true },
+    } : {}) });
     const errors = [];
+    let page;
     try {
-      const page = await browser.newPage({ viewport: { width: 1366, height: 1000 } });
+      page = await browser.newPage({ viewport: { width: 1366, height: 1000 } });
       page.on('pageerror', (error) => errors.push(error.message));
       const response = await page.goto(`${base}/audio-lab/`);
       assert.equal(response.status(), 200);
@@ -158,8 +165,13 @@ try {
       assert.equal(await page.evaluate(() => !!window.__audioLab), false);
       assert.equal(await page.locator('a[href*="audio-lab"]').count(), 0);
       assert.deepEqual(errors, []);
-      report.push({ browser: name, checks: 'controls, presets, mode switching, start/stop, mute, pending-load cancellation, visibility, missing/corrupt samples, original game isolation, 320px layout', renders });
+      report.push({ browser: name, mockOutput, checks: 'controls, presets, mode switching, start/stop, mute, pending-load cancellation, visibility, missing/corrupt samples, original game isolation, 320px layout', renders });
       console.log(`${name}: audio lifecycle, sample decoding, offline renders and responsive checks passed`);
+    } catch (error) {
+      const state = await page?.evaluate(() => window.__audioLab?.snapshot()).catch(() => null);
+      console.error(`${name} failure state: ${JSON.stringify({ state, errors, mockOutput })}`);
+      await page?.screenshot({ path: artifact(`audio-lab-${name}-failure.png`), fullPage: true }).catch(() => {});
+      throw error;
     } finally { await browser.close(); }
   }
   await writeFile(artifact('audio-lab-report.json'), JSON.stringify(report, null, 2) + '\n');

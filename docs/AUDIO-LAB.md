@@ -128,6 +128,15 @@ Local verification on Windows, 2026-11-06:
 
 Hosted CI evidence belongs to the draft PR; local checks alone do not establish it.
 
+The first Ubuntu CI lab run passed Chromium but Firefox timed out awaiting the
+real-time AudioContext on the container's device-less audio backend. On Linux,
+the Firefox harness now requests Mozilla's test-only fake output devices via
+`media.cubeb.force_mock_context`. Native Web Audio graph processing and the
+OfflineAudioContext renders still run. This is emulated output, not a hardware
+audio check; Windows keeps the normal backend. Failure snapshots are logged and
+screenshotted. The preference is implemented in Mozilla's source:
+https://github.com/mozilla-firefox/firefox/blob/main/dom/media/CubebUtils.cpp .
+
 Human listening remains required; record browser, headphones/speakers, levels,
 mode and impressions for each row:
 
