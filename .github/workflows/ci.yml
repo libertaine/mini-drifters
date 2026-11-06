@@ -13,6 +13,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The image already holds the browsers and their system packages, so the job
+    # never downloads from the Ubuntu mirrors. Its version must match the
+    # Playwright version installed below. Running as the runner's user lets
+    # Firefox start, because it refuses to run as root in another user's home.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -23,9 +30,7 @@ jobs:
       # The game has no dependencies. Playwright is installed only for this check,
       # at a pinned version, and is not recorded in package.json.
       - name: Install Playwright
-        run: |
-          npm install --no-save --no-package-lock playwright@1.64.1
-          npx playwright install --with-deps chromium firefox
+        run: npm install --no-save --no-package-lock playwright@1.64.1
       - name: Chromium and Firefox check, served as on Pages
         run: npm run test:browser
       - name: Keep screenshots from a failed run
