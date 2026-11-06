@@ -69,7 +69,7 @@ test('Pages publishes the CC0 tire file and its attribution, and no private audi
     'cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/',
   ]);
   assert.doesNotMatch(workflow, /coyote-local|Mustang|\.wav/i);
-  assert.equal(workflow.match(/pull_request:\s+branches: \[([^\]]+)\]/)[1], 'main, experiment/audio-lab, experiment/coyote-hybrid');
+  assert.equal(workflow.match(/pull_request:\s+branches: \[([^\]]+)\]/)[1], 'main, experiment/audio-lab, experiment/coyote-hybrid, experiment/gameplay-audio');
 });
 
 test('the published tire file is the attributed CC0 original', () => {
