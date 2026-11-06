@@ -128,4 +128,4 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 
 ## License
 
-No license has been chosen yet.
+[MIT](LICENSE).
