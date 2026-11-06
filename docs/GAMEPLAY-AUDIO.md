@@ -174,6 +174,6 @@ Set `COYOTE_REQUIRED=1` to fail when the `owner` pass can't run. Hosted CI has n
 ## Open questions for listening
 
 - Is the master level right? It's about 5 dB above the lab's bench level, which measured a quiet -30 dBFS RMS while driving. Set it with `masterLevel`.
-- Do the short `load` and `high` loops (0.37 s and 0.32 s) repeat audibly at the RPM where the car spends much of its time? The median while racing is about 4700 RPM.
+- Is the full-throttle oscillation gone? [COYOTE-OSCILLATION.md](COYOTE-OSCILLATION.md) has the diagnosis, the before and after numbers and its own listening checks.
 - Is the engine too high-pitched overall without gears?
 - Does the foley tire loop hold up during a long drift?

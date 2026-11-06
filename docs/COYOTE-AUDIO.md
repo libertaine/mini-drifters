@@ -4,6 +4,10 @@ The owner has since chosen this engine for the game: see
 [GAMEPLAY-AUDIO.md](GAMEPLAY-AUDIO.md). Its code now lives in `src/coyote.js` and
 `src/coyote-model.js`, shared with the lab. The notes below record the experiment.
 
+**Superseded:** `load.wav` and `high.wav` were later reprocessed to remove a full-throttle
+oscillation, and the `mid` anchor moved to 2736. See
+[COYOTE-OSCILLATION.md](COYOTE-OSCILLATION.md). The tables below describe the first bank.
+
 This extends draft PR #5 at unchanged baseline
 9fe61ed5c43193671b2d97863fd4d5510c7b768f. Worktree:
 D:/Projects/mini-drifters-coyote; branch: experiment/coyote-hybrid.

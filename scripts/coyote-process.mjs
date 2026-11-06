@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { fitPolynomial, phaseDrift, sincAt, trackCrank } from './coyote-dsp.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const sourceArg = process.argv.indexOf('--source');
-if (sourceArg < 0 || !process.argv[sourceArg + 1]) throw new Error('Usage: node scripts/coyote-process.mjs --source /absolute/master/directory [--analyze-only]');
+if (sourceArg < 0 || !process.argv[sourceArg + 1]) throw new Error('Usage: node scripts/coyote-process.mjs --source /absolute/master/directory [--analyze-only] [--output directory]');
 const sourceDir = path.resolve(process.argv[sourceArg + 1]);
 const work = path.join(root, '.local/coyote'); fs.mkdirSync(work, { recursive: true });
 const sha = (b) => createHash('sha256').update(b).digest('hex');
@@ -97,8 +98,10 @@ if (process.argv.includes('--analyze-only')) process.exit(0);
 const selections = [
   { key: 'idle', recording: 0, start: 0.15, end: 1.25, nominalRpm: 1100, overlap: 0.06 },
   { key: 'mid', recording: 0, start: 21.0, end: 22.15, nominalRpm: 2700, overlap: 0.04 },
-  { key: 'load', recording: 0, start: 50.15, end: 50.55, nominalRpm: 4400, overlap: 0.025 },
-  { key: 'high', recording: 0, start: 53.6, end: 53.95, nominalRpm: 6600, overlap: 0.025 },
+  // Both pull loops hold one engine speed, because the first bank's short pull windows
+  // swept audibly on every repeat. See docs/COYOTE-OSCILLATION.md.
+  { key: 'load', recording: 0, start: 50.6, nominalRpm: 4400, cycles: 22, overlapCycles: 6, seedHz: 60 },
+  { key: 'high', recording: 0, start: 53.3, nominalRpm: 6600, cycles: 55, overlapCycles: 9, seedHz: 104 },
   { key: 'incar-reference', recording: 1, start: 6.5, end: 7.7, nominalRpm: null, overlap: 0.04 },
 ];
 // Windowed-sinc 65-tap 9.5 kHz lowpass before 48 -> 24 kHz decimation.
@@ -121,11 +124,126 @@ function wav16(samples) {
   b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(samples.length * 2, 40);
   samples.forEach((v, i) => b.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(v * 32767))), 44 + i * 2)); return b;
 }
-const output = path.join(root, 'audio-lab/assets/coyote-local'); fs.mkdirSync(output, { recursive: true });
-const manifest = { recipe: 1, rate: 24000, format: 'mono PCM16 WAV', rights: 'Owner supplied; public redistribution NOT confirmed. Do not commit audio.',
+// One engine cycle is two crank revolutions. The source pull is resampled against its
+// measured crank speed, so the result holds one speed for a whole number of cycles
+// and its last sample leads into its first with every harmonic in step. Level is
+// flattened only slowly (0.2 s), so combustion texture stays as recorded.
+function stationaryLoop(w, selection, rmsTarget) {
+  const rate = w.rate, margin = 0.2;
+  if (rate !== 48000) throw new Error('Processing recipe requires 48 kHz masters');
+  const cycleSamples = 24000 * 120 / selection.nominalRpm;
+  const length = selection.cycles * cycleSamples, overlap = selection.overlapCycles * cycleSamples;
+  // Only the loop length must be exact: raw[length + i] then repeats raw[i] in phase.
+  if (Math.abs(length - Math.round(length)) > 1e-6) throw new Error('Loop must be a whole number of samples');
+  const total = Math.round(length) + Math.round(overlap);
+  // Follow the crank far enough ahead to cover every revolution the loop needs.
+  const crank = trackCrank(w.mono, rate, selection.start - margin, selection.start + total / 24000 * 1.5 + margin, selection.seedHz);
+  const speed = fitPolynomial(crank.map(({ t, hz }) => ({ t, y: hz })), 4);
+  const dt = 1 / rate, revsPerSample = selection.nominalRpm / 60 / 24000;
+  let t = selection.start, turned = 0;
+  // Same first-order highpass and windowed-sinc lowpass as the plain recipe, kept at
+  // the full rate so the resampling below has room to read between samples.
+  const first = Math.floor((selection.start - margin) * rate), last = Math.ceil((crank.at(-1).t + margin) * rate);
+  const hp = new Float64Array(last - first + 4800);
+  let x0 = 0, y0 = 0; const pole = Math.exp(-2 * Math.PI * 35 / rate);
+  for (let i = first - 4800; i < last; i++) { const x = w.mono[Math.max(0, i)] || 0; y0 = pole * (y0 + x - x0); x0 = x; hp[i - first + 4800] = y0; }
+  const taps = [], cutoff = 9500 / rate;
+  for (let k = -32; k <= 32; k++) taps.push((k === 0 ? 2 * cutoff : Math.sin(2 * Math.PI * cutoff * k) / (Math.PI * k)) * (0.54 + 0.46 * Math.cos(Math.PI * k / 32)));
+  const norm = taps.reduce((a, b) => a + b, 0);
+  const full = new Float64Array(last - first);
+  for (let i = 0; i < full.length; i++) { let v = 0; for (let k = -32; k <= 32; k++) v += (hp[i + 4800 + k] || 0) * taps[k + 32]; full[i] = v / norm; }
+  // A table of when each output sample's revolution happens, with spare revolutions
+  // either side, because locking the phase below moves readings a little both ways.
+  const pad = Math.round(3 * cycleSamples), search = Math.round(8 * cycleSamples), padded = total + 2 * pad + search;
+  const when = new Float64Array(padded);
+  for (let next = 0; next < padded; next++) {
+    const wanted = next * revsPerSample;
+    while (turned < wanted) { turned += speed(t) * dt; t += dt; }
+    when[next] = t;
+  }
+  if (t > crank.at(-1).t) throw new Error('Crank track ended before the loop did');
+  const timeAt = (position) => {
+    const at = Math.max(0, Math.min(padded - 1.000001, position)), low = Math.floor(at);
+    return when[low] + (when[low + 1] - when[low]) * (at - low);
+  };
+  const read = (shift) => Float64Array.from({ length: padded }, (_, n) => sincAt(full, timeAt(n - shift(n)) * rate - first));
+  // Lock the phase. Three passes, each correcting what the last one left behind.
+  const samplesPerRevolution = cycleSamples / 2;
+  let shift = () => 0;
+  for (let pass = 0; pass < 3; pass++) {
+    const drift = phaseDrift(read(shift), samplesPerRevolution), previous = shift;
+    shift = (n) => previous(n) + drift(n) * samplesPerRevolution;
+  }
+  const locked = read(shift);
+  // Harmonics keep moving against each other as RPM changes, so no correction lines
+  // them all up everywhere. Choose the start where the two ends of the seam agree best
+  // below about 500 Hz, because cancelling the strong low harmonics is what dips the level.
+  const lows = new Float64Array(locked.length);
+  for (let i = 0, sum = 0; i < locked.length; i++) {
+    sum += locked[i] - (locked[i - 48] ?? 0);
+    lows[i] = sum / 48;
+  }
+  const head = Math.round(overlap), L = Math.round(length);
+  let begin = pad, bestMatch = -Infinity;
+  for (let candidate = pad; candidate <= pad + search; candidate += 4) {
+    let dot = 0, aa = 0, bb = 0;
+    for (let i = 0; i < head; i += 2) {
+      const a = lows[candidate + i], b = lows[candidate + L + i];
+      dot += a * b; aa += a * a; bb += b * b;
+    }
+    const match = dot / Math.sqrt(aa * bb + 1e-20);
+    if (match > bestMatch) { bestMatch = match; begin = candidate; }
+  }
+  const raw = locked.slice(begin, begin + total);
+  const actualEnd = timeAt(begin + total - shift(begin + total)), actualStart = timeAt(begin - shift(begin));
+  // Flatten slow level changes: a Hann-weighted 0.2 s envelope.
+  const span = Math.round(0.1 * 24000), envelope = new Float64Array(total);
+  for (let i = 0; i < total; i++) {
+    let sum = 0, weight = 0;
+    for (let k = -span; k <= span; k += 8) {
+      const v = raw[i + k];
+      if (v === undefined) continue;
+      const h = 0.5 + 0.5 * Math.cos(Math.PI * k / span);
+      sum += v * v * h; weight += h;
+    }
+    envelope[i] = Math.sqrt(sum / weight);
+  }
+  const typical = Math.sqrt(envelope.reduce((a, v) => a + v * v, 0) / total);
+  for (let i = 0; i < total; i++) raw[i] *= typical / envelope[i];
+  const loop = raw.slice(head, L + head);
+  let dot = 0, aa = 0, bb = 0;
+  for (let i = 0; i < head; i++) {
+    const a = raw[i], b = raw[L + i], u = i / (head - 1), mix = u * u * (3 - 2 * u);
+    dot += a * b; aa += a * a; bb += b * b;
+    loop[L - head + i] = b * (1 - mix) + a * mix;
+  }
+  let square = 0, peak = 0; for (const v of loop) { square += v * v; peak = Math.max(peak, Math.abs(v)); }
+  const gain = Math.min(rmsTarget / Math.sqrt(square / L), 0.75 / peak);
+  for (let i = 0; i < L; i++) loop[i] *= gain;
+  const used = crank.filter((r) => r.t >= actualStart && r.t <= actualEnd);
+  return {
+    loop, gain, peak: peak * gain, rms: Math.sqrt(square / L) * gain, overlapCorrelation: dot / Math.sqrt(aa * bb + 1e-20),
+    actualStart, actualEnd, overlap: head / 24000,
+    sourceRpmFrom: Math.round(speed(actualStart) * 60), sourceRpmTo: Math.round(speed(actualEnd) * 60),
+    fitResidualRpm: +Math.sqrt(used.reduce((a, r) => a + ((r.hz - speed(r.t)) * 60) ** 2, 0) / used.length).toFixed(1),
+  };
+}
+// The first bank's level for each pull layer, so the mix stays where it was accepted.
+const RMS_TARGET = { load: 0.21248573144198601, high: 0.18675700985340823 };
+const outputArg = process.argv.indexOf('--output');
+const output = outputArg > 0 ? path.resolve(process.argv[outputArg + 1]) : path.join(root, 'audio-lab/assets/coyote-local'); fs.mkdirSync(output, { recursive: true });
+const manifest = { recipe: 2, rate: 24000, format: 'mono PCM16 WAV', rights: 'Owner supplied; public redistribution NOT confirmed. Do not commit audio.',
   sources: recordings.map((w) => w.info), loops: [] };
 for (const selection of selections) {
   const w = recordings[selection.recording], margin = 0.015;
+  if (selection.cycles) {
+    const { loop, ...facts } = stationaryLoop(w, selection, RMS_TARGET[selection.key]);
+    const file = selection.key + '.wav', bytes = wav16(loop); fs.writeFileSync(path.join(output, file), bytes);
+    let maxStep = 0; for (let i = 1; i < loop.length; i++) maxStep = Math.max(maxStep, Math.abs(loop[i] - loop[i - 1]));
+    manifest.loops.push({ ...selection, source: w.info.file, recipe: 'stationary', ...facts, file, bytes: bytes.length, seconds: loop.length / 24000, sha256: sha(bytes),
+      seamStep: Math.abs(loop[0] - loop.at(-1)), maxInteriorStep: maxStep });
+    continue;
+  }
   const raw = filteredMono(w, selection.start, selection.end + margin);
   const expected = Math.round((selection.end - selection.start) * 24000), overlap = Math.round(selection.overlap * 24000);
   let best = { score: -Infinity };
