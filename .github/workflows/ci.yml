@@ -1,0 +1,63 @@
+name: CI and Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Unit, session and publishing tests
+        run: npm test
+      # The game has no dependencies. Playwright is installed only for this check,
+      # at a pinned version, and is not recorded in package.json.
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-package-lock playwright@1.64.1
+          npx playwright install --with-deps chromium firefox
+      - name: Chromium and Firefox check, served as on Pages
+        run: npm run test:browser
+      - name: Keep screenshots from a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-artifacts
+          path: artifacts/
+          retention-days: 7
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Assemble the site (only the files the game needs)
+        run: |
+          mkdir _site
+          cp -r index.html style.css src _site/
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

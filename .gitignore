@@ -1,0 +1,35 @@
+# Dependencies (the game has none; CI and browser checks install Playwright on demand)
+node_modules/
+package-lock.json
+
+# Generated output
+_site/
+dist/
+build/
+artifacts/
+test-results/
+playwright-report/
+coverage/
+
+# Caches, temporary files and logs
+.cache/
+tmp/
+temp/
+*.tmp
+*.log
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Credentials and environment secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx

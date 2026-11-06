@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini Drifters</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="view" aria-label="Top-down view of the race circuit"></canvas>
+
+  <div id="hud" hidden>
+    <section class="panel laps">
+      <div class="row"><span class="label">Lap</span><strong id="lap">1/3</strong></div>
+      <div class="row"><span class="label">Time</span><strong id="lap-time">0:00.00</strong></div>
+      <div class="row"><span class="label">Best</span><strong id="best-lap">--</strong></div>
+    </section>
+
+    <section class="panel score">
+      <span class="label">Score</span>
+      <strong id="score">0</strong>
+    </section>
+
+    <section class="combo" id="combo" data-state="idle">
+      <div class="combo-line">
+        <strong id="combo-points">0</strong>
+        <span id="combo-mult">&times;1</span>
+      </div>
+      <div class="combo-grace"><div id="combo-grace-bar"></div></div>
+    </section>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <section class="panel gauges">
+      <div class="speed"><strong id="speed">0</strong><span class="label">mph</span></div>
+      <div class="angle">
+        <div class="angle-head"><span class="label">Drift</span><strong id="angle">0&deg;</strong></div>
+        <div class="angle-track" aria-hidden="true">
+          <div class="zone zone-low"></div><div class="zone zone-strong"></div><div class="zone zone-over"></div>
+          <div class="zone zone-spin"></div>
+          <div id="angle-needle"></div>
+        </div>
+      </div>
+    </section>
+
+    <pre id="debug" hidden></pre>
+  </div>
+
+  <div id="prompt" class="prompt" hidden></div>
+
+  <section id="menu" class="overlay">
+    <div class="sheet">
+      <h1>Mini <em>Drifters</em></h1>
+      <p class="pitch">Three laps. One small, overpowered car. Get it sideways and keep it there.</p>
+      <div class="columns">
+        <div>
+          <h2>Controls</h2>
+          <table class="keys">
+            <tr><td><kbd>&uarr;</kbd></td><td>Accelerate</td></tr>
+            <tr><td><kbd>&darr;</kbd></td><td>Brake, then reverse</td></tr>
+            <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Steer</td></tr>
+            <tr><td><kbd>Space</kbd></td><td>Handbrake</td></tr>
+            <tr><td><kbd>R</kbd> / <kbd>P</kbd></td><td>Restart / Pause</td></tr>
+          </table>
+        </div>
+        <div>
+          <h2>How to drift</h2>
+          <ol class="howto">
+            <li>Steer into a corner and pull the handbrake until the tail steps out.</li>
+            <li>Stay on the throttle and steer the other way to hold the slide.</li>
+            <li>Lift off to straighten up.</li>
+          </ol>
+          <h2>Scoring</h2>
+          <p>Angle and speed on the road build unbanked points. Link drifts within two seconds to climb to &times;3. When you straighten up, the points <b>bank</b>. Spin out, hit the wall or stay on the grass, and you <b>lose</b> them.</p>
+        </div>
+      </div>
+      <button id="start" type="button">Start driving <span>Enter</span></button>
+    </div>
+  </section>
+
+  <section id="paused" class="overlay" hidden>
+    <div class="sheet small">
+      <h2>Paused</h2>
+      <p>Press <kbd>P</kbd> to carry on, or <kbd>R</kbd> to start over.</p>
+    </div>
+  </section>
+
+  <section id="results" class="overlay" hidden>
+    <div class="sheet small">
+      <h2>Run complete</h2>
+      <p id="remark" class="pitch"></p>
+      <dl class="stats">
+        <div class="big"><dt>Drift score</dt><dd id="r-score"></dd></div>
+        <div><dt>Best lap</dt><dd id="r-best"></dd></div>
+        <div><dt>Total time</dt><dd id="r-time"></dd></div>
+        <div><dt>Highest combo</dt><dd id="r-combo"></dd></div>
+        <div><dt>Spinouts</dt><dd id="r-spins"></dd></div>
+      </dl>
+      <button id="again" type="button">Drive again <span>R</span></button>
+    </div>
+  </section>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
