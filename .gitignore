@@ -33,3 +33,8 @@ desktop.ini
 *.key
 *.p12
 *.pfx
+
+# Owner-supplied audio: redistribution rights not established
+.local/
+audio-lab/assets/coyote-local/
+audio-lab/assets/Mustang-Dyno*.wav

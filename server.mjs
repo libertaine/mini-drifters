@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 const TYPES = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', wav: 'audio/wav', mp3: 'audio/mpeg', md: 'text/plain; charset=utf-8' };
 const ALLOWED = new Set(['/index.html', '/style.css']);
 // Development only. Pages copies index.html, style.css and src/, never this lab.
-const LAB = new Set(['index.html', 'lab.css', 'lab.js', 'model.js', 'audio.js', 'voices.js',
+const LAB = new Set(['index.html', 'lab.css', 'lab.js', 'model.js', 'audio.js', 'voices.js', 'coyote.js', 'coyote-model.js',
+  'assets/coyote-local/idle.wav', 'assets/coyote-local/mid.wav', 'assets/coyote-local/load.wav',
+  'assets/coyote-local/high.wav', 'assets/coyote-local/incar-reference.wav',
   'assets/engine-low.wav', 'assets/engine-high.wav', 'assets/tire-foley.mp3', 'assets/ATTRIBUTION.md']
   .map((file) => `/audio-lab/${file}`));
 const SOURCE = /^\/src\/[a-z]+\.js$/;

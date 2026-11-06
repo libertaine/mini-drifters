@@ -1,7 +1,10 @@
+import { mapCoyote } from './coyote-model.js';
 // Lab units only: RPM, mph, degrees, and fractions. No simulation imports.
+// Static RMS reference matching, not automatic loudness processing.
+export const ENGINE_TRIMS = Object.freeze({ procedural: 1, samples: 1.15, coyote: 1 });
 export const DEFAULTS = Object.freeze({
   rpm: 750, throttle: 0, speed: 0, slip: 0, grip: 1, surface: 'road',
-  engineVolume: 0.65, tireVolume: 0.55, masterVolume: 0.35, mode: 'procedural',
+  engineVolume: 0.65, tireVolume: 0.55, masterVolume: 0.35, mode: 'procedural', tireMode: 'follow',
 });
 
 export const PRESETS = Object.freeze([
@@ -34,7 +37,8 @@ export function normalize(values = {}) {
     surface: v.surface === 'grass' ? 'grass' : 'road',
     engineVolume: clamp01(v.engineVolume), tireVolume: clamp01(v.tireVolume),
     masterVolume: clamp01(v.masterVolume),
-    mode: v.mode === 'samples' ? 'samples' : 'procedural',
+    mode: ['samples', 'coyote'].includes(v.mode) ? v.mode : 'procedural',
+    tireMode: ['procedural', 'samples'].includes(v.tireMode) ? v.tireMode : 'follow',
   };
 }
 
@@ -49,7 +53,7 @@ export function mapAudio(values) {
   const tire = smoothstep(0, 14, v.speed) * friction;
   const highBlend = smoothstep(0.12, 0.85, rpm);
   return {
-    ...v, rpmFraction: rpm,
+    ...v, ...mapCoyote(v), rpmFraction: rpm,
     firingHz: v.rpm / 60 * 4,
     engineGain: 0.23 + 0.12 * rpm + 0.15 * v.throttle,
     engineCutoff: 420 + 2600 * rpm + 2300 * v.throttle,

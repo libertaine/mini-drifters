@@ -27,7 +27,7 @@ try {
   for (const [name, engine] of [['chromium', chromium], ['firefox', firefox]]) {
     if (selectedBrowser && selectedBrowser !== name) continue;
     const browser = await engine.launch({ headless: true });
-    let realtimeOutput = false;
+    let realtimeOutput = false; let coyoteSources = 0;
     const errors = [];
     let page;
     try {
@@ -55,10 +55,11 @@ try {
         assert.equal((await snapshot()).sourceCount, 0);
         console.log('firefox: no real-time audio device; verified startup failure; offline rendering follows');
       } else {
-        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'ready');
-        assert.equal((await snapshot()).sourceCount, 11);
+        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'ready' && window.__audioLab.snapshot().coyoteState !== 'loading');
+        coyoteSources = (await snapshot()).coyoteState === 'ready' ? 4 : 0;
+        assert.equal((await snapshot()).sourceCount, 11 + coyoteSources);
         for (let i = 0; i < 4; i++) await page.locator('#start').click();
-        assert.equal((await snapshot()).sourceCount, 11);
+        assert.equal((await snapshot()).sourceCount, 11 + coyoteSources);
         await page.locator('#mode').selectOption('samples');
         assert.equal((await snapshot()).mode, 'samples');
         await page.locator('#mute').click();
@@ -89,8 +90,9 @@ try {
         await page.unroute('**/engine-high.wav');
         if (heldRoute) await heldRoute.abort().catch(() => {});
         await page.locator('#start').click();
-        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'ready');
-        assert.equal((await snapshot()).sourceCount, 11);
+        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'ready' && window.__audioLab.snapshot().coyoteState !== 'loading');
+        coyoteSources = (await snapshot()).coyoteState === 'ready' ? 4 : 0;
+        assert.equal((await snapshot()).sourceCount, 11 + coyoteSources);
         // Simulate the browser's visibility notification; controller stops and
         // requires a fresh user click. This is not physical tab/device testing.
         await page.evaluate(() => {
@@ -101,21 +103,22 @@ try {
         assert.equal((await snapshot()).running, false);
         assert.equal((await snapshot()).sourceCount, 0);
         await page.locator('#start').click();
-        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'ready');
+        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'ready' && window.__audioLab.snapshot().coyoteState !== 'loading');
+        coyoteSources = (await snapshot()).coyoteState === 'ready' ? 4 : 0;
         await page.locator('#stop').click();
 
         // Exercise actual fetch/decode failures: both missing layers and complete
         // asset failure remain usable, with explicit feedback and no synthesis fallback.
         await page.route('**/engine-high.wav', (route) => route.fulfill({ status: 404, body: 'missing' }));
         await page.locator('#start').click();
-        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'partial');
-        assert.equal((await snapshot()).sourceCount, 10);
+        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'partial' && window.__audioLab.snapshot().coyoteState !== 'loading');
+        assert.equal((await snapshot()).sourceCount, 10 + coyoteSources);
         assert.match(await page.locator('#sample-status').textContent(), /HTTP 404/);
         await page.locator('#stop').click(); await page.unroute('**/engine-high.wav');
         const assetPattern = /\/assets\/.*\.(wav|mp3)$/;
         await page.route(assetPattern, (route) => route.fulfill({ status: 200, body: 'corrupt recording' }));
         await page.locator('#start').click();
-        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'unavailable');
+        await page.waitForFunction(() => window.__audioLab.snapshot().sampleState === 'unavailable' && window.__audioLab.snapshot().coyoteState !== 'loading');
         assert.equal((await snapshot()).sourceCount, 8);
         assert.match(await page.locator('#sample-status').textContent(), /Sample mode is silent/);
         await page.locator('#stop').click(); await page.unroute(assetPattern);

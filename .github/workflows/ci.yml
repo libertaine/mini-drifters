@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, experiment/audio-lab]
 
 permissions:
   contents: read
@@ -35,6 +35,8 @@ jobs:
         run: npm run test:browser
       - name: Development audio lab in Chromium and Firefox
         run: npm run test:audio:browser
+      - name: Coyote graph and missing-private-assets checks
+        run: npm run test:coyote:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7
