@@ -439,6 +439,65 @@ test('driving updates reach the graph no faster than the apply interval', async 
   assert.ok(rate() - before > 0);
 });
 
+test('pausing freezes the gearbox mid-shift, and it carries on exactly where it stopped', async () => {
+  const { audio, game } = await startDriving(setup());
+  game.car.speed = 11; game.car.forwardSpeed = 11; game.car.throttle = 1;
+  for (let i = 0; i < 90; i++) audio.update(game, 1 / 60);
+  assert.equal(audio.audioState.gear, 1);
+  game.car.speed = 12.5; game.car.forwardSpeed = 12.5;
+  audio.update(game, 1 / 60);
+  assert.equal(audio.audioState.gear, 2);
+  const { shiftLeft, rpm, sinceShift } = audio.audioState;
+  assert.ok(shiftLeft > 0, 'caught in the middle of the change');
+  togglePause(game);
+  audio.gesture(game);
+  // A long pause, with the car's numbers moving, must not advance the transition.
+  game.car.speed = 40; game.car.forwardSpeed = 40;
+  for (let i = 0; i < 600; i++) audio.update(game, 1 / 60);
+  assert.deepEqual(
+    { gear: audio.audioState.gear, shiftLeft: audio.audioState.shiftLeft, rpm: audio.audioState.rpm, sinceShift: audio.audioState.sinceShift },
+    { gear: 2, shiftLeft, rpm, sinceShift },
+  );
+  game.car.speed = 12.5; game.car.forwardSpeed = 12.5;
+  togglePause(game);
+  audio.gesture(game);
+  audio.update(game, 1 / 60);
+  assert.ok(audio.audioState.shiftLeft < shiftLeft, 'the change finishes after the pause');
+  assert.equal(audio.audioState.gear, 2);
+});
+
+test('restarting returns the gearbox to first, with nothing left of the last run', async () => {
+  const { audio, game } = await startDriving(setup());
+  game.car.speed = 35; game.car.forwardSpeed = 35; game.car.throttle = 1;
+  for (let i = 0; i < 180; i++) audio.update(game, 1 / 60);
+  assert.equal(audio.snapshot().gear, 4);
+  assert.ok(audio.snapshot().shifts > 0);
+  restartRun(game);
+  audio.newRun(game);
+  const s = audio.snapshot();
+  assert.equal(s.gear, 1);
+  assert.equal(s.shifts, 0);
+  assert.equal(s.rpm, 750);
+  assert.equal(audio.audioState.shiftLeft, 0);
+  assert.equal(audio.audioState.slideHold, 0);
+});
+
+test('only a shift tightens the voices\' pitch glide', async () => {
+  const { audio, contexts, game } = await startDriving(setup());
+  const engine = audio.session.engine;
+  const seen = [];
+  const update = engine.update;
+  engine.update = (p) => { seen.push(p.pitchGlide); update(p); };
+  game.car.speed = 11; game.car.forwardSpeed = 11; game.car.throttle = 1;
+  for (let i = 0; i < 60; i++) audio.update(game, 1 / 60);
+  assert.ok(seen.length > 0 && seen.every((glide) => glide === undefined), 'steady driving keeps the usual glide');
+  seen.length = 0;
+  game.car.speed = 12.5; game.car.forwardSpeed = 12.5;
+  for (let i = 0; i < 6; i++) audio.update(game, 1 / 60);
+  assert.ok(seen.some((glide) => glide === audio.tuning.gears.shiftGlide), 'the shift reached the voice');
+  assert.equal(contexts.length, 1);
+});
+
 test('a failure inside the graph falls back to silence and never reaches the caller', async () => {
   const { audio, game, contexts } = await startDriving(setup());
   audio.session.engine.update = () => { throw new Error('graph exploded'); };

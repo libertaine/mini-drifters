@@ -4,7 +4,7 @@
 import { createCoyote, loadCoyote } from './coyote.js';
 import { mapCoyote } from './coyote-model.js';
 import { createMixCompressor, createProcedural, createTireVoice, loadTire, mapProceduralEngine, smooth } from './audio-voices.js';
-import { AUDIO_TUNING, createAudioState, readTelemetry, resetAudioState, stepAudioState, tireParams } from './audio-telemetry.js';
+import { AUDIO_TUNING, createAudioState, engineParams, readTelemetry, resetAudioState, stepAudioState, tireParams } from './audio-telemetry.js';
 
 const STORAGE_KEY = 'mini-drifters-sound';
 const RESUME_DEADLINE_MS = 8000;
@@ -145,6 +145,8 @@ export class GameAudio {
       sourceCount: (s?.engine?.sourceCount ?? 0) + (s?.tire?.sourceCount ?? 0),
       rpm: this.audioState.rpm,
       load: this.audioState.load,
+      gear: this.audioState.gear,
+      shifts: this.audioState.shifts,
       tireIntensity: this.audioState.tire,
     };
   }
@@ -344,7 +346,7 @@ export class GameAudio {
 
   // Only real changes reach the audio graph, so a steady idle schedules nothing.
   applyParams(s) {
-    const { rpm, load } = this.audioState;
+    const { rpm, throttle: load, glide } = engineParams(this.audioState, this.tuning);
     const tire = tireParams(this.audioState);
     const last = this.applied;
     const engineChanged = !last || Math.abs(rpm - last.rpm) >= 1 || Math.abs(load - last.load) >= 0.002;
@@ -353,7 +355,8 @@ export class GameAudio {
       || Math.abs(tire.tireRate - last.tire.tireRate) >= 0.002;
     if (engineChanged && s.engine) {
       const values = { rpm, throttle: load };
-      s.engine.update(s.engineKind === 'coyote' ? mapCoyote(values) : mapProceduralEngine(values));
+      const params = s.engineKind === 'coyote' ? mapCoyote(values) : mapProceduralEngine(values);
+      s.engine.update(glide === undefined ? params : { ...params, pitchGlide: glide });
     }
     if (tireChanged && s.tire) s.tire.update(tire);
     this.applied = {

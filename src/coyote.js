@@ -34,7 +34,7 @@ export function createCoyote(ctx, bus, buffers) {
     sourceCount: sources.length,
     update(p) {
       loops.forEach(({ source, gain }, i) => {
-        smooth(source.playbackRate, p.coyoteRates[i], ctx, 0.18);
+        smooth(source.playbackRate, p.coyoteRates[i], ctx, p.pitchGlide ?? 0.18);
         smooth(gain.gain, p.coyoteWeights[i] * p.coyoteGain, ctx, 0.12);
       });
       smooth(filter.frequency, p.coyoteCutoff, ctx);

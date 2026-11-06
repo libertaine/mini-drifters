@@ -27,7 +27,7 @@ To hear what a public visitor would get, set `$env:COYOTE_LOCAL='off'` before st
 
 | File | Job |
 |---|---|
-| `src/audio-telemetry.js` | Pure mapping from car telemetry to RPM, load and tire values, plus all the audio tuning |
+| `src/audio-telemetry.js` | Pure mapping from car telemetry to RPM, load and tire values, the virtual gearbox, and all the audio tuning |
 | `src/audio.js` | One AudioContext, one engine voice, one tire voice, lifecycle, mute and failure handling |
 | `src/audio-voices.js` | Web Audio voices shared with the lab |
 | `src/coyote.js`, `src/coyote-model.js` | The Coyote voice and its mapping, shared with the lab |
@@ -39,35 +39,43 @@ A run builds 5 sources with Coyote (4 engine layers and 1 tire loop) or 7 with t
 
 ## Engine RPM
 
-The car has no gearbox, so RPM is an audio-only estimate in the lab's 750–7000 range:
+The car has no gearbox, so RPM is an audio-only estimate in the lab's 750–7000 range. It uses two mappings and blends between them on wheelspin:
 
 ```
-target = coast curve (speed) + throttle flare + wheelspin flare
+in gear = road speed x this gear's ratio + throttle share   (or the launch RPM, if higher)
+sliding = coast curve (speed) + throttle flare + wheelspin flare
 ```
 
-- **Coast curve:** rises from 750 to 5000 at 42 m/s (about 94 mph), climbing fastest at low speed.
-- **Throttle flare:** adds 2000 RPM at a standstill, shrinking to 900 at top speed. RPM therefore rises at launch before the car has much speed, and drops when you lift.
-- **Wheelspin flare:** adds up to 1400 RPM with throttle and rear slip. It stops the pitch sagging in a power drift when the car scrubs off speed.
-- **Reverse:** uses its own line, with a ceiling of 2850 RPM.
+- **In gear:** RPM follows road speed through a virtual four-speed gearbox, described below.
+- **Launch:** full throttle at a standstill gives 2750 RPM straight away, as if the clutch were slipping, until road speed catches up.
+- **Sliding:** this is the mapping the owner listened to and liked for drifting, and a held power slide uses it unchanged. With the rear wheels spinning, the engine isn't tied to road speed.
+- **Reverse:** uses its own line, with a ceiling of 2850 RPM and no gears.
 
 RPM then eases toward the target (0.11 s rising, 0.34 s falling) with a rate limit (5500 and 3000 RPM per second), so it can't jump. Throttle is smoothed separately and sets the engine's character through gain and brightness, without changing pitch. The Coyote mapping limits playback rate to 0.65–1.65.
 
-All of these numbers are starting estimates in `AUDIO_TUNING`, apart from the driving physics. Here's how the model compares with the lab presets, using each preset's speed, throttle and slip:
+All of these numbers are starting estimates in `AUDIO_TUNING`, apart from the driving physics.
 
-| Lab preset | Preset RPM | Model RPM | Model tire target |
-|---|---|---|---|
-| Idle | 750 | 750 | 0.00 |
-| Gentle acceleration | 2200 | 2642 | 0.00 |
-| Hard acceleration | 5200 | 4589 | 0.03 |
-| High-speed cruising | 3800 | 5225 | 0.00 |
-| Drift initiation | 4300 | 4758 | 0.70 |
-| Sustained power drift | 5600 | 6232 | 0.99 |
-| Drift recovery | 2800 | 3120 | 0.06 |
-| Spinout | 6200 | 4978 | 0.81 |
+## Virtual gears
 
-The two largest gaps are deliberate. A single speed curve can't both cruise at 3800 RPM and pull hard at the same speed, because that takes gears, and gears are out of scope. A spinout loses speed quickly, so its RPM falls with it. Listen for both.
+The gears exist only in the sound. They read the same ten telemetry values as everything else and change no acceleration, speed, force, traction, control, score, lap time or simulation state. `stepGears` in `src/audio-telemetry.js` holds the state machine, and `AUDIO_TUNING.gears` holds all its tuning, apart from `src/tuning.js`.
 
-In scripted driving, the drift driver's held power drifts averaged about 5700 RPM and sagged no more than about 230 RPM.
+| Gear | Runs out at | Comes back down below |
+|---|---|---|
+| 1 | 12 m/s | Not applicable |
+| 2 | 20 m/s | 8.2 m/s |
+| 3 | 29 m/s | 13.6 m/s |
+| 4 | Top speed | 19.7 m/s |
+
+- **Upshift:** at each gear's top speed. Over 0.22 s, the throttle's share of RPM and a quarter of the engine load lift and return, and the voice follows pitch faster than usual. In a full-throttle run RPM falls 27–30% in about 0.15 s, then builds in the next gear.
+- **Downshift:** when speed falls below the lower gear's lower limit. Pitch rises gently (0.16 s) and the load doesn't dip. A hard stop can skip gears, for example 3 to 1.
+- **No hunting:** the gap between the up and down speeds, plus at least 0.7 s between shifts.
+- **Drifting:** rear slip of 12° or more holds the gear, and for 0.35 s afterwards. RPM follows the sliding mapping as wheelspin builds, so a drift sounds as it did and doesn't shift.
+- **Reverse and stopping:** going into reverse, or stopping, isn't a heard shift. The car simply leaves reverse in first.
+- **Lifecycle:** the gearbox steps only while the sound model does. A pause freezes a shift partway through, a new run resets it to first, and a finished car settles without shifting.
+
+There's no transmission sound, clutch simulation or gear indicator.
+
+In scripted driving there were 10 shifts a minute on grip, drift and reckless runs, with no back-and-forth and no shift during a held slide. Held power drifts averaged about 5600 RPM. All of this says the gears behave as designed. It doesn't say they sound good.
 
 ## Tires
 
@@ -175,5 +183,8 @@ Set `COYOTE_REQUIRED=1` to fail when the `owner` pass can't run. Hosted CI has n
 
 - Is the master level right? It's about 5 dB above the lab's bench level, which measured a quiet -30 dBFS RMS while driving. Set it with `masterLevel`.
 - Is the full-throttle oscillation gone? [COYOTE-OSCILLATION.md](COYOTE-OSCILLATION.md) has the diagnosis, the before and after numbers and its own listening checks.
-- Is the engine too high-pitched overall without gears?
+- Are the gear changes audible but unobtrusive? The share of RPM lost, the 0.22 s shift and the load dip are all starting values in `AUDIO_TUNING.gears`.
+- Are the shift points in the right place, and does 10 shifts a minute feel right or busy?
+- Does a downshift sound natural, particularly under hard braking?
+- Does the hand-over from a slide back into gear sound natural?
 - Does the foley tire loop hold up during a long drift?

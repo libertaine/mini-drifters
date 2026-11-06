@@ -210,6 +210,11 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
     assert.ok(driving > SILENCE);
     result.drivingLevel = driving;
     step(`accelerating raises RPM to ${Math.round(s.rpm)} with output level ${driving.toFixed(4)}`);
+    // The speed above passes the first two shift points. The gears exist only in audio.
+    assert.ok(s.gear >= 3, `gear ${s.gear} at speed`);
+    assert.ok(s.shifts >= 2, `${s.shifts} shifts`);
+    result.gearAtSpeed = s.gear;
+    step(`real key presses reach gear ${s.gear} after ${s.shifts} shifts, with no extra sources`);
 
     await page.keyboard.down('ArrowRight');
     await page.waitForTimeout(150);
@@ -308,9 +313,11 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
     assert.equal(after.liveSources, before.liveSources);
     s = await sound();
     assert.equal(s.rpm, 750);
+    assert.equal(s.gear, 1);
+    assert.equal(s.shifts, 0);
     assert.equal(s.mode, 'live');
     assert.ok(await level() > SILENCE);
-    step(`nine restarts: one context, ${after.liveSources} sources, back at idle output`);
+    step(`nine restarts: one context, ${after.liveSources} sources, back at idle output in first gear`);
 
     // --- Finish: a scripted run, then fading to silence, with no tire left over.
     await page.route('**/test/support/drivers.mjs', async (route) => route.fulfill({
