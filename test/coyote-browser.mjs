@@ -1,4 +1,4 @@
-// Native browser checks. Synthetic fixtures are explicitly labeled when private
+// Native browser checks. Synthetic fixtures are explicitly labeled when the
 // owner audio is absent (e.g. public CI); never a production audio fallback.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

@@ -1,11 +1,17 @@
 # Recorded audio sources
 
-These recordings are third-party assets under CC0, separately from the repository's
-MIT code. Source/license pages were checked on 2026-11-06. Files are redistributed
-unmodified; all trimming, seam treatment, filtering and pitch changes happen in memory.
+The repository's MIT license covers its code, not these recordings. This folder holds
+two kinds of audio with different terms, summarized in LICENSE-AUDIO.md:
 
-The game's public deployment includes `tire-foley.mp3` and this file. The engine
-recordings below are used only by the development lab and aren't deployed.
+- **Mustang engine recordings**, owned by the Mini Drifters project owner. They are not
+  CC0 and not MIT. See [the last section](#mustang-engine-recordings-not-cc0).
+- **Third-party recordings** under CC0, in the sections before it. Their source and
+  license pages were checked on 2026-11-06. They are redistributed unmodified, and all
+  trimming, seam treatment, filtering and pitch changes happen in memory.
+
+The game's public deployment includes `tire-foley.mp3`, the four Mustang loops and this
+file. The CC0 engine recordings below are used only by the development lab and aren't
+deployed.
 
 ## Engine
 
@@ -69,10 +75,23 @@ recordings below are used only by the development lab and aren't deployed.
   real-tire squeal recording, each with a verified redistribution license.
 - No commercial-game recordings or synthesized substitutes are labeled as samples.
 
-## Coyote Hybrid owner audio (local only)
+## Mustang engine recordings (not CC0)
 
-Mustang-Dyno.wav and Mustang-Dyno_alt.wav were supplied by the owner. Public
-redistribution rights are unconfirmed; the project MIT license and the CC0
-licenses above do not cover these recordings. Masters and derived WAVs remain
-out of Git. See docs/COYOTE-AUDIO.md and docs/COYOTE-PROVENANCE.json for source
-timestamps, processing, SHA-256 hashes, limitations and local generation.
+- Files: `coyote-local/idle.wav`, `mid.wav`, `load.wav` and `high.wav`, the game's
+  Coyote Hybrid engine
+- Source: dyno recording of the project owner's Mustang (`Mustang-Dyno.wav`)
+- Rights: the Mini Drifters project owner ([libertaine](https://github.com/libertaine))
+  owns all rights and authorizes their distribution with Mini Drifters
+- License: **none beyond that.** The project's MIT license and the CC0 dedications above
+  do not apply, and nothing here permits reuse apart from Mini Drifters
+
+These are short processed loops, not the original recordings. Together they run for about
+3.7 seconds of a 77-second master. The full masters and the in-car reference recording
+are not published.
+
+Processing: mono, filtered, reduced to 24 kHz and looped. `load` and `high` were also
+resampled to hold one engine speed. They are not raw recordings of the engine at those
+speeds. See [docs/COYOTE-PROVENANCE.json](../../docs/COYOTE-PROVENANCE.json) for source
+timestamps and SHA-256 hashes of the masters and loops,
+[docs/COYOTE-OSCILLATION.md](../../docs/COYOTE-OSCILLATION.md) for why they changed, and
+[docs/COYOTE-AUDIO.md](../../docs/COYOTE-AUDIO.md) for the original analysis.

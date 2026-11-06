@@ -67,10 +67,10 @@ For the separate, development-only engine and tire listening bench, open
 for controls, sample licenses, comparison limits and listening checks. The lab
 is excluded from Pages and does not connect to the driving game.
 
-The public game plays a synthesized engine with a CC0 tire recording. A local
-checkout that has the private Coyote recordings plays those instead. See
-[the gameplay audio notes](docs/GAMEPLAY-AUDIO.md) for how to listen, how the sound
-responds to the car and the licensing gate for ever publishing those recordings.
+The game plays recordings of the project owner's Mustang with a CC0 tire recording, and
+falls back to a synthesized engine if the recordings can't load. See
+[the gameplay audio notes](docs/GAMEPLAY-AUDIO.md) for how to listen and how the sound
+responds to the car.
 
 ### Test
 
@@ -144,4 +144,6 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 
 ## License
 
-[MIT](LICENSE).
+The code is [MIT](LICENSE). The audio recordings aren't: see [LICENSE-AUDIO.md](LICENSE-AUDIO.md).
+In particular, the Mustang engine recordings are owned by the project owner, distributed
+with Mini Drifters by permission, and not licensed for other uses.

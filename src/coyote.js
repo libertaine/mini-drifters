@@ -1,6 +1,6 @@
 import { COYOTE_LAYERS } from './coyote-model.js';
 import { smooth } from './audio-voices.js';
-// Owner-supplied recordings, never committed or deployed: see docs/GAMEPLAY-AUDIO.md.
+// The project owner's recordings, not MIT and not CC0: see LICENSE-AUDIO.md.
 const COYOTE_FOLDER = '../audio-lab/assets/coyote-local/';
 export const COYOTE_FILES = Object.freeze(Object.fromEntries(COYOTE_LAYERS.map(({ key }) => [key, key + '.wav'])));
 export async function loadCoyote(ctx, signal, fetcher = fetch) {

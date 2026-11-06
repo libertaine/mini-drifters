@@ -293,7 +293,7 @@ export class GameAudio {
   }
 
   // Exactly one engine voice is ever built. The synthesized one is the fallback
-  // when the private recordings are absent, and is never described as a recording.
+  // when the recordings can't load, and is never described as a recording.
   async loadEngine(s) {
     let coyote = null;
     if (this.coyoteEnabled) {

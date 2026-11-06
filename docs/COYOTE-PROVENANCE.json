@@ -2,7 +2,7 @@
   "recipe": 2,
   "rate": 24000,
   "format": "mono PCM16 WAV",
-  "rights": "Owner supplied; public redistribution NOT confirmed. Do not commit audio.",
+  "rights": "Recorded and owned by the Mini Drifters project owner, who confirmed full ownership on 2026-11-06 and authorized distribution with Mini Drifters. The four runtime loops are published on that basis. Not MIT and not CC0; no broader reuse license is granted. The masters and the in-car reference are not published. See LICENSE-AUDIO.md.",
   "sources": [
     {
       "file": "Mustang-Dyno.wav",

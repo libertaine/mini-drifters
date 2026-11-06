@@ -37,7 +37,7 @@ The smallest change that addressed the source and the anchors:
 
 `idle.wav` and `mid.wav` are byte-identical to the first bank, because the owner accepted them. The gameplay mapping and tire code did not change. This fix doesn't rely on the gear shifting, which came later and works separately.
 
-`scripts/coyote-process.mjs` reproduces all of this from the masters, which are read and never changed. The first bank is kept for comparison in the ignored `.local/coyote/derived-v1/`, and its hashes are listed under `previousDerived` in [COYOTE-PROVENANCE.json](COYOTE-PROVENANCE.json).
+`scripts/coyote-process.mjs` reproduces all of this from the masters, which are read and never changed. The first bank is not published. It's kept for comparison in the ignored `.local/coyote/derived-v1/`, and its hashes are listed under `previousDerived` in [COYOTE-PROVENANCE.json](COYOTE-PROVENANCE.json).
 
 ## Before and after
 

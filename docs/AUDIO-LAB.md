@@ -16,7 +16,7 @@ on screen; audio targets ease toward them over roughly 0.4-0.9 seconds.
 This is an independent listening bench. It never reads or changes the driving game.
 It shares its voice code with the game: `src/audio-voices.js`, `src/coyote.js` and
 `src/coyote-model.js`, which the lab's own modules re-export. Pages doesn't publish
-the lab. The only files it copies from this folder are the game's CC0 tire recording
+the lab. The only files it copies from this folder are the game's recordings
 and its attribution. See [GAMEPLAY-AUDIO.md](GAMEPLAY-AUDIO.md). There is no game UI
 link and no runtime dependency or new build step.
 

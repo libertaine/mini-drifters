@@ -46,6 +46,10 @@ It is not loaded by the lab, so listen separately at a low volume.
 
 ## Rights and preservation
 
+**Superseded:** the owner has since confirmed their rights and authorized distribution of
+the four runtime loops with the game. See [LICENSE-AUDIO.md](../LICENSE-AUDIO.md). The
+masters and the in-car reference stay unpublished. The text below records the experiment.
+
 Owner-supplied does not establish public redistribution rights. Neither masters,
 processed WAVs, waveform plots nor intermediate audio are committed. The project
 MIT license does not grant rights to these recordings. Explicit public audio

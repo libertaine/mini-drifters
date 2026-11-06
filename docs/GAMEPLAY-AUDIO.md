@@ -2,14 +2,13 @@
 
 The owner listened to all three lab engines and chose **Coyote Hybrid**. This work connects it, and the existing sampled tire effect, to actual driving.
 
-**Nobody has listened to this while driving yet.** Automated checks show that signal reaches the output, that RPM and tire values move as designed, and that silence is silent. They can't show that it sounds good. Whether it does is what the [driving worksheet](GAMEPLAY-AUDIO-WORKSHEET.md) is for.
+The owner has listened to an earlier version while driving: the idle and the drifting sound were good, but sustained full throttle had a distracting oscillation and RPM rising without gear changes sounded unnatural. [The oscillation is now corrected](COYOTE-OSCILLATION.md) and the game has virtual gears, and **nobody has listened to those two changes yet**. Automated checks show that signal reaches the output, that RPM and tire values move as designed, and that silence is silent. They can't show that it sounds good. Whether it does is what the [driving worksheet](GAMEPLAY-AUDIO-WORKSHEET.md) is for.
 
 ## Listen to it locally
 
-You need Node 24 and the four private Coyote loops in `audio-lab/assets/coyote-local/`. A public checkout doesn't have them. To generate them, from the repository root:
+You need Node 24. The four Coyote loops are in the repository. From the repository root:
 
 ```powershell
-node scripts/coyote-process.mjs --source D:/Projects/mini-drifters/audio-lab/assets
 $env:PORT='4198'
 node server.mjs
 ```
@@ -18,10 +17,10 @@ Open <http://127.0.0.1:4198/>, press Enter and drive. Hover over the Sound butto
 
 | Tooltip | Engine |
 |---|---|
-| Engine: Coyote Hybrid (local recordings) | The owner's recordings |
-| Engine: synthesized fallback (not a recording) | The public fallback, or a missing or damaged Coyote bank |
+| Engine: Coyote Hybrid (recorded) | The owner's recordings |
+| Engine: synthesized fallback (not a recording) | A missing or damaged Coyote bank |
 
-To hear what a public visitor would get, set `$env:COYOTE_LOCAL='off'` before starting the server.
+To hear the fallback, set `$env:COYOTE_LOCAL='off'` before starting the server. Only someone with the masters can regenerate the loops, using `scripts/coyote-process.mjs`.
 
 ## How it fits together
 
@@ -117,46 +116,31 @@ The **Sound On / Sound Off** button sits under the score. The choice is saved in
 - **Mouse:** a click hands the keyboard straight back to the car.
 - **Keyboard:** Tab to the button, then press Enter. Space also works, except while driving, when Space is always the handbrake.
 
-## Private recordings and public hosting
+## Recordings and public hosting
 
-The Coyote recordings stay private until redistribution rights are confirmed:
+The project owner has confirmed they own all rights in the Mustang recordings and has authorized their distribution with Mini Drifters. The terms are in [LICENSE-AUDIO.md](../LICENSE-AUDIO.md): these files are not MIT and not CC0, and no broader reuse is granted.
 
-- The masters and processed loops are not committed. `.gitignore`, the shared `info/exclude` and a test all guard this.
-- No audio bytes are embedded in any tracked file.
-- `server.mjs` adds a `<meta name="mini-drifters-engine">` tag to the page only when all four loops exist on disk. Without that tag the game never requests them, so public hosting produces no 404s and no sign of them.
-- The server still serves only its explicit list of files.
+| Published | Not published |
+|---|---|
+| `idle.wav`, `mid.wav`, `load.wav` and `high.wav`: short processed loops, about 3.7 s in all | The full masters `Mustang-Dyno.wav` and `Mustang-Dyno_alt.wav` |
+| `tire-foley.mp3`: the unmodified CC0 original | `incar-reference.wav`, which the game never used |
+| `ATTRIBUTION.md` | The first bank of `load` and `high`, and all analysis output in `.local/` |
 
-The public build uses the synthesized engine and the CC0 tire recording. Its button never calls that engine a recording or Coyote.
+`.gitignore` and a test guard the unpublished files, and another test checks each published loop against [the provenance hashes](COYOTE-PROVENANCE.json).
 
 ### What this adds to the public site
 
-When this work eventually reaches `main`, the deploy job adds two files to the site: `audio-lab/assets/tire-foley.mp3` and `audio-lab/assets/ATTRIBUTION.md`. The tire file is the unmodified CC0 original by Joseph SARDIN / BigSoundBank, 1.19 MB. Visitors download it only when they start a run. The rest of the lab isn't deployed.
+When this work reaches `main`, the deploy job adds `audio-lab/assets/tire-foley.mp3` (1.19 MB), the four loops (180 KB) and `audio-lab/assets/ATTRIBUTION.md`. Visitors download the audio only when they start a run. The rest of the lab isn't deployed. **Merging to `main` deploys.** Afterwards, check the live site with `TEST_URL=https://libertaine.github.io/mini-drifters/ npm run test:browser`.
 
-### Publishing Coyote later
+### If the recordings can't load
 
-**Don't do any of this until the owner has confirmed redistribution rights.** MIT and CC0 don't cover these recordings. Once rights are confirmed, make these changes in a dedicated pull request:
-
-1. Record the permission and its scope in `audio-lab/assets/ATTRIBUTION.md`, and update `rights` in `docs/COYOTE-PROVENANCE.json`.
-2. In `.gitignore`, replace `audio-lab/assets/coyote-local/` with `audio-lab/assets/coyote-local/incar-reference.wav`. Keep the `.local/` and `Mustang-Dyno*.wav` lines.
-3. Commit exactly `idle.wav`, `mid.wav`, `load.wav` and `high.wav`, after checking their SHA-256 against the provenance file.
-4. In the "Assemble the site" step of `.github/workflows/ci.yml`, add:
-   ```sh
-   mkdir -p _site/audio-lab/assets/coyote-local
-   cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/
-   ```
-5. In `index.html`, add `<meta name="mini-drifters-engine" content="coyote-local">` to the `<head>`. Remove the injection from `server.mjs`.
-6. In `src/main.js`, change the tooltip wording, which currently says "local recordings".
-7. Update the tests that enforce today's rule:
-   - In `test/publish.test.mjs`, the deploy copy list, the tracked-audio list, the no-`.wav` check and the "never carries the tag" check.
-   - In `test/browser-check.mjs` and `test/gameplay-audio-browser.mjs`, `siteFiles`.
-   - The public pass in `test/gameplay-audio-browser.mjs`, which currently expects `fallback`.
-8. Merging to `main` deploys. Afterwards, check the live site with `TEST_URL=https://libertaine.github.io/mini-drifters/ npm run test:browser`.
+The game still plays. A missing, damaged or timed-out loop switches the whole engine to the synthesized fallback, and the Sound button's tooltip says so. It's never described as a recording. Tires load separately, so either can fail without the other.
 
 ## Testing
 
 | Command | Covers |
 |---|---|
-| `npm test` | Telemetry, lifecycle against a fake graph, determinism with and without audio, publishing rules |
+| `npm test` | Telemetry, gears, oscillation guards, lifecycle against a fake graph, determinism with and without audio, publishing rules |
 | `npm run test:browser` | The original gameplay check, on exactly the published files |
 | `npm run test:gameplay-audio:browser` | Real key presses and real Web Audio, measuring output level |
 | `npm run test:audio:browser`, `npm run test:coyote:browser` | The lab |
@@ -165,12 +149,10 @@ When this work eventually reaches `main`, the deploy job adds two files to the s
 
 | Pass | Files | What it proves |
 |---|---|---|
-| `public` | Exactly what Pages publishes | The fallback lifecycle, and that Coyote is never requested |
-| `fixture` | Synthetic sine WAVs, clearly labelled | The Coyote code path, in public CI too. **Not** authentic audio |
+| `public` | Exactly what Pages publishes | Real Coyote decoding and playback through the whole lifecycle, verified against the provenance hashes |
+| `fallback` | The same files, with the recordings returning 404 | The fallback engine's whole lifecycle |
 | `failures`, `coyote-failures` | Injected failures | Every failure leaves the game drivable |
-| `owner` | The real local server and private loops | Authentic decoding and playback, verified against the provenance hashes |
-
-Set `COYOTE_REQUIRED=1` to fail when the `owner` pass can't run. Hosted CI has no private recordings, says so in its log and never qualifies authentic audio.
+| `local` | The real local server | The same again, through `server.mjs` |
 
 ### Limits of this coverage
 

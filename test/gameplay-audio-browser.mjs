@@ -3,10 +3,9 @@
 // destination; it does not prove anything sounded good, and no human listened here.
 //
 // Passes, each reported separately:
-//   public   - exactly what Pages publishes, with the synthesized fallback engine
-//   fixture  - the Coyote path with labelled synthetic WAVs, so public CI covers it
-//   owner    - the real local server and private recordings, when they exist here
-// Set COYOTE_REQUIRED=1 to fail if the owner pass cannot run.
+//   public   - exactly what Pages publishes, with the real Coyote recordings
+//   fallback - the same files with the recordings failing to load
+//   local    - the local development server
 // Optional argument: absolute path to an existing Playwright index.mjs.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -26,10 +25,10 @@ const SILENCE = 0.0005;
 const provenance = JSON.parse(await readFile(new URL('docs/COYOTE-PROVENANCE.json', root), 'utf8'));
 const COYOTE_FILES = ['idle', 'mid', 'load', 'high'];
 const COYOTE_PATH = (key) => new URL(`audio-lab/assets/coyote-local/${key}.wav`, root);
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mp3': 'audio/mpeg', '.md': 'text/plain; charset=utf-8' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.md': 'text/plain; charset=utf-8' };
 
 // The same files the deploy job publishes.
-const PUBLISHED_AUDIO = ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md'];
+const PUBLISHED_AUDIO = ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md', ...COYOTE_FILES.map((key) => `audio-lab/assets/coyote-local/${key}.wav`)];
 const siteFiles = ['index.html', 'style.css', ...PUBLISHED_AUDIO, ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
 
 async function serveLikePages() {
@@ -117,7 +116,7 @@ const instrument = () => {
   };
 };
 
-const report = { note: 'Measured output levels and lifecycle only. No human listening. Fixture passes are not recordings.', runs: [] };
+const report = { note: 'Measured output levels and lifecycle only. No human listening.', runs: [] };
 
 async function runPass(browser, browserName, passName, base, setup = async () => {}) {
   console.log(`  ${passName}:`);
@@ -372,7 +371,8 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
 
     // --- Every request stayed on the expected paths.
     const coyoteRequests = requests.filter((p) => p.includes('coyote-local'));
-    if (passName === 'public') assert.deepEqual(coyoteRequests, [], 'public hosting never asks for private recordings');
+    assert.ok(coyoteRequests.length > 0, 'the page asked for the recordings');
+    for (const path of coyoteRequests) assert.match(path, /\/coyote-local\/(idle|mid|load|high)\.wav$/);
     for (const path of requests) assert.doesNotMatch(path, /Mustang|incar-reference|\.local/);
     result.coyoteRequests = coyoteRequests.length;
 
@@ -511,7 +511,6 @@ async function runCoyoteFailures(browser, browserName, base) {
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.addInitScript(instrument);
-    await announceCoyote(page, base);
     await page.route('**/coyote-local/*.wav', fulfill);
     await page.goto(base);
     await page.waitForFunction(() => window.__miniDrifters);
@@ -536,69 +535,45 @@ async function runCoyoteFailures(browser, browserName, base) {
   return { browser: browserName, pass: 'coyote-failures', version: browser.version(), passed: true, steps: results };
 }
 
-// Makes a static host behave like a local server that has the Coyote bank.
-async function announceCoyote(page, base) {
-  await page.route(base, async (route) => {
-    const response = await route.fetch();
-    const body = (await response.text()).replace('</head>', '<meta name="mini-drifters-engine" content="coyote-local">\n</head>');
-    await route.fulfill({ response, body });
-  });
-}
-
 // --- Run --------------------------------------------------------------------
 
 const hashes = Object.fromEntries(provenance.loops.map((loop) => [loop.file, loop.sha256]));
-async function ownerBankPresent() {
-  for (const key of COYOTE_FILES) {
-    if (!existsSync(COYOTE_PATH(key))) return false;
-    const digest = createHash('sha256').update(await readFile(COYOTE_PATH(key))).digest('hex');
-    assert.equal(digest, hashes[`${key}.wav`], `${key}.wav does not match docs/COYOTE-PROVENANCE.json`);
-  }
-  return true;
+for (const key of COYOTE_FILES) {
+  assert.ok(existsSync(COYOTE_PATH(key)), `${key}.wav is missing`);
+  const digest = createHash('sha256').update(await readFile(COYOTE_PATH(key))).digest('hex');
+  assert.equal(digest, hashes[`${key}.wav`], `${key}.wav does not match docs/COYOTE-PROVENANCE.json`);
 }
 
-const owner = await ownerBankPresent();
-if (process.env.COYOTE_REQUIRED === '1') assert.ok(owner, 'COYOTE_REQUIRED=1 but the private recordings are not in this checkout');
-report.ownerRecordingsPresent = owner;
-
 const pages = await serveLikePages();
-const local = owner ? await serveLocal(4199) : null;
+const local = await serveLocal(4199);
 try {
   for (const [name, engine] of [['chromium', chromium], ['firefox', firefox]]) {
     console.log(`Checking ${name}...`);
     const browser = await engine.launch({ headless: true });
     try {
       report.runs.push(await runPass(browser, name, 'public', pages.url));
-      report.runs.push(await runPass(browser, name, 'fixture', pages.url, async (page) => {
-        await announceCoyote(page, pages.url);
-        const fixtures = { idle: 73, mid: 180, load: 293, high: 440 };
-        await page.route('**/coyote-local/*.wav', (route) => {
-          const key = new URL(route.request().url()).pathname.split('/').pop().replace('.wav', '');
-          return route.fulfill({ status: 200, contentType: 'audio/wav', body: fixtureWav(fixtures[key]) });
-        });
+      report.runs.push(await runPass(browser, name, 'fallback', pages.url, async (page) => {
+        await page.route('**/coyote-local/*.wav', (route) => route.fulfill({ status: 404, body: 'gone' }));
       }));
       report.runs.push(await runFailures(browser, name, pages.url));
       report.runs.push(await runCoyoteFailures(browser, name, pages.url));
-      if (local) report.runs.push(await runPass(browser, name, 'owner', local.url));
-      else console.log('  owner: SKIPPED. Private recordings are absent, so this run does not qualify authentic Coyote playback.');
+      report.runs.push(await runPass(browser, name, 'local', local.url));
     } finally {
       await browser.close();
     }
   }
 } finally {
   pages.stop();
-  local?.stop();
+  local.stop();
 }
 
 for (const run of report.runs) {
-  if (run.pass === 'owner' && run.realtimeOutput) assert.equal(run.engine, 'coyote', 'owner pass must decode the real bank');
-  if (run.pass === 'fixture' && run.realtimeOutput) assert.equal(run.engine, 'coyote', 'fixture pass exercises the Coyote voice');
-  if (run.pass === 'public' && run.realtimeOutput) assert.equal(run.engine, 'fallback', 'public pass uses the labelled fallback');
+  if (['public', 'local'].includes(run.pass) && run.realtimeOutput) assert.equal(run.engine, 'coyote', `${run.pass} pass must decode the real bank`);
+  if (run.pass === 'fallback' && run.realtimeOutput) assert.equal(run.engine, 'fallback', 'fallback pass uses the labelled fallback');
 }
 await writeFile(artifact('gameplay-audio-report.json'), `${JSON.stringify(report, null, 2)}\n`);
 for (const run of report.runs) {
   const note = run.realtimeOutput === false ? ' (no real-time output device: bounded failure path only)' : '';
   console.log(`${run.browser} ${run.version} ${run.pass}: ${run.passed ? 'PASSED' : `FAILED: ${run.error}`}${note}`);
 }
-console.log(owner ? 'Owner recordings: decoded and exercised locally.' : 'Owner recordings: NOT present. Authentic Coyote playback was NOT qualified by this run.');
 process.exit(report.runs.every((run) => run.passed) ? 0 : 1);

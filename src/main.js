@@ -18,7 +18,7 @@ const renderer = createRenderer($('view'), game.track);
 // --- Sound -----------------------------------------------------------------
 const soundButton = $('sound');
 const audio = new GameAudio({
-  // Only the local server adds this tag, and only when the private recordings exist.
+  // The published page carries this tag. Without it, the game uses the synthesized engine.
   coyoteEnabled: !!document.querySelector('meta[name="mini-drifters-engine"][content="coyote-local"]'),
   isHidden: () => document.hidden,
   onChange: showSound,
@@ -28,7 +28,7 @@ function showSound(sound) {
   setText('sound', sound.label);
   soundButton.dataset.engine = sound.engine;
   soundButton.title = sound.failure ? `${sound.failure}. Click to try again.`
-    : sound.engine === 'coyote' ? 'Engine: Coyote Hybrid (local recordings)'
+    : sound.engine === 'coyote' ? 'Engine: Coyote Hybrid (recorded)'
       : sound.engine === 'fallback' ? 'Engine: synthesized fallback (not a recording)' : '';
 }
 

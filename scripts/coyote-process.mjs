@@ -232,7 +232,7 @@ function stationaryLoop(w, selection, rmsTarget) {
 const RMS_TARGET = { load: 0.21248573144198601, high: 0.18675700985340823 };
 const outputArg = process.argv.indexOf('--output');
 const output = outputArg > 0 ? path.resolve(process.argv[outputArg + 1]) : path.join(root, 'audio-lab/assets/coyote-local'); fs.mkdirSync(output, { recursive: true });
-const manifest = { recipe: 2, rate: 24000, format: 'mono PCM16 WAV', rights: 'Owner supplied; public redistribution NOT confirmed. Do not commit audio.',
+const manifest = { recipe: 2, rate: 24000, format: 'mono PCM16 WAV', rights: 'Recorded and owned by the Mini Drifters project owner, who confirmed full ownership on 2026-11-06 and authorized distribution with Mini Drifters. The four runtime loops are published on that basis. Not MIT and not CC0; no broader reuse license is granted. The masters and the in-car reference are not published. See LICENSE-AUDIO.md.',
   sources: recordings.map((w) => w.info), loops: [] };
 for (const selection of selections) {
   const w = recordings[selection.recording], margin = 0.015;

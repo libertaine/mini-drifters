@@ -130,7 +130,7 @@ test('production builds one engine voice, never all three lab voices', async () 
   assert.equal(fallback.contexts[0].sources.length, 7);
 });
 
-test('public hosting never asks for the private recordings and is never called Coyote', async () => {
+test('with Coyote switched off the game never asks for the recordings or calls itself Coyote', async () => {
   let asked = 0;
   const { audio } = await startDriving(setup({ coyoteEnabled: false, coyoteLoader: async () => { asked += 1; return { buffers: {}, failures: [] }; } }));
   assert.equal(asked, 0);
