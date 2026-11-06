@@ -80,6 +80,8 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
+Changes reach `main` through a pull request, and the `test` check must pass before it can merge.
+
 ### Project layout
 
 | Path | Contents |
