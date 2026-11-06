@@ -2,7 +2,7 @@
 
 The owner reported that the Coyote engine had a distracting oscillation at sustained full throttle, while idle and drifting sounded good. This records what caused it, what changed and what the numbers can't tell us.
 
-**Everything here measures the signal. Nobody has listened to the corrected engine yet**, so whether the oscillation is gone to the ear is still an open question. See [Listening checks](#listening-checks).
+The tables below measure the signal. The owner has since listened to the corrected engine while driving and reports that **the oscillation is gone**. See [Listening result](#listening-result).
 
 ## Cause
 
@@ -87,9 +87,15 @@ Results go to the ignored `.local/coyote/oscillation/`, which holds `report.json
 
 `test/coyote-oscillation.test.mjs` guards the result: pitch held across a repeat, whole engine cycles, and anchors that match what each loop actually plays.
 
-## Listening checks
+## Listening result
 
-- At sustained full throttle, is the oscillation gone?
-- Around 4400–4700 RPM, is there a slow pulse (about 1.7 times a second)?
-- Does drifting still sound as good? It lost the slight doubling of two detuned notes.
-- Is the engine now too high-pitched in the 3000–5000 RPM range? `load` used to sound about 19% lower than its label, and it now plays at its labelled speed.
+The owner listened on 2026-11-06 and called it an improvement over the previous version.
+
+| Question | Owner's answer |
+|---|---|
+| At sustained full throttle, is the oscillation gone? | Yes |
+| Around 4400–4700 RPM, is there a slow pulse? | Didn't notice one |
+| Does drifting still sound as good? | A little worse, but still good |
+| Is the engine too high-pitched at 3000–5000 RPM? | Fine for now |
+
+The change to the drift sound may come from losing the slight doubling of two detuned notes, but nobody has confirmed that. It's a possible later refinement, not a defect to fix now. The browser, output device and volume weren't recorded.

@@ -2,7 +2,7 @@
 
 The owner listened to all three lab engines and chose **Coyote Hybrid**. This work connects it, and the existing sampled tire effect, to actual driving.
 
-The owner has listened to an earlier version while driving: the idle and the drifting sound were good, but sustained full throttle had a distracting oscillation and RPM rising without gear changes sounded unnatural. [The oscillation is now corrected](COYOTE-OSCILLATION.md) and the game has virtual gears, and **nobody has listened to those two changes yet**. Automated checks show that signal reaches the output, that RPM and tire values move as designed, and that silence is silent. They can't show that it sounds good. Whether it does is what the [driving worksheet](GAMEPLAY-AUDIO-WORKSHEET.md) is for.
+The owner has listened to an earlier version while driving: the idle and the drifting sound were good, but sustained full throttle had a distracting oscillation and RPM rising without gear changes sounded unnatural. The oscillation is now [corrected](COYOTE-OSCILLATION.md) and the game has virtual gears. The owner listened to both on 2026-11-06 and called them an improvement: see [Listening result](#listening-result). Automated checks show that signal reaches the output, that RPM and tire values move as designed, and that silence is silent. They can't show that it sounds good, which is what the [driving worksheet](GAMEPLAY-AUDIO-WORKSHEET.md) is for.
 
 ## Listen to it locally
 
@@ -74,7 +74,7 @@ The gears exist only in the sound. They read the same ten telemetry values as ev
 
 There's no transmission sound, clutch simulation or gear indicator.
 
-In scripted driving there were 10 shifts a minute on grip, drift and reckless runs, with no back-and-forth and no shift during a held slide. Held power drifts averaged about 5600 RPM. All of this says the gears behave as designed. It doesn't say they sound good.
+In scripted driving there were 10 shifts a minute on grip, drift and reckless runs, with no back-and-forth and no shift during a held slide. Held power drifts averaged about 5600 RPM. All of this says the gears behave as designed. The owner's view of how they sound is under [Listening result](#listening-result).
 
 ## Tires
 
@@ -161,12 +161,23 @@ The game still plays. A missing, damaged or timed-out loop switches the whole en
 - Firefox has no `cancelAndHoldAtTime`, so `smooth()` falls back to reading `param.value`. A real-time probe at the game's 30 Hz update rate showed Firefox 157 glides matching Chromium 156. This was a one-off measurement and isn't in the test suite.
 - CPU use hasn't been profiled on low-power hardware. Headless frame rate while sliding stayed above 60 fps on the desktop used for testing.
 
+## Listening result
+
+The owner listened on 2026-11-06. This is a summary, not a filled-in worksheet, and the browser, output device and volume weren't recorded.
+
+| Question | Owner's answer |
+|---|---|
+| Is the full-throttle oscillation gone? | Yes |
+| Does drifting still sound as good? | A little worse, but still good |
+| Is there a slow pulse around 4400–4700 RPM? | Didn't notice one |
+| Are the gear changes audible but unobtrusive? | Shifting sounds good |
+| Do downshifts and the move from a slide back into gear sound natural? | Yes |
+| Is the engine too high-pitched at 3000–5000 RPM? | Fine for now |
+
 ## Open questions for listening
 
+These are still open.
+
+
 - Is the master level right? It's about 5 dB above the lab's bench level, which measured a quiet -30 dBFS RMS while driving. Set it with `masterLevel`.
-- Is the full-throttle oscillation gone? [COYOTE-OSCILLATION.md](COYOTE-OSCILLATION.md) has the diagnosis, the before and after numbers and its own listening checks.
-- Are the gear changes audible but unobtrusive? The share of RPM lost, the 0.22 s shift and the load dip are all starting values in `AUDIO_TUNING.gears`.
-- Are the shift points in the right place, and does 10 shifts a minute feel right or busy?
-- Does a downshift sound natural, particularly under hard braking?
-- Does the hand-over from a slide back into gear sound natural?
 - Does the foley tire loop hold up during a long drift?
