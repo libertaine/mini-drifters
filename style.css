@@ -206,6 +206,21 @@ button:hover { background: #ff6a40; }
 button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; background: rgba(0, 0, 0, 0.28); letter-spacing: 0; }
 
+#sound {
+  position: fixed;
+  top: 100px; /* just under the score, clear of the minimap and the road ahead */
+  right: 16px;
+  z-index: 5;
+  margin: 0;
+  padding: 7px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  font: 700 12px var(--body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+#sound:hover { background: rgba(50, 51, 56, 0.9); }
+
 .stats { margin: 14px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
 .stats div { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #36373d; padding-bottom: 5px; gap: 10px; }
 .stats .big { grid-column: 1 / -1; }

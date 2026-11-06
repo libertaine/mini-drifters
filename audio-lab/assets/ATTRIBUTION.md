@@ -4,6 +4,9 @@ These recordings are third-party assets under CC0, separately from the repositor
 MIT code. Source/license pages were checked on 2026-11-06. Files are redistributed
 unmodified; all trimming, seam treatment, filtering and pitch changes happen in memory.
 
+The game's public deployment includes `tire-foley.mp3` and this file. The engine
+recordings below are used only by the development lab and aren't deployed.
+
 ## Engine
 
 - Work: Racing car engine sound loops

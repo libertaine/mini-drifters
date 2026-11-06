@@ -1,5 +1,9 @@
 # Coyote Hybrid owner-audio experiment
 
+The owner has since chosen this engine for the game: see
+[GAMEPLAY-AUDIO.md](GAMEPLAY-AUDIO.md). Its code now lives in `src/coyote.js` and
+`src/coyote-model.js`, shared with the lab. The notes below record the experiment.
+
 This extends draft PR #5 at unchanged baseline
 9fe61ed5c43193671b2d97863fd4d5510c7b768f. Worktree:
 D:/Projects/mini-drifters-coyote; branch: experiment/coyote-hybrid.

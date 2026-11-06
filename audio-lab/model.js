@@ -1,4 +1,5 @@
 import { mapCoyote } from './coyote-model.js';
+import { mapProceduralEngine } from '../src/audio-voices.js';
 // Lab units only: RPM, mph, degrees, and fractions. No simulation imports.
 // Static RMS reference matching, not automatic loudness processing.
 export const ENGINE_TRIMS = Object.freeze({ procedural: 1, samples: 1.15, coyote: 1 });
@@ -53,11 +54,7 @@ export function mapAudio(values) {
   const tire = smoothstep(0, 14, v.speed) * friction;
   const highBlend = smoothstep(0.12, 0.85, rpm);
   return {
-    ...v, ...mapCoyote(v), rpmFraction: rpm,
-    firingHz: v.rpm / 60 * 4,
-    engineGain: 0.23 + 0.12 * rpm + 0.15 * v.throttle,
-    engineCutoff: 420 + 2600 * rpm + 2300 * v.throttle,
-    roughness: 0.015 + 0.035 * v.throttle,
+    ...v, ...mapCoyote(v), ...mapProceduralEngine(v),
     tireIntensity: tire * (grass ? 0.32 : 1),
     tireCutoff: grass ? 950 : 1400 + 2100 * angle,
     squealHz: 700 + 850 * angle + 2 * v.speed,
