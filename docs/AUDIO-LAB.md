@@ -13,18 +13,19 @@ The eight presets set driving parameters and road surface; the mix and mode are
 preserved. Individual sliders remain adjustable. Preset values update immediately
 on screen; audio targets ease toward them over roughly 0.4-0.9 seconds.
 
-This is an independent listening bench. It never imports or mutates the game.
-`src/physics.js`, `src/game.js`, `src/main.js`, `src/tuning.js`, controls, scoring,
-track and the main HTML/CSS remain unchanged. The existing Pages assembly copies
-only `index.html`, `style.css`, and `src/`, so the lab is excluded from production.
-There is no game UI link and no runtime dependency or new build step.
+This is an independent listening bench. It never reads or changes the driving game.
+It shares its voice code with the game: `src/audio-voices.js`, `src/coyote.js` and
+`src/coyote-model.js`, which the lab's own modules re-export. Pages doesn't publish
+the lab. The only files it copies from this folder are the game's CC0 tire recording
+and its attribution. See [GAMEPLAY-AUDIO.md](GAMEPLAY-AUDIO.md). There is no game UI
+link and no runtime dependency or new build step.
 
 ## Architecture
 
 | File | Responsibility |
 |---|---|
 | `audio-lab/model.js` | Unit bounds, defaults, presets, pure audio-target mapping |
-| `audio-lab/voices.js` | Disposable procedural/sample graphs, smoothing and sample decode/seam processing |
+| `audio-lab/voices.js` | Loads the B recordings and re-exports the shared voices from `src/audio-voices.js` |
 | `audio-lab/audio.js` | One context/session, channel mix, A/B crossfade, mute, loading and cleanup |
 | `audio-lab/lab.js` | Accessible controls, status and visibility lifecycle |
 | `audio-lab/assets/ATTRIBUTION.md` | Source URLs, checked licenses, hashes and asset limitations |

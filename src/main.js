@@ -4,6 +4,7 @@ import { createGame, startRun, restartRun, togglePause, advance } from './game.j
 import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
 import { projectOnTrack } from './track.js';
+import { GameAudio } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -13,6 +14,23 @@ const ANGLE_GAUGE_MAX = 90;
 
 const game = createGame();
 const renderer = createRenderer($('view'), game.track);
+
+// --- Sound -----------------------------------------------------------------
+const soundButton = $('sound');
+const audio = new GameAudio({
+  // Only the local server adds this tag, and only when the private recordings exist.
+  coyoteEnabled: !!document.querySelector('meta[name="mini-drifters-engine"][content="coyote-local"]'),
+  isHidden: () => document.hidden,
+  onChange: showSound,
+});
+
+function showSound(sound) {
+  setText('sound', sound.label);
+  soundButton.dataset.engine = sound.engine;
+  soundButton.title = sound.failure ? `${sound.failure}. Click to try again.`
+    : sound.engine === 'coyote' ? 'Engine: Coyote Hybrid (local recordings)'
+      : sound.engine === 'fallback' ? 'Engine: synthesized fallback (not a recording)' : '';
+}
 
 // --- Input -----------------------------------------------------------------
 const CODE_TO_KEY = {
@@ -34,25 +52,34 @@ function beginRun() {
   resetEffects(renderer, game.car);
   clearInput();
   syncScreens();
+  audio.newRun(game);
 }
 
 function restart() {
   restartRun(game);
   resetEffects(renderer, game.car);
   syncScreens();
+  audio.newRun(game);
+}
+
+// While driving, Space is always the handbrake, even with the Sound button focused.
+function buttonOwnsSpace(e) {
+  if (game.state === 'menu') return e.target instanceof HTMLButtonElement;
+  return e.target === soundButton && (game.paused || game.state === 'finished');
 }
 
 window.addEventListener('keydown', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (held) {
     // On the menu, Space may still activate a focused button.
-    const onMenuButton = game.state === 'menu' && e.code === 'Space' && e.target instanceof HTMLButtonElement;
-    if (!onMenuButton) e.preventDefault();
+    if (!(e.code === 'Space' && buttonOwnsSpace(e))) e.preventDefault();
     input[held] = true;
     return;
   }
   if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.code === 'Enter' && (game.state === 'menu' || game.state === 'finished')) {
+  if (e.code === 'Enter' && e.target === soundButton) {
+    // Left to the browser, so Enter toggles the focused Sound button.
+  } else if (e.code === 'Enter' && (game.state === 'menu' || game.state === 'finished')) {
     e.preventDefault();
     beginRun();
   } else if (e.code === 'KeyR' && game.state !== 'menu') {
@@ -61,6 +88,7 @@ window.addEventListener('keydown', (e) => {
     togglePause(game);
     clearInput();
     syncScreens();
+    audio.gesture(game);
   } else if (e.code === 'KeyD') {
     debug = !debug;
     $('debug').hidden = !debug;
@@ -71,7 +99,7 @@ window.addEventListener('keyup', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (!held) return;
   // Firefox activates a focused button on keyup, so that needs blocking as well.
-  if (!(game.state === 'menu' && e.target instanceof HTMLButtonElement)) e.preventDefault();
+  if (!(e.code === 'Space' && buttonOwnsSpace(e))) e.preventDefault();
   input[held] = false;
 });
 
@@ -83,15 +111,25 @@ function onFocusLost() {
     togglePause(game);
     syncScreens();
   }
+  // Called directly because animation frames stop in a hidden tab.
+  audio.setPageActive(false, game);
 }
 window.addEventListener('blur', onFocusLost);
+window.addEventListener('focus', () => audio.setPageActive(true, game));
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) onFocusLost();
+  else audio.setPageActive(true, game);
 });
+window.addEventListener('pagehide', () => audio.dispose());
 
 window.addEventListener('resize', () => resize(renderer));
 $('start').addEventListener('click', beginRun);
 $('again').addEventListener('click', beginRun);
+soundButton.addEventListener('click', (e) => {
+  audio.setMuted(!audio.muted && !audio.failure, game);
+  // After a mouse click, hand the keyboard straight back to the car.
+  if (e.detail > 0) soundButton.blur();
+});
 
 // --- HUD -------------------------------------------------------------------
 function formatTime(seconds) {
@@ -256,6 +294,7 @@ function frame(now) {
     shownState = game.state;
     syncScreens();
   }
+  audio.update(game, dt);
   const alpha = Math.min(1, game.accumulator / TUNING.simStep);
   drawFrame(renderer, game, alpha, dt, debug);
   if (game.state !== 'menu') updateHud(now / 1000);
@@ -263,6 +302,7 @@ function frame(now) {
 }
 
 syncScreens();
+showSound(audio.snapshot());
 // A small read-only hook for the browser checks and tuning from the console.
-window.__miniDrifters = { game, input, projectOnTrack };
+window.__miniDrifters = { game, input, projectOnTrack, audio: () => audio.snapshot() };
 requestAnimationFrame(frame);

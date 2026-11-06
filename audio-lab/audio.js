@@ -1,5 +1,6 @@
 import { createCoyote, loadCoyote } from './coyote.js';
 import { DEFAULTS, ENGINE_TRIMS, mapAudio, normalize } from './model.js';
+import { createMixCompressor } from '../src/audio-voices.js';
 import { createProcedural, createSampleVoice, loadSamples, smooth } from './voices.js';
 
 export class AudioLab {
@@ -65,9 +66,7 @@ export class AudioLab {
       s.master = gain(this.values.masterVolume * 0.65);
       s.engine = gain(this.values.engineVolume);
       s.tire = gain(this.values.tireVolume);
-      const compressor = ctx.createDynamicsCompressor(); nodes.push(compressor);
-      compressor.threshold.value = -10; compressor.knee.value = 8;
-      compressor.ratio.value = 12; compressor.attack.value = 0.003; compressor.release.value = 0.15;
+      const compressor = createMixCompressor(ctx); nodes.push(compressor);
       s.engine.connect(compressor); s.tire.connect(compressor);
       compressor.connect(s.master).connect(s.gate).connect(ctx.destination);
       s.procEngine = gain(); s.procTire = gain(); s.sampleEngine = gain(); s.sampleTire = gain();

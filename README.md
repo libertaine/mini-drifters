@@ -8,7 +8,7 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 
 ## Status
 
-**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, one track and no sound, and handling and scoring may change. See the [roadmap](docs/ROADMAP.md) for what might come next.
+**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, one track and simple engine and tire sound, and handling and scoring may change. See the [roadmap](docs/ROADMAP.md) for what might come next.
 
 ## Controls
 
@@ -23,6 +23,8 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 | D | Debug display |
 
 Enter also starts a run from the title and results screens.
+
+The **Sound** button under the score turns sound on and off, and remembers your choice. It works with the mouse, or with Tab and Enter.
 
 ### How to drift
 
@@ -65,13 +67,18 @@ For the separate, development-only engine and tire listening bench, open
 for controls, sample licenses, comparison limits and listening checks. The lab
 is excluded from Pages and does not connect to the driving game.
 
+The public game plays a synthesized engine with a CC0 tire recording. A local
+checkout that has the private Coyote recordings plays those instead. See
+[the gameplay audio notes](docs/GAMEPLAY-AUDIO.md) for how to listen, how the sound
+responds to the car and the licensing gate for ever publishing those recordings.
+
 ### Test
 
 ```
 npm test
 ```
 
-This runs the physics, scoring, lap, session and publishing tests.
+This runs the physics, scoring, lap, session, audio and publishing tests.
 
 The browser check drives the game with real key presses in Chromium and Firefox, served the same way as on GitHub Pages. It needs Playwright, which the game itself doesn't depend on:
 
@@ -97,6 +104,8 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/scoring.js` | Drift detection and combos |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
 | `src/render.js`, `src/main.js` | Drawing, input and the HUD |
+| `src/audio.js`, `src/audio-telemetry.js` | Sound, and how the car's telemetry maps to it |
+| `src/audio-voices.js`, `src/coyote.js`, `src/coyote-model.js` | Engine and tire voices, shared with the audio lab |
 | `test/` | Automated tests and the scripted drivers they use |
 
 Press D in the game to see live slip angles, grip, drift qualification and checkpoint progress.

@@ -21,10 +21,11 @@ const artifact = (name) => fileURLToPath(new URL(`artifacts/${PREFIX}${name}`, r
 await mkdir(new URL('artifacts/', root), { recursive: true });
 
 // The same files the deploy job publishes.
-const siteFiles = ['index.html', 'style.css', ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
+const siteFiles = ['index.html', 'style.css', 'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md',
+  ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
 
 async function serveLikePages() {
-  const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+  const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mp3': 'audio/mpeg', '.md': 'text/plain; charset=utf-8' };
   const server = http.createServer(async (req, res) => {
     const path = new URL(req.url, 'http://localhost').pathname;
     const file = path === '/mini-drifters/' ? 'index.html' : path.replace('/mini-drifters/', '');

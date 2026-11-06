@@ -174,7 +174,9 @@ test('failed HTTP/decode sample requests produce explicit missing layers', async
 test('Pages keeps its explicit game-only deployment allowlist', async () => {
   const workflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.match(workflow, /cp -r index\.html style\.css src _site\//);
-  assert.doesNotMatch(workflow, /cp[^\n]*audio-lab/);
+  // Of the lab's folder, only the game's CC0 tire file and its attribution go out.
+  const labCopies = workflow.split('\n').filter((line) => /\bcp\b/.test(line) && line.includes('audio-lab')).map((line) => line.trim());
+  assert.deepEqual(labCopies, ['cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/']);
   for (const file of ['../src/main.js', '../index.html']) {
     assert.doesNotMatch(await readFile(new URL(file, import.meta.url), 'utf8'), /audio-lab|AudioContext/);
   }
