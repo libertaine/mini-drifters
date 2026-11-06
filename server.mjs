@@ -4,15 +4,23 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-const TYPES = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8' };
+const TYPES = { html: 'text/html; charset=utf-8', css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', wav: 'audio/wav', mp3: 'audio/mpeg', md: 'text/plain; charset=utf-8' };
 const ALLOWED = new Set(['/index.html', '/style.css']);
+// Development only. Pages copies index.html, style.css and src/, never this lab.
+const LAB = new Set(['index.html', 'lab.css', 'lab.js', 'model.js', 'audio.js', 'voices.js',
+  'assets/engine-low.wav', 'assets/engine-high.wav', 'assets/tire-foley.mp3', 'assets/ATTRIBUTION.md']
+  .map((file) => `/audio-lab/${file}`));
 const SOURCE = /^\/src\/[a-z]+\.js$/;
 const port = Number(process.env.PORT || 4190);
 
 const server = http.createServer(async (req, res) => {
   let path = new URL(req.url, 'http://localhost').pathname;
+  if (path === '/audio-lab' && ['GET', 'HEAD'].includes(req.method)) {
+    res.writeHead(308, { Location: '/audio-lab/' }); res.end(); return;
+  }
+  if (path === '/audio-lab/') path = '/audio-lab/index.html';
   if (path === '/') path = '/index.html';
-  if (!['GET', 'HEAD'].includes(req.method) || !(ALLOWED.has(path) || SOURCE.test(path))) {
+  if (!['GET', 'HEAD'].includes(req.method) || !(ALLOWED.has(path) || SOURCE.test(path) || LAB.has(path))) {
     res.writeHead(404);
     res.end('Not found');
     return;

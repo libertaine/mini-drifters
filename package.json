@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
-    "test:browser": "node test/browser-check.mjs"
+    "test:browser": "node test/browser-check.mjs",
+    "test:audio:browser": "node test/audio-lab-browser.mjs"
   }
 }

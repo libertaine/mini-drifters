@@ -60,6 +60,11 @@ node server.mjs
 
 Then open <http://127.0.0.1:4190>.
 
+For the separate, development-only engine and tire listening bench, open
+<http://127.0.0.1:4190/audio-lab/>. See [the audio lab notes](docs/AUDIO-LAB.md)
+for controls, sample licenses, comparison limits and listening checks. The lab
+is excluded from Pages and does not connect to the driving game.
+
 ### Test
 
 ```
