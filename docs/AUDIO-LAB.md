@@ -60,7 +60,10 @@ up. Perceptual loudness is not matched between A and B: use the mix while compar
 Stop zeroes the output, aborts loads, stops/disconnects all sources and closes the
 context. A stale resume/decode cannot attach to a restarted session. Hidden/pagehide
 and context interruptions stop audio; resuming requires Start. Mute persists through
-restart. Fetches time out after 12 seconds. Missing or corrupt recordings are reported;
+restart. A native resume that has not completed after eight seconds stops and reports
+an output-device/permission error; it cannot leave the UI starting forever. Stop
+also settles a pending start without waiting for the native promise. Fetches time
+out after 12 seconds. Missing or corrupt recordings are reported;
 missing layers stay silent. With one surviving engine recording, it spans the RPM
 range. Sample mode never silently substitutes synthesis. Stop/Start retries loads.
 
@@ -103,7 +106,8 @@ npm run test:audio:browser
 
 The browser scripts accept an optional absolute path to Playwright's `index.mjs`,
 so an existing development-only install can be reused. Otherwise use the pinned
-Playwright setup in README. CI runs both browser scripts. The lab check serves
+Playwright setup in README. Set `AUDIO_LAB_BROWSER=firefox` or `chromium` to narrow
+local lab checks; CI leaves it unset and runs both. CI runs both browser scripts. The lab check serves
 through the actual development server and writes screenshots and render metrics
 to ignored `artifacts/audio-lab-*` files. The game check continues to serve the
 production-only file list. These are headless browser checks, not physical-device
@@ -111,7 +115,7 @@ testing, subjective listening, or an audio-device compatibility benchmark.
 
 Local verification on Windows, 2026-11-06:
 
-- 106/106 Node tests passed (94 existing plus 12 focused lab tests).
+- 107/107 Node tests passed (94 existing plus 13 focused lab tests).
 - Existing gameplay browser checks passed in Chromium 156 and Firefox 157.
 - Lab browser checks passed in both, including missing/corrupt samples, resume
   and load cancellation, repeated starts/stops, mute, simulated visibility and
@@ -128,14 +132,21 @@ Local verification on Windows, 2026-11-06:
 
 Hosted CI evidence belongs to the draft PR; local checks alone do not establish it.
 
-The first Ubuntu CI lab run passed Chromium but Firefox timed out awaiting the
-real-time AudioContext on the container's device-less audio backend. On Linux,
-the Firefox harness now requests Mozilla's test-only fake output devices via
-`media.cubeb.force_mock_context`. Native Web Audio graph processing and the
-OfflineAudioContext renders still run. This is emulated output, not a hardware
-audio check; Windows keeps the normal backend. Failure snapshots are logged and
-screenshotted. The preference is implemented in Mozilla's source:
-https://github.com/mozilla-firefox/firefox/blob/main/dom/media/CubebUtils.cpp .
+Two Ubuntu CI attempts passed Chromium but Firefox timed out awaiting native
+real-time AudioContext resume. A trial of Mozilla's mock-output preference did
+not fix the packaged browser. A local Ubuntu WSL probe reproduced the suspended
+context (clock remained at zero), including with alternative backend/autoplay
+preferences. The ineffective preference was removed.
+
+The application now reports a bounded startup failure when native resume does not
+settle. The browser harness requires real-time lifecycle checks everywhere except
+device-less Linux Firefox, where it verifies that explicit failure and graph
+cleanup, then still runs all 22 native OfflineAudioContext renders, sample decoding,
+controls and layout checks. The report marks `realtimeOutput: false` for that case.
+This is a stated coverage limit, not a successful real-time Firefox/Linux playback
+test. Both Windows browsers passed full playback lifecycle checks. A Linux desktop
+with an audio device should receive a separate manual listening check. Failure
+snapshots are logged and screenshotted. No audio devices are emulated or faked.
 
 Human listening remains required; record browser, headphones/speakers, levels,
 mode and impressions for each row:

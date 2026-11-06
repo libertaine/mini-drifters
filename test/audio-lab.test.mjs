@@ -113,8 +113,19 @@ test('stop during resume cannot revive audio or begin stale sample loads', async
   const pending = deferred(); let loads = 0;
   const ctx = new Context(); ctx.resume = () => pending.promise;
   const lab = new AudioLab({ contextFactory: () => ctx, sampleLoader: async () => { loads++; return emptySamples(); } });
-  const ready = lab.start(); lab.stop(); pending.resolve(); await ready;
+  const ready = lab.start(); lab.stop(); await ready; pending.resolve(); await settle();
   assert.equal(loads, 0); assert.equal(lab.snapshot().running, false);
+});
+
+test('a native resume that never settles reports a bounded output failure and releases its graph', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const ctx = new Context(); ctx.resume = () => new Promise(() => {});
+  const lab = new AudioLab({ contextFactory: () => ctx, sampleLoader: emptySamples });
+  const ready = lab.start();
+  t.mock.timers.tick(8000); await ready;
+  assert.equal(lab.snapshot().running, false); assert.equal(lab.snapshot().sourceCount, 0);
+  assert.match(lab.snapshot().message, /Audio output did not start/);
+  assert.equal(ctx.state, 'closed');
 });
 
 test('late sample decode from an old session cannot attach to a restarted graph', async () => {

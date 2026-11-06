@@ -72,10 +72,17 @@ export class AudioLab {
       s.procTire.connect(s.tire); s.sampleTire.connect(s.tire);
       // resume() runs synchronously within the click handler, before any fetch.
       const resumed = ctx.resume();
+      const resumeDeadline = new Promise((resolve, reject) => {
+        s.cancelResume = resolve;
+        s.resumeTimer = setTimeout(() => reject(new Error(
+          'Audio output did not start. Check your audio device and browser permissions, then try Start Audio again.',
+        )), 8000);
+      });
       s.procedural = createProcedural(ctx, s.procEngine, s.procTire);
       this.update();
       this.message = 'Starting audio…';
-      s.ready = Promise.resolve(resumed).then(() => {
+      s.ready = Promise.race([resumed, resumeDeadline]).then(() => {
+        clearTimeout(s.resumeTimer);
         if (this.session !== s) return;
         s.running = true;
         ctx.onstatechange = () => {
@@ -132,7 +139,8 @@ export class AudioLab {
     if (s) {
       s.gate?.gain.cancelScheduledValues(s.ctx.currentTime);
       s.gate?.gain.setValueAtTime(0, s.ctx.currentTime);
-      s.abort.abort(); clearTimeout(s.timeout);
+      s.abort.abort(); clearTimeout(s.timeout); clearTimeout(s.resumeTimer);
+      s.cancelResume?.();
       s.ctx.onstatechange = null;
       s.procedural?.stop(); s.samples?.stop();
       for (const node of s.nodes) node.disconnect();
