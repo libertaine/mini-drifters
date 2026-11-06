@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini Drifters · Audio laboratory</title>
+  <link rel="stylesheet" href="lab.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">MINI DRIFTERS / EXPERIMENT 01</p>
+      <h1>Engine &amp; tire<br><span>audio laboratory.</span></h1>
+      <p class="intro">A small listening bench for a car that isn’t going anywhere. Dial in a drive, then compare two ways of making it sound alive.</p>
+      <p class="badge">LOCAL EXPERIMENT · INDEPENDENT OF GAMEPLAY</p>
+    </header>
+    <section class="transport" aria-label="Audio playback">
+      <div class="buttons">
+        <button id="start" class="primary" type="button">Start Audio</button>
+        <button id="stop" type="button">Stop Audio</button>
+        <button id="mute" type="button" aria-pressed="false">Mute</button>
+      </div>
+      <p id="status" role="status">Stopped. Choose a preset, then start audio.</p>
+      <p class="hint">Output starts quietly. Start Audio requires a click. Leaving this tab stops audio; start again when you return.</p>
+    </section>
+    <div class="bench">
+      <section class="panel driving">
+        <h2><span>01</span> Simulate a drive</h2>
+        <div class="control"><label for="mode">Audio mode</label>
+          <select id="mode"><option value="procedural">A · Procedural</option><option value="samples">B · Sample-based hybrid</option></select>
+        </div>
+        <div id="driving-controls"></div>
+        <div class="control"><label for="surface">Surface</label><select id="surface"><option value="road">Road</option><option value="grass">Grass</option></select></div>
+        <p class="hint">RPM is an independent audio dial. It does not model gears or change drivetrain physics. Rear grip: 100% = full traction; 15% = substantial loss.</p>
+      </section>
+      <div class="side">
+        <section class="panel">
+          <h2><span>02</span> Listening mix</h2>
+          <div id="mix-controls"></div>
+          <div class="readout"><span>ENGINE PULSE</span><strong id="pulse">50 Hz</strong></div>
+          <label class="meter-label" for="tire-meter">Mapped tire intensity <output id="tire-level">0%</output></label>
+          <meter id="tire-meter" min="0" max="1" value="0">0</meter>
+          <p class="hint">Mapping preview, not an output loudness meter. Stationary tires are silent in both modes.</p>
+        </section>
+        <section class="panel sources">
+          <h2><span>03</span> What you’re hearing</h2>
+          <p id="mode-note"></p>
+          <p id="sample-status" role="status">Recorded samples load when audio starts.</p>
+          <p class="hint">The engine recordings share one source at different pitches. Tire foley is a provisional loop; it is not a continuous real-tire recording.</p>
+          <a href="assets/ATTRIBUTION.md">Sample sources &amp; CC0 licenses ↗</a>
+        </section>
+      </div>
+    </div>
+    <section class="panel presets" aria-labelledby="presets-title">
+      <h2 id="presets-title"><span>04</span> Quick auditions</h2>
+      <p class="hint">Presets set the driving dials and road surface. Your mode and mix stay put. Adjust any dial afterward; transitions are smoothed.</p>
+      <div id="presets"></div>
+    </section>
+    <footer>Listen for character, drift onset, recovery, and repeating seams. A quality winner needs human listening.</footer>
+  </main>
+  <script type="module" src="lab.js"></script>
+</body>
+</html>
