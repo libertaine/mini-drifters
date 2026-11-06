@@ -11,7 +11,7 @@
     <header>
       <p class="eyebrow">MINI DRIFTERS / EXPERIMENT 01</p>
       <h1>Engine &amp; tire<br><span>audio laboratory.</span></h1>
-      <p class="intro">A small listening bench for a car that isn’t going anywhere. Dial in a drive, then compare two ways of making it sound alive.</p>
+      <p class="intro">A small listening bench for a car that isn’t going anywhere. Dial in a drive, then compare three ways of making it sound alive.</p>
       <p class="badge">LOCAL EXPERIMENT · INDEPENDENT OF GAMEPLAY</p>
     </header>
     <section class="transport" aria-label="Audio playback">
@@ -26,8 +26,8 @@
     <div class="bench">
       <section class="panel driving">
         <h2><span>01</span> Simulate a drive</h2>
-        <div class="control"><label for="mode">Audio mode</label>
-          <select id="mode"><option value="procedural">A · Procedural</option><option value="samples">B · Sample-based hybrid</option></select>
+        <div class="control"><label for="mode">Engine mode</label>
+          <select id="mode"><option value="procedural">A · Procedural</option><option value="samples">B · Sample-based hybrid</option><option value="coyote">C · Coyote Hybrid</option></select>
         </div>
         <div id="driving-controls"></div>
         <div class="control"><label for="surface">Surface</label><select id="surface"><option value="road">Road</option><option value="grass">Grass</option></select></div>
@@ -36,18 +36,22 @@
       <div class="side">
         <section class="panel">
           <h2><span>02</span> Listening mix</h2>
+          <div class="control"><label for="tire-mode">Tire voice</label><select id="tire-mode"><option value="follow">Follow engine mode (C uses B tires)</option><option value="procedural">Procedural tires</option><option value="samples">Recorded tires</option></select></div>
           <div id="mix-controls"></div>
+          <button id="isolate" type="button">Isolate engine</button>
+          <button id="sweep" type="button" aria-pressed="false">RPM sweep up/down</button>
           <div class="readout"><span>ENGINE PULSE</span><strong id="pulse">50 Hz</strong></div>
           <label class="meter-label" for="tire-meter">Mapped tire intensity <output id="tire-level">0%</output></label>
           <meter id="tire-meter" min="0" max="1" value="0">0</meter>
-          <p class="hint">Mapping preview, not an output loudness meter. Stationary tires are silent in both modes.</p>
+          <p class="hint">Mapping preview, not an output loudness meter. Stationary tires are silent in all modes.</p>
         </section>
         <section class="panel sources">
           <h2><span>03</span> What you’re hearing</h2>
           <p id="mode-note"></p>
+          <p id="coyote-status" role="status">Coyote owner audio is local only.</p>
           <p id="sample-status" role="status">Recorded samples load when audio starts.</p>
-          <p class="hint">The engine recordings share one source at different pitches. Tire foley is a provisional loop; it is not a continuous real-tire recording.</p>
-          <a href="assets/ATTRIBUTION.md">Sample sources &amp; CC0 licenses ↗</a>
+          <p class="hint">B’s engine recordings share one source at different pitches. C uses owner-supplied dyno candidates; reference RPM is unverified. Tire foley is a provisional loop; it is not a continuous real-tire recording.</p>
+          <a href="assets/ATTRIBUTION.md">B sample sources &amp; CC0 licenses ↗</a>
         </section>
       </div>
     </div>

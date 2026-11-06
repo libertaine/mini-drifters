@@ -65,3 +65,11 @@ unmodified; all trimming, seam treatment, filtering and pitch changes happen in 
   idle and steady high-RPM/load loop with known reference RPM, and a continuous
   real-tire squeal recording, each with a verified redistribution license.
 - No commercial-game recordings or synthesized substitutes are labeled as samples.
+
+## Coyote Hybrid owner audio (local only)
+
+Mustang-Dyno.wav and Mustang-Dyno_alt.wav were supplied by the owner. Public
+redistribution rights are unconfirmed; the project MIT license and the CC0
+licenses above do not cover these recordings. Masters and derived WAVs remain
+out of Git. See docs/COYOTE-AUDIO.md and docs/COYOTE-PROVENANCE.json for source
+timestamps, processing, SHA-256 hashes, limitations and local generation.

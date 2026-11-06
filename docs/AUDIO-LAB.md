@@ -1,8 +1,13 @@
 # Engine and tire audio laboratory
 
+**Coyote extension:** See [COYOTE-AUDIO.md](COYOTE-AUDIO.md) for owner-source
+analysis, local-only setup, provenance, three-mode controls and the blank A/B/C
+listening worksheet. The owner audio is deliberately excluded from Git.
+
+
 Run `node server.mjs`, then open http://127.0.0.1:4190/audio-lab/ . Click **Start
 Audio**, choose a preset, and adjust the driving dials. Use the mode selector to
-crossfade between A and B while retaining the same parameters and mix. Set engine
+crossfade between A, B and C while retaining the same parameters and mix. Set engine
 volume to zero to isolate tires, or tire volume to zero to isolate the engine.
 The eight presets set driving parameters and road surface; the mix and mode are
 preserved. Individual sliders remain adjustable. Preset values update immediately
@@ -43,8 +48,8 @@ blend gains sum to one; rate and filtering change independently. Each sample
 gets a short end/head overlap in an AudioBuffer, then native BufferSource looping;
 there are no per-loop timers. The tire excerpt needs subjective seam assessment.
 
-Both voices run while auditioning so the mode switch can crossfade immediately.
-There are eight procedural sources and three sample sources after loading, no
+All ready voices run while auditioning so the mode switch can crossfade immediately.
+There are eight procedural sources, three B sources and four C sources after loading, no
 AudioWorklet or ScriptProcessor, and no animation/audio polling loop. Fixed graph
 size supports a small experiment; CPU performance has not been benchmarked on
 low-power hardware. Noise has a private deterministic generator.
@@ -54,7 +59,8 @@ stacked ramps during fast slider movements. Master starts at 35%, with additiona
 output attenuation, conservative voice gains and a fast 12:1 compressor. Immediate
 mute and Stop use the final output gate after the compressor. This deliberately
 prioritizes immediate silence; Stop is not a slow musical fade. Unmute/start ramp
-up. Perceptual loudness is not matched between A and B: use the mix while comparing.
+up. Static reference trims now use A=1, B=1.15, C=1; perceived loudness still
+needs listening. Use the manual mix while comparing.
 
 `resume()` follows a click before fetches. Repeated Start reuses the active session.
 Stop zeroes the output, aborts loads, stops/disconnects all sources and closes the
@@ -67,7 +73,7 @@ out after 12 seconds. Missing or corrupt recordings are reported;
 missing layers stay silent. With one surviving engine recording, it spans the RPM
 range. Sample mode never silently substitutes synthesis. Stop/Start retries loads.
 
-## Comparison report
+## Original A/B comparison report (C extension linked above)
 
 Objective design properties (not listening results):
 
@@ -113,7 +119,7 @@ to ignored `artifacts/audio-lab-*` files. The game check continues to serve the
 production-only file list. These are headless browser checks, not physical-device
 testing, subjective listening, or an audio-device compatibility benchmark.
 
-Local verification on Windows, 2026-11-06:
+Original PR #5 baseline verification on Windows, 2026-11-06 (not Coyote evidence):
 
 - 107/107 Node tests passed (94 existing plus 13 focused lab tests).
 - Existing gameplay browser checks passed in Chromium 156 and Firefox 157.

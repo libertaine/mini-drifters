@@ -1,3 +1,4 @@
+import { loadCoyote, createCoyote } from '../audio-lab/coyote.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -92,7 +93,7 @@ const settle = () => new Promise((r) => setImmediate(r));
 
 test('repeated Start shares one context; mute is immediate and survives stop/restart', async () => {
   const contexts = [];
-  const lab = new AudioLab({ contextFactory: () => { const c = new Context(); contexts.push(c); return c; }, sampleLoader: emptySamples });
+  const lab = new AudioLab({ coyoteLoader: emptySamples, contextFactory: () => { const c = new Context(); contexts.push(c); return c; }, sampleLoader: emptySamples });
   const first = lab.start(); assert.equal(first, lab.start());
   await first; await settle();
   assert.equal(contexts.length, 1); assert.equal(lab.snapshot().sourceCount, 8);
@@ -112,7 +113,7 @@ test('repeated Start shares one context; mute is immediate and survives stop/res
 test('stop during resume cannot revive audio or begin stale sample loads', async () => {
   const pending = deferred(); let loads = 0;
   const ctx = new Context(); ctx.resume = () => pending.promise;
-  const lab = new AudioLab({ contextFactory: () => ctx, sampleLoader: async () => { loads++; return emptySamples(); } });
+  const lab = new AudioLab({ coyoteLoader: emptySamples, contextFactory: () => ctx, sampleLoader: async () => { loads++; return emptySamples(); } });
   const ready = lab.start(); lab.stop(); await ready; pending.resolve(); await settle();
   assert.equal(loads, 0); assert.equal(lab.snapshot().running, false);
 });
@@ -120,7 +121,7 @@ test('stop during resume cannot revive audio or begin stale sample loads', async
 test('a native resume that never settles reports a bounded output failure and releases its graph', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const ctx = new Context(); ctx.resume = () => new Promise(() => {});
-  const lab = new AudioLab({ contextFactory: () => ctx, sampleLoader: emptySamples });
+  const lab = new AudioLab({ coyoteLoader: emptySamples, contextFactory: () => ctx, sampleLoader: emptySamples });
   const ready = lab.start();
   t.mock.timers.tick(8000); await ready;
   assert.equal(lab.snapshot().running, false); assert.equal(lab.snapshot().sourceCount, 0);
@@ -130,7 +131,7 @@ test('a native resume that never settles reports a bounded output failure and re
 
 test('late sample decode from an old session cannot attach to a restarted graph', async () => {
   const pending = deferred(); let signal;
-  const lab = new AudioLab({ contextFactory: () => new Context(), sampleLoader: (_ctx, abort) => { signal = abort; return pending.promise; } });
+  const lab = new AudioLab({ coyoteLoader: emptySamples, contextFactory: () => new Context(), sampleLoader: (_ctx, abort) => { signal = abort; return pending.promise; } });
   await lab.start(); const old = lab.session;
   lab.stop(); assert.equal(signal.aborted, true);
   lab.sampleLoader = emptySamples; await lab.start();
@@ -140,13 +141,13 @@ test('late sample decode from an old session cannot attach to a restarted graph'
 });
 
 test('partial samples and resume failure are reported without duplicate sources', async () => {
-  const lab = new AudioLab({ contextFactory: () => new Context(), sampleLoader: async () => ({ buffers: { low: {} }, failures: ['high/tire missing'] }) });
+  const lab = new AudioLab({ coyoteLoader: emptySamples, contextFactory: () => new Context(), sampleLoader: async () => ({ buffers: { low: {} }, failures: ['high/tire missing'] }) });
   await lab.start(); await settle();
   assert.equal(lab.snapshot().sampleState, 'partial'); assert.equal(lab.snapshot().sourceCount, 9);
   lab.set({ mode: 'samples', rpm: 7000 });
   assert.deepEqual(lab.snapshot().failures, ['high/tire missing']); lab.stop();
   const ctx = new Context(); ctx.resume = async () => { throw new Error('denied'); };
-  const failed = new AudioLab({ contextFactory: () => ctx });
+  const failed = new AudioLab({ coyoteLoader: emptySamples, contextFactory: () => ctx });
   await failed.start(); assert.equal(failed.snapshot().running, false);
   assert.match(failed.snapshot().message, /denied/); assert.equal(ctx.state, 'closed');
 });
@@ -200,9 +201,87 @@ test('development server exposes only explicit lab files with correct audio MIME
       assert.ok(response.headers.get('content-type').startsWith(type), path);
       assert.equal((await response.arrayBuffer()).byteLength, 0);
     }
-    for (const path of ['/audio-lab/assets/.env', '/audio-lab/nope.js', '/package.json', '/docs/AUDIO-LAB.md', '/.git/config']) {
+    for (const path of ['/audio-lab/assets/Mustang-Dyno.wav', '/audio-lab/assets/Mustang-Dyno_alt.wav', '/.local/coyote/analysis.json',
+      '/audio-lab/assets/coyote-local/nope.wav', '/audio-lab/assets/.env', '/audio-lab/nope.js', '/package.json', '/docs/AUDIO-LAB.md', '/.git/config']) {
       assert.equal((await fetch(`${base}${path}`)).status, 404, path);
     }
     assert.equal((await fetch(`${base}/audio-lab/`, { method: 'POST' })).status, 404);
   } finally { server.kill(); }
+});
+
+
+test('Coyote RPM boundaries and throttle mapping are finite, continuous, and pitch independent of load', () => {
+  for (const mode of ['procedural', 'samples', 'coyote']) assert.equal(normalize({ mode }).mode, mode);
+  assert.equal(normalize({ mode: 'unknown' }).mode, 'procedural');
+  assert.equal(mapAudio({ rpm: -1 }).rpm, 750); assert.equal(mapAudio({ rpm: 100000 }).rpm, 7000);
+  let previous = mapAudio({ rpm: 750 });
+  for (let rpm = 750; rpm <= 7000; rpm += 1) {
+    const p = mapAudio({ rpm });
+    assert.ok(Math.abs(p.coyoteWeights.reduce((a, b) => a + b) - 1) < 1e-10);
+    p.coyoteWeights.forEach((v, i) => { assert.ok(v >= 0 && v <= 1); assert.ok(Math.abs(v - previous.coyoteWeights[i]) < 0.003); });
+    p.coyoteRates.forEach((v) => assert.ok(v >= 0.65 && v <= 1.65)); previous = p;
+  }
+  const gentle = mapAudio({ rpm: 3500, throttle: 0 }), hard = mapAudio({ rpm: 3500, throttle: 1 });
+  assert.deepEqual(gentle.coyoteRates, hard.coyoteRates); assert.deepEqual(gentle.coyoteWeights, hard.coyoteWeights);
+  for (const key of ['coyoteGain', 'coyoteCutoff', 'coyotePresence']) assert.ok(hard[key] > gentle[key]);
+});
+const coyoteBank = { idle: {}, mid: {}, load: {}, high: {} };
+const fullCoyote = async () => ({ buffers: coyoteBank, failures: [] });
+test('Coyote switching retains conditions and tire selection; Start/Stop and mute dispose all four loops', async () => {
+  const contexts = [], lab = new AudioLab({ contextFactory: () => { const ctx = new Context(); contexts.push(ctx); return ctx; }, sampleLoader: emptySamples, coyoteLoader: fullCoyote });
+  await lab.start(); await settle(); const s = lab.session;
+  assert.equal(lab.snapshot().coyoteState, 'ready'); assert.equal(lab.snapshot().sourceCount, 12);
+  lab.set({ rpm: 3500, throttle: 0.7, tireMode: 'procedural', tireVolume: 0 });
+  for (const mode of ['coyote', 'samples', 'procedural', 'coyote']) {
+    lab.set({ mode }); assert.equal(lab.values.rpm, 3500); assert.equal(lab.values.throttle, 0.7);
+    assert.equal(lab.values.tireMode, 'procedural'); assert.equal(s.procTire.gain.value, 1); assert.equal(s.sampleTire.gain.value, 0);
+  }
+  assert.equal(s.coyoteEngine.gain.value, 1); assert.equal(s.procEngine.gain.value, 0); assert.equal(s.sampleEngine.gain.value, 0);
+  const same = lab.start(); await same; assert.equal(contexts.length, 1);
+  lab.mute(true); assert.equal(lab.snapshot().outputGain, 0); lab.stop();
+  assert.equal(contexts[0].state, 'closed');
+  for (const n of contexts[0].nodes) { assert.equal(n.disconnected, 1); if (n.started) assert.equal(n.stopped, 1); }
+  await lab.start(); await settle(); assert.equal(lab.snapshot().outputGain, 0); lab.stop();
+});
+test('incomplete Coyote bank stays silent, reports failure, and never substitutes A/B', async () => {
+  const lab = new AudioLab({ contextFactory: () => new Context(), sampleLoader: emptySamples,
+    coyoteLoader: async () => ({ buffers: { idle: {} }, failures: ['mid.wav: HTTP 404'] }) });
+  lab.set({ mode: 'coyote' }); await lab.start(); await settle();
+  assert.equal(lab.snapshot().coyoteState, 'unavailable'); assert.equal(lab.session.coyote.sourceCount, 0);
+  assert.equal(lab.session.procEngine.gain.value, 0); assert.equal(lab.session.sampleEngine.gain.value, 0);
+  assert.match(lab.snapshot().coyoteFailures[0], /HTTP 404/); lab.stop();
+});
+test('Coyote fetch and decode failures are explicit and aborted decodes cannot attach', async () => {
+  const ctx = new Context(); ctx.decodeAudioData = async () => { throw new Error('invalid audio'); };
+  const result = await loadCoyote(ctx, new AbortController().signal, async (url) => ({ ok: !url.pathname.includes('mid'), status: 404, arrayBuffer: async () => new ArrayBuffer(4) }));
+  assert.equal(Object.keys(result.buffers).length, 0); assert.equal(result.failures.length, 4);
+  assert.ok(result.failures.some((f) => f.includes('HTTP 404'))); assert.ok(result.failures.some((f) => f.includes('invalid audio')));
+  const pending = deferred(), abort = new AbortController(); ctx.decodeAudioData = () => pending.promise;
+  const loading = loadCoyote(ctx, abort.signal, async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(4) }));
+  await settle(); abort.abort(); pending.resolve({ duration: 1, numberOfChannels: 1 });
+  assert.deepEqual((await loading).buffers, {});
+});
+test('late Coyote loader completion cannot attach to another session', async () => {
+  const pending = deferred(), lab = new AudioLab({ contextFactory: () => new Context(), sampleLoader: emptySamples, coyoteLoader: () => pending.promise });
+  await lab.start(); const old = lab.session; lab.stop(); lab.coyoteLoader = fullCoyote;
+  await lab.start(); await settle(); pending.resolve({ buffers: coyoteBank, failures: [] }); await settle();
+  assert.equal(old.coyote, undefined); assert.equal(lab.snapshot().sourceCount, 12); lab.stop();
+});
+test('Coyote loading deadline covers both banks independently', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let signal;
+  const lab = new AudioLab({ contextFactory: () => new Context(), sampleLoader: emptySamples,
+    coyoteLoader: (_ctx, s) => { signal = s; return new Promise((resolve) => s.addEventListener('abort', () => resolve({ buffers: {}, failures: [] }))); } });
+  await lab.start(); await settle(); t.mock.timers.tick(12000); await settle();
+  assert.equal(signal.aborted, true); assert.equal(lab.snapshot().coyoteState, 'unavailable');
+  assert.match(lab.snapshot().coyoteFailures.join(), /timed out/); lab.stop();
+});
+test('Coyote graph applies smoothed parameter automation rather than direct switching steps', () => {
+  const ctx = new Context(), v = createCoyote(ctx, ctx.destination, coyoteBank);
+  const targets = [];
+  for (const node of ctx.nodes) for (const field of ['gain', 'frequency', 'playbackRate']) {
+    const p = node[field]; p.setTargetAtTime = (value, at, tau) => targets.push({ value, at, tau });
+  }
+  v.update(mapAudio({ rpm: 7000, throttle: 1 }));
+  assert.ok(targets.length >= 10); assert.ok(targets.every((t) => Number.isFinite(t.value) && t.tau >= 0.12)); v.stop();
 });
