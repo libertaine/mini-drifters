@@ -4,7 +4,7 @@ Use this to judge the sound while actually driving. The question that matters mo
 
 Everything below is blank until a person has driven it. Automated results are recorded separately, in the pull request and in `artifacts/gameplay-audio-report.json`, and they don't answer these questions.
 
-To set up, follow [Listen to it locally](GAMEPLAY-AUDIO.md#listen-to-it-locally). Before you start, hover over the Sound button and check that it says **Coyote Hybrid (local recordings)**.
+To set up, follow [Listen to it locally](GAMEPLAY-AUDIO.md#listen-to-it-locally). Before you start, hover over the Sound button and check that it says **Coyote Hybrid (recorded)**.
 
 | | |
 |---|---|

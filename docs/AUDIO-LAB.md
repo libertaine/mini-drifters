@@ -2,7 +2,12 @@
 
 **Coyote extension:** See [COYOTE-AUDIO.md](COYOTE-AUDIO.md) for owner-source
 analysis, local-only setup, provenance, three-mode controls and the blank A/B/C
-listening worksheet. The owner audio is deliberately excluded from Git.
+listening worksheet. Of the owner's audio, only the game's four processed loops are in
+Git. The masters and the rest stay out of it.
+
+**Outcome:** the owner listened to all three engines and chose Coyote Hybrid, which is now
+in the game. See [GAMEPLAY-AUDIO.md](GAMEPLAY-AUDIO.md). The comparison notes and worksheet
+below are kept as written, and their rows record nothing from that listening.
 
 
 Run `node server.mjs`, then open http://127.0.0.1:4190/audio-lab/ . Click **Start
@@ -137,7 +142,7 @@ Original PR #5 baseline verification on Windows, 2026-11-06 (not Coyote evidence
   inferred from the diagnostic gate value.
 - Git comparison confirmed no changes to `src/`, `index.html` or `style.css`.
 
-Hosted CI evidence belongs to the draft PR; local checks alone do not establish it.
+Hosted CI evidence belongs to PR #5; local checks alone do not establish it.
 
 Two Ubuntu CI attempts passed Chromium but Firefox timed out awaiting native
 real-time AudioContext resume. A trial of Mozilla's mock-output preference did
