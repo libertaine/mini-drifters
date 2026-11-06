@@ -1,6 +1,9 @@
-// Tuning anchors, NOT measured recording RPM. See docs/COYOTE-AUDIO.md.
+// The engine speed each loop was recorded or resampled at, so adjacent layers play
+// the same note at every RPM. Mid, load and high come from the recordings' harmonics
+// (no tachometer confirms them); idle stays a tuning estimate. See
+// docs/COYOTE-OSCILLATION.md.
 export const COYOTE_LAYERS = Object.freeze([
-  { key: 'idle', rpm: 1100 }, { key: 'mid', rpm: 2700 },
+  { key: 'idle', rpm: 1100 }, { key: 'mid', rpm: 2736 },
   { key: 'load', rpm: 4400 }, { key: 'high', rpm: 6600 },
 ]);
 export function mapCoyote({ rpm, throttle }) {

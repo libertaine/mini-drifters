@@ -55,7 +55,7 @@ test('Coyote playback stays inside the lab pitch limits at every RPM the model c
   }
 });
 
-test('acceleration raises RPM continuously, with no jump between frames', () => {
+test('acceleration raises RPM continuously except through a gear change, with no jump between frames', () => {
   const game = createGame();
   startRun(game);
   const state = createAudioState();
@@ -66,13 +66,14 @@ test('acceleration raises RPM continuously, with no jump between frames', () => 
     tick(game, { up: true });
     stepAudioState(state, readTelemetry(game.car), FRAME);
     const change = state.rpm - previous;
-    assert.ok(change >= -1e-9, `RPM fell ${change} under steady acceleration at frame ${frame}`);
+    if (state.shiftLeft === 0) assert.ok(change >= -1e-9, `RPM fell ${change} outside a gear change at frame ${frame}`);
+    assert.ok(change >= -A.gears.shiftFallLimit * FRAME - 1e-9, `RPM dropped ${change}`);
     assert.ok(change <= A.rpmRiseLimit * FRAME + 1e-9, `RPM jumped ${change}`);
     previous = state.rpm;
     seen.push(state.rpm);
   }
   assert.ok(seen[15] > A.idleRpm + 500, 'the first quarter second is audible');
-  assert.ok(seen.at(-1) > seen[60] + 1000, 'RPM keeps climbing with speed');
+  assert.ok(seen.at(-1) > seen[60], 'RPM ends higher than it was in first gear');
 });
 
 test('RPM is not simply a multiple of speed: throttle moves it at the same speed', () => {
@@ -140,7 +141,8 @@ test('braking lowers RPM with falling speed and ends at idle', () => {
     tick(game, { down: true });
     tick(game, { down: true });
     stepAudioState(state, readTelemetry(game.car), FRAME);
-    assert.ok(state.rpm <= previous + 1e-9, 'pitch never rises under braking');
+    // Only a downshift may lift the pitch while braking, and only as far as the gear asks.
+    if (state.sinceShift >= 0.6) assert.ok(state.rpm <= previous + 1e-9, 'pitch never rises under braking without a downshift');
     previous = state.rpm;
   }
   assert.ok(state.rpm < top - 800, `fell from ${top} to ${state.rpm}`);
@@ -271,7 +273,7 @@ function drive(driver, frames = 60 * 200) {
     if (game.state !== 'finished') tick(game, driver(game));
     stepAudioState(state, readTelemetry(game.car), FRAME);
     rows.push({
-      rpm: state.rpm, tire: state.tire, speed: game.car.speed, throttle: game.car.throttle,
+      rpm: state.rpm, tire: state.tire, speed: game.car.speed, throttle: game.car.throttle, shifting: state.shiftLeft > 0,
       slip: Math.abs(game.car.slipAngle) / DEG, rear: Math.abs(game.car.rearSlip) / DEG, front: Math.abs(game.car.frontSlip) / DEG,
     });
   }
@@ -318,8 +320,10 @@ test('a sustained drift sounds clearly different from ordinary cornering and str
 test('RPM never jumps across a whole driven run', () => {
   for (const driver of [gripDriver(), driftDriver()]) {
     let previous = A.idleRpm;
-    for (const { rpm } of drive(driver)) {
-      assert.ok(Math.abs(rpm - previous) <= A.rpmRiseLimit * FRAME + 1e-9, `${previous} to ${rpm}`);
+    for (const { rpm, shifting } of drive(driver)) {
+      const fall = shifting ? A.gears.shiftFallLimit : A.rpmRiseLimit;
+      assert.ok(rpm - previous <= A.rpmRiseLimit * FRAME + 1e-9, `${previous} up to ${rpm}`);
+      assert.ok(previous - rpm <= fall * FRAME + 1e-9, `${previous} down to ${rpm}`);
       previous = rpm;
     }
   }

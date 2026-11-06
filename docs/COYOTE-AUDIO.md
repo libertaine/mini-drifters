@@ -4,6 +4,10 @@ The owner has since chosen this engine for the game: see
 [GAMEPLAY-AUDIO.md](GAMEPLAY-AUDIO.md). Its code now lives in `src/coyote.js` and
 `src/coyote-model.js`, shared with the lab. The notes below record the experiment.
 
+**Superseded:** `load.wav` and `high.wav` were later reprocessed to remove a full-throttle
+oscillation, and the `mid` anchor moved to 2736. See
+[COYOTE-OSCILLATION.md](COYOTE-OSCILLATION.md). The tables below describe the first bank.
+
 This extends draft PR #5 at unchanged baseline
 9fe61ed5c43193671b2d97863fd4d5510c7b768f. Worktree:
 D:/Projects/mini-drifters-coyote; branch: experiment/coyote-hybrid.
@@ -41,6 +45,10 @@ http://127.0.0.1:4197/audio-lab/assets/coyote-local/incar-reference.wav .
 It is not loaded by the lab, so listen separately at a low volume.
 
 ## Rights and preservation
+
+**Superseded:** the owner has since confirmed their rights and authorized distribution of
+the four runtime loops with the game. See [LICENSE-AUDIO.md](../LICENSE-AUDIO.md). The
+masters and the in-car reference stay unpublished. The text below records the experiment.
 
 Owner-supplied does not establish public redistribution rights. Neither masters,
 processed WAVs, waveform plots nor intermediate audio are committed. The project

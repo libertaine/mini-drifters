@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, experiment/audio-lab, experiment/coyote-hybrid]
+    branches: [main, experiment/audio-lab, experiment/coyote-hybrid, experiment/gameplay-audio]
 
 permissions:
   contents: read
@@ -35,9 +35,9 @@ jobs:
         run: npm run test:browser
       - name: Development audio lab in Chromium and Firefox
         run: npm run test:audio:browser
-      - name: Coyote graph and missing-private-assets checks
+      - name: Coyote voice in the audio lab
         run: npm run test:coyote:browser
-      - name: Gameplay audio, public files and synthetic fixtures only
+      - name: Gameplay audio on the published files, and the fallback
         run: npm run test:gameplay-audio:browser
       - name: Keep screenshots from a failed run
         if: failure()
@@ -65,9 +65,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: Assemble the site (only the files the game needs)
         run: |
-          mkdir -p _site/audio-lab/assets
+          mkdir -p _site/audio-lab/assets/coyote-local
           cp -r index.html style.css src _site/
           cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/
+          cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

@@ -1,6 +1,6 @@
 import { COYOTE_LAYERS } from './coyote-model.js';
 import { smooth } from './audio-voices.js';
-// Owner-supplied recordings, never committed or deployed: see docs/GAMEPLAY-AUDIO.md.
+// The project owner's recordings, not MIT and not CC0: see LICENSE-AUDIO.md.
 const COYOTE_FOLDER = '../audio-lab/assets/coyote-local/';
 export const COYOTE_FILES = Object.freeze(Object.fromEntries(COYOTE_LAYERS.map(({ key }) => [key, key + '.wav'])));
 export async function loadCoyote(ctx, signal, fetcher = fetch) {
@@ -34,7 +34,7 @@ export function createCoyote(ctx, bus, buffers) {
     sourceCount: sources.length,
     update(p) {
       loops.forEach(({ source, gain }, i) => {
-        smooth(source.playbackRate, p.coyoteRates[i], ctx, 0.18);
+        smooth(source.playbackRate, p.coyoteRates[i], ctx, p.pitchGlide ?? 0.18);
         smooth(gain.gain, p.coyoteWeights[i] * p.coyoteGain, ctx, 0.12);
       });
       smooth(filter.frequency, p.coyoteCutoff, ctx);

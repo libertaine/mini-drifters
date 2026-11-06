@@ -100,7 +100,7 @@ export function createProcedural(ctx, engineBus, tireBus = null) {
   return {
     stop: () => g.stop(), sourceCount: g.count,
     update(p) {
-      for (const { osc, ratio } of layers) smooth(osc.frequency, p.firingHz * ratio, ctx, 0.18);
+      for (const { osc, ratio } of layers) smooth(osc.frequency, p.firingHz * ratio, ctx, p.pitchGlide ?? 0.18);
       smooth(engine.gain, p.engineGain, ctx);
       smooth(depth.gain, p.roughness, ctx);
       smooth(flutter.frequency, 6.5 + p.rpmFraction * 7, ctx);

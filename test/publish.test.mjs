@@ -60,16 +60,20 @@ test('the only network requests in the game are for its own sound files', () => 
   assert.match(readFileSync(join(root, 'src/coyote.js'), 'utf8'), /COYOTE_FOLDER = '\.\.\/audio-lab\/assets\/coyote-local\/'/);
 });
 
-test('Pages publishes the CC0 tire file and its attribution, and no private audio', () => {
+const COYOTE_LOOPS = ['idle', 'mid', 'load', 'high'].map((key) => `audio-lab/assets/coyote-local/${key}.wav`);
+const provenance = JSON.parse(readFileSync(join(root, 'docs/COYOTE-PROVENANCE.json'), 'utf8'));
+
+test('Pages publishes the tire file, the four authorized loops and their attribution, and nothing else', () => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
   const copies = workflow.split('\n').map((line) => line.trim()).filter((line) => /^(cp|mkdir|rsync|mv|tar)\b/.test(line));
   assert.deepEqual(copies, [
-    'mkdir -p _site/audio-lab/assets',
+    'mkdir -p _site/audio-lab/assets/coyote-local',
     'cp -r index.html style.css src _site/',
     'cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/',
+    `cp ${COYOTE_LOOPS.join(' ')} _site/audio-lab/assets/coyote-local/`,
   ]);
-  assert.doesNotMatch(workflow, /coyote-local|Mustang|\.wav/i);
-  assert.equal(workflow.match(/pull_request:\s+branches: \[([^\]]+)\]/)[1], 'main, experiment/audio-lab, experiment/coyote-hybrid');
+  assert.doesNotMatch(workflow, /Mustang|incar-reference|engine-(low|high)\.wav|\*\.wav/i);
+  assert.equal(workflow.match(/pull_request:\s+branches: \[([^\]]+)\]/)[1], 'main, experiment/audio-lab, experiment/coyote-hybrid, experiment/gameplay-audio');
 });
 
 test('the published tire file is the attributed CC0 original', () => {
@@ -80,9 +84,41 @@ test('the published tire file is the attributed CC0 original', () => {
   assert.match(attribution, /CC0/);
 });
 
+test('the published loops are exactly the ones in the provenance record', () => {
+  let bytes = 0, seconds = 0;
+  for (const file of COYOTE_LOOPS) {
+    const name = file.split('/').pop();
+    const entry = provenance.loops.find((loop) => loop.file === name);
+    const data = readFileSync(join(root, file));
+    assert.equal(createHash('sha256').update(data).digest('hex'), entry.sha256, file);
+    assert.equal(data.length, entry.bytes, file);
+    bytes += data.length;
+    seconds += entry.seconds;
+  }
+  assert.equal(bytes, provenance.runtimeBytes);
+  assert.ok(bytes < 250 * 1024, `${bytes} bytes`);
+  // Short processed loops, nowhere near the 77-second master.
+  assert.ok(seconds < 5, `${seconds} seconds of audio`);
+});
+
+test('the Mustang recordings keep their own terms: not MIT, not CC0 and no broader license', () => {
+  const audio = readFileSync(join(root, 'LICENSE-AUDIO.md'), 'utf8');
+  for (const file of COYOTE_LOOPS) assert.ok(audio.includes(file), file);
+  assert.match(audio, /not MIT and not CC0/i);
+  assert.match(audio, /No other license is granted/);
+  assert.match(provenance.rights, /Not MIT and not CC0/);
+  const section = readFileSync(join(root, 'audio-lab/assets/ATTRIBUTION.md'), 'utf8').split('## Mustang engine recordings')[1];
+  assert.ok(section, 'the attribution has a Mustang section');
+  assert.match(section, /owns all rights/);
+  assert.match(section, /do not apply/);
+  assert.doesNotMatch(section, /Creative Commons|creativecommons|public domain/i);
+  assert.match(readFileSync(join(root, 'README.md'), 'utf8'), /LICENSE-AUDIO\.md/);
+  assert.match(readFileSync(join(root, 'LICENSE'), 'utf8'), /MIT License/);
+});
+
 test('private recordings are ignored, untracked and not embedded in anything tracked', (t) => {
   const ignore = readFileSync(join(root, '.gitignore'), 'utf8');
-  for (const pattern of ['.local/', 'audio-lab/assets/coyote-local/', 'audio-lab/assets/Mustang-Dyno*.wav']) {
+  for (const pattern of ['.local/', 'audio-lab/assets/coyote-local/incar-reference.wav', 'audio-lab/assets/Mustang-Dyno*.wav']) {
     assert.ok(ignore.split(/\r?\n/).includes(pattern), pattern);
   }
   for (const file of sourceFiles) assert.doesNotMatch(readFileSync(file, 'utf8'), /data:audio|base64|UklGR/, file);
@@ -94,8 +130,8 @@ test('private recordings are ignored, untracked and not embedded in anything tra
     return;
   }
   const audio = tracked.filter((file) => /\.(wav|mp3|ogg|flac|m4a|aac)$/i.test(file)).sort();
-  assert.deepEqual(audio, ['audio-lab/assets/engine-high.wav', 'audio-lab/assets/engine-low.wav', 'audio-lab/assets/tire-foley.mp3']);
-  assert.equal(tracked.some((file) => /coyote-local|Mustang|^\.local\//.test(file)), false);
+  assert.deepEqual(audio, [...COYOTE_LOOPS, 'audio-lab/assets/engine-high.wav', 'audio-lab/assets/engine-low.wav', 'audio-lab/assets/tire-foley.mp3'].sort());
+  assert.equal(tracked.some((file) => /Mustang|incar-reference|^\.local\//.test(file)), false);
 });
 
 test('the public fallback is never described as a recording', () => {
@@ -148,11 +184,10 @@ async function servedPage(port, env) {
   }
 }
 
-test('the local server announces Coyote only when every recording exists', async () => {
-  const off = await servedPage(4191, { COYOTE_LOCAL: 'off' });
-  assert.doesNotMatch(off, /mini-drifters-engine/);
-  const haveAll = ['idle', 'mid', 'load', 'high'].every((key) => existsSync(join(root, `audio-lab/assets/coyote-local/${key}.wav`)));
-  const on = await servedPage(4192, { COYOTE_LOCAL: '' });
-  assert.equal(/<meta name="mini-drifters-engine" content="coyote-local">/.test(on), haveAll);
-  assert.doesNotMatch(readFileSync(join(root, 'index.html'), 'utf8'), /mini-drifters-engine/, 'the published page never carries the tag');
+test('the published page plays Coyote, and COYOTE_LOCAL=off plays the fallback', async () => {
+  const tag = /<meta name="mini-drifters-engine" content="coyote-local">/;
+  assert.match(readFileSync(join(root, 'index.html'), 'utf8'), tag);
+  assert.match(await servedPage(4192, { COYOTE_LOCAL: '' }), tag);
+  assert.doesNotMatch(await servedPage(4191, { COYOTE_LOCAL: 'off' }), /mini-drifters-engine/);
+  for (const file of COYOTE_LOOPS) assert.ok(existsSync(join(root, file)), file);
 });

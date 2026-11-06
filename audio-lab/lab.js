@@ -76,7 +76,7 @@ function renderStatus(state) {
     unavailable: 'Recordings unavailable. Sample mode is silent. Procedural mode is available; stop and start to retry.',
   };
   const coyoteMessages = {
-    'not loaded': 'Coyote owner audio is local only. Start Audio to check the loop bank.',
+    'not loaded': 'Coyote owner audio is not loaded yet. Start Audio to check the loop bank.',
     loading: 'Loading local Coyote loops… C stays silent until all four are ready.',
     ready: 'Coyote: 4/4 local loops ready. Public redistribution rights are unconfirmed.',
     unavailable: 'Coyote unavailable: all four processed local files are required. Run the offline processing script; stop and start to retry. C engine stays silent. A/B and tires remain available.',

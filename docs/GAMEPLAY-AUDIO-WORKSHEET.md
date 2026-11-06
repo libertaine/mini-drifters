@@ -23,8 +23,8 @@ For each row, mark **Pass**, **Close** or **Wrong**, and note what you heard.
 | # | Do this | Listen for | Result | Notes |
 |---|---|---|---|---|
 | 1 | Press Enter and wait on the grid | Idle starts by itself. It sounds like a plausible idle and isn't annoying after 20 seconds | | |
-| 2 | Accelerate from a standstill | RPM rises immediately and keeps climbing smoothly, with no jumps | | |
-| 3 | Hold speed down the long straight | The engine holds a convincing elevated note. No obvious loop, beating or pumping | | |
+| 2 | Accelerate from a standstill | RPM rises immediately and climbs, with audible but unobtrusive upshifts into each gear and no jumps | | |
+| 3 | Hold speed down the long straight | The engine holds a convincing elevated note. No oscillation, obvious loop, beating or pumping | | |
 | 4 | Lift off at speed | Intensity falls first, then pitch settles naturally | | |
 | 5 | Corner normally, without sliding | Subtle scrub at most. Straight-line driving makes no tire noise | | |
 | 6 | Enter a drift with a handbrake tap | Tires come in as the tail steps out, not on the key press | | |

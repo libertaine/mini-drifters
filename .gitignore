@@ -34,7 +34,8 @@ desktop.ini
 *.p12
 *.pfx
 
-# Owner-supplied audio: redistribution rights not established
+# Owner audio that stays out of the repository: the full masters, the unused in-car
+# reference and the analysis output. Only the four runtime loops are published.
 .local/
-audio-lab/assets/coyote-local/
+audio-lab/assets/coyote-local/incar-reference.wav
 audio-lab/assets/Mustang-Dyno*.wav

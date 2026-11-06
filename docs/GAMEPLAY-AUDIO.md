@@ -2,14 +2,13 @@
 
 The owner listened to all three lab engines and chose **Coyote Hybrid**. This work connects it, and the existing sampled tire effect, to actual driving.
 
-**Nobody has listened to this while driving yet.** Automated checks show that signal reaches the output, that RPM and tire values move as designed, and that silence is silent. They can't show that it sounds good. Whether it does is what the [driving worksheet](GAMEPLAY-AUDIO-WORKSHEET.md) is for.
+The owner has listened to an earlier version while driving: the idle and the drifting sound were good, but sustained full throttle had a distracting oscillation and RPM rising without gear changes sounded unnatural. The oscillation is now [corrected](COYOTE-OSCILLATION.md) and the game has virtual gears. The owner listened to both on 2026-11-06 and called them an improvement: see [Listening result](#listening-result). Automated checks show that signal reaches the output, that RPM and tire values move as designed, and that silence is silent. They can't show that it sounds good, which is what the [driving worksheet](GAMEPLAY-AUDIO-WORKSHEET.md) is for.
 
 ## Listen to it locally
 
-You need Node 24 and the four private Coyote loops in `audio-lab/assets/coyote-local/`. A public checkout doesn't have them. To generate them, from the repository root:
+You need Node 24. The four Coyote loops are in the repository. From the repository root:
 
 ```powershell
-node scripts/coyote-process.mjs --source D:/Projects/mini-drifters/audio-lab/assets
 $env:PORT='4198'
 node server.mjs
 ```
@@ -18,16 +17,16 @@ Open <http://127.0.0.1:4198/>, press Enter and drive. Hover over the Sound butto
 
 | Tooltip | Engine |
 |---|---|
-| Engine: Coyote Hybrid (local recordings) | The owner's recordings |
-| Engine: synthesized fallback (not a recording) | The public fallback, or a missing or damaged Coyote bank |
+| Engine: Coyote Hybrid (recorded) | The owner's recordings |
+| Engine: synthesized fallback (not a recording) | A missing or damaged Coyote bank |
 
-To hear what a public visitor would get, set `$env:COYOTE_LOCAL='off'` before starting the server.
+To hear the fallback, set `$env:COYOTE_LOCAL='off'` before starting the server. Only someone with the masters can regenerate the loops, using `scripts/coyote-process.mjs`.
 
 ## How it fits together
 
 | File | Job |
 |---|---|
-| `src/audio-telemetry.js` | Pure mapping from car telemetry to RPM, load and tire values, plus all the audio tuning |
+| `src/audio-telemetry.js` | Pure mapping from car telemetry to RPM, load and tire values, the virtual gearbox, and all the audio tuning |
 | `src/audio.js` | One AudioContext, one engine voice, one tire voice, lifecycle, mute and failure handling |
 | `src/audio-voices.js` | Web Audio voices shared with the lab |
 | `src/coyote.js`, `src/coyote-model.js` | The Coyote voice and its mapping, shared with the lab |
@@ -39,35 +38,43 @@ A run builds 5 sources with Coyote (4 engine layers and 1 tire loop) or 7 with t
 
 ## Engine RPM
 
-The car has no gearbox, so RPM is an audio-only estimate in the lab's 750–7000 range:
+The car has no gearbox, so RPM is an audio-only estimate in the lab's 750–7000 range. It uses two mappings and blends between them on wheelspin:
 
 ```
-target = coast curve (speed) + throttle flare + wheelspin flare
+in gear = road speed x this gear's ratio + throttle share   (or the launch RPM, if higher)
+sliding = coast curve (speed) + throttle flare + wheelspin flare
 ```
 
-- **Coast curve:** rises from 750 to 5000 at 42 m/s (about 94 mph), climbing fastest at low speed.
-- **Throttle flare:** adds 2000 RPM at a standstill, shrinking to 900 at top speed. RPM therefore rises at launch before the car has much speed, and drops when you lift.
-- **Wheelspin flare:** adds up to 1400 RPM with throttle and rear slip. It stops the pitch sagging in a power drift when the car scrubs off speed.
-- **Reverse:** uses its own line, with a ceiling of 2850 RPM.
+- **In gear:** RPM follows road speed through a virtual four-speed gearbox, described below.
+- **Launch:** full throttle at a standstill gives 2750 RPM straight away, as if the clutch were slipping, until road speed catches up.
+- **Sliding:** this is the mapping the owner listened to and liked for drifting, and a held power slide uses it unchanged. With the rear wheels spinning, the engine isn't tied to road speed.
+- **Reverse:** uses its own line, with a ceiling of 2850 RPM and no gears.
 
 RPM then eases toward the target (0.11 s rising, 0.34 s falling) with a rate limit (5500 and 3000 RPM per second), so it can't jump. Throttle is smoothed separately and sets the engine's character through gain and brightness, without changing pitch. The Coyote mapping limits playback rate to 0.65–1.65.
 
-All of these numbers are starting estimates in `AUDIO_TUNING`, apart from the driving physics. Here's how the model compares with the lab presets, using each preset's speed, throttle and slip:
+All of these numbers are starting estimates in `AUDIO_TUNING`, apart from the driving physics.
 
-| Lab preset | Preset RPM | Model RPM | Model tire target |
-|---|---|---|---|
-| Idle | 750 | 750 | 0.00 |
-| Gentle acceleration | 2200 | 2642 | 0.00 |
-| Hard acceleration | 5200 | 4589 | 0.03 |
-| High-speed cruising | 3800 | 5225 | 0.00 |
-| Drift initiation | 4300 | 4758 | 0.70 |
-| Sustained power drift | 5600 | 6232 | 0.99 |
-| Drift recovery | 2800 | 3120 | 0.06 |
-| Spinout | 6200 | 4978 | 0.81 |
+## Virtual gears
 
-The two largest gaps are deliberate. A single speed curve can't both cruise at 3800 RPM and pull hard at the same speed, because that takes gears, and gears are out of scope. A spinout loses speed quickly, so its RPM falls with it. Listen for both.
+The gears exist only in the sound. They read the same ten telemetry values as everything else and change no acceleration, speed, force, traction, control, score, lap time or simulation state. `stepGears` in `src/audio-telemetry.js` holds the state machine, and `AUDIO_TUNING.gears` holds all its tuning, apart from `src/tuning.js`.
 
-In scripted driving, the drift driver's held power drifts averaged about 5700 RPM and sagged no more than about 230 RPM.
+| Gear | Runs out at | Comes back down below |
+|---|---|---|
+| 1 | 12 m/s | Not applicable |
+| 2 | 20 m/s | 8.2 m/s |
+| 3 | 29 m/s | 13.6 m/s |
+| 4 | Top speed | 19.7 m/s |
+
+- **Upshift:** at each gear's top speed. Over 0.22 s, the throttle's share of RPM and a quarter of the engine load lift and return, and the voice follows pitch faster than usual. In a full-throttle run RPM falls 27–30% in about 0.15 s, then builds in the next gear.
+- **Downshift:** when speed falls below the lower gear's lower limit. Pitch rises gently (0.16 s) and the load doesn't dip. A hard stop can skip gears, for example 3 to 1.
+- **No hunting:** the gap between the up and down speeds, plus at least 0.7 s between shifts.
+- **Drifting:** rear slip of 12° or more holds the gear, and for 0.35 s afterwards. RPM follows the sliding mapping as wheelspin builds, so a drift sounds as it did and doesn't shift.
+- **Reverse and stopping:** going into reverse, or stopping, isn't a heard shift. The car simply leaves reverse in first.
+- **Lifecycle:** the gearbox steps only while the sound model does. A pause freezes a shift partway through, a new run resets it to first, and a finished car settles without shifting.
+
+There's no transmission sound, clutch simulation or gear indicator.
+
+In scripted driving there were 10 shifts a minute on grip, drift and reckless runs, with no back-and-forth and no shift during a held slide. Held power drifts averaged about 5600 RPM. All of this says the gears behave as designed. The owner's view of how they sound is under [Listening result](#listening-result).
 
 ## Tires
 
@@ -109,46 +116,31 @@ The **Sound On / Sound Off** button sits under the score. The choice is saved in
 - **Mouse:** a click hands the keyboard straight back to the car.
 - **Keyboard:** Tab to the button, then press Enter. Space also works, except while driving, when Space is always the handbrake.
 
-## Private recordings and public hosting
+## Recordings and public hosting
 
-The Coyote recordings stay private until redistribution rights are confirmed:
+The project owner has confirmed they own all rights in the Mustang recordings and has authorized their distribution with Mini Drifters. The terms are in [LICENSE-AUDIO.md](../LICENSE-AUDIO.md): these files are not MIT and not CC0, and no broader reuse is granted.
 
-- The masters and processed loops are not committed. `.gitignore`, the shared `info/exclude` and a test all guard this.
-- No audio bytes are embedded in any tracked file.
-- `server.mjs` adds a `<meta name="mini-drifters-engine">` tag to the page only when all four loops exist on disk. Without that tag the game never requests them, so public hosting produces no 404s and no sign of them.
-- The server still serves only its explicit list of files.
+| Published | Not published |
+|---|---|
+| `idle.wav`, `mid.wav`, `load.wav` and `high.wav`: short processed loops, about 3.7 s in all | The full masters `Mustang-Dyno.wav` and `Mustang-Dyno_alt.wav` |
+| `tire-foley.mp3`: the unmodified CC0 original | `incar-reference.wav`, which the game never used |
+| `ATTRIBUTION.md` | The first bank of `load` and `high`, and all analysis output in `.local/` |
 
-The public build uses the synthesized engine and the CC0 tire recording. Its button never calls that engine a recording or Coyote.
+`.gitignore` and a test guard the unpublished files, and another test checks each published loop against [the provenance hashes](COYOTE-PROVENANCE.json).
 
 ### What this adds to the public site
 
-When this work eventually reaches `main`, the deploy job adds two files to the site: `audio-lab/assets/tire-foley.mp3` and `audio-lab/assets/ATTRIBUTION.md`. The tire file is the unmodified CC0 original by Joseph SARDIN / BigSoundBank, 1.19 MB. Visitors download it only when they start a run. The rest of the lab isn't deployed.
+When this work reaches `main`, the deploy job adds `audio-lab/assets/tire-foley.mp3` (1.19 MB), the four loops (180 KB) and `audio-lab/assets/ATTRIBUTION.md`. Visitors download the audio only when they start a run. The rest of the lab isn't deployed. **Merging to `main` deploys.** Afterwards, check the live site with `TEST_URL=https://libertaine.github.io/mini-drifters/ npm run test:browser`.
 
-### Publishing Coyote later
+### If the recordings can't load
 
-**Don't do any of this until the owner has confirmed redistribution rights.** MIT and CC0 don't cover these recordings. Once rights are confirmed, make these changes in a dedicated pull request:
-
-1. Record the permission and its scope in `audio-lab/assets/ATTRIBUTION.md`, and update `rights` in `docs/COYOTE-PROVENANCE.json`.
-2. In `.gitignore`, replace `audio-lab/assets/coyote-local/` with `audio-lab/assets/coyote-local/incar-reference.wav`. Keep the `.local/` and `Mustang-Dyno*.wav` lines.
-3. Commit exactly `idle.wav`, `mid.wav`, `load.wav` and `high.wav`, after checking their SHA-256 against the provenance file.
-4. In the "Assemble the site" step of `.github/workflows/ci.yml`, add:
-   ```sh
-   mkdir -p _site/audio-lab/assets/coyote-local
-   cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/
-   ```
-5. In `index.html`, add `<meta name="mini-drifters-engine" content="coyote-local">` to the `<head>`. Remove the injection from `server.mjs`.
-6. In `src/main.js`, change the tooltip wording, which currently says "local recordings".
-7. Update the tests that enforce today's rule:
-   - In `test/publish.test.mjs`, the deploy copy list, the tracked-audio list, the no-`.wav` check and the "never carries the tag" check.
-   - In `test/browser-check.mjs` and `test/gameplay-audio-browser.mjs`, `siteFiles`.
-   - The public pass in `test/gameplay-audio-browser.mjs`, which currently expects `fallback`.
-8. Merging to `main` deploys. Afterwards, check the live site with `TEST_URL=https://libertaine.github.io/mini-drifters/ npm run test:browser`.
+The game still plays. A missing, damaged or timed-out loop switches the whole engine to the synthesized fallback, and the Sound button's tooltip says so. It's never described as a recording. Tires load separately, so either can fail without the other.
 
 ## Testing
 
 | Command | Covers |
 |---|---|
-| `npm test` | Telemetry, lifecycle against a fake graph, determinism with and without audio, publishing rules |
+| `npm test` | Telemetry, gears, oscillation guards, lifecycle against a fake graph, determinism with and without audio, publishing rules |
 | `npm run test:browser` | The original gameplay check, on exactly the published files |
 | `npm run test:gameplay-audio:browser` | Real key presses and real Web Audio, measuring output level |
 | `npm run test:audio:browser`, `npm run test:coyote:browser` | The lab |
@@ -157,12 +149,10 @@ When this work eventually reaches `main`, the deploy job adds two files to the s
 
 | Pass | Files | What it proves |
 |---|---|---|
-| `public` | Exactly what Pages publishes | The fallback lifecycle, and that Coyote is never requested |
-| `fixture` | Synthetic sine WAVs, clearly labelled | The Coyote code path, in public CI too. **Not** authentic audio |
+| `public` | Exactly what Pages publishes | Real Coyote decoding and playback through the whole lifecycle, verified against the provenance hashes |
+| `fallback` | The same files, with the recordings returning 404 | The fallback engine's whole lifecycle |
 | `failures`, `coyote-failures` | Injected failures | Every failure leaves the game drivable |
-| `owner` | The real local server and private loops | Authentic decoding and playback, verified against the provenance hashes |
-
-Set `COYOTE_REQUIRED=1` to fail when the `owner` pass can't run. Hosted CI has no private recordings, says so in its log and never qualifies authentic audio.
+| `local` | The real local server | The same again, through `server.mjs` |
 
 ### Limits of this coverage
 
@@ -171,9 +161,23 @@ Set `COYOTE_REQUIRED=1` to fail when the `owner` pass can't run. Hosted CI has n
 - Firefox has no `cancelAndHoldAtTime`, so `smooth()` falls back to reading `param.value`. A real-time probe at the game's 30 Hz update rate showed Firefox 157 glides matching Chromium 156. This was a one-off measurement and isn't in the test suite.
 - CPU use hasn't been profiled on low-power hardware. Headless frame rate while sliding stayed above 60 fps on the desktop used for testing.
 
+## Listening result
+
+The owner listened on 2026-11-06. This is a summary, not a filled-in worksheet, and the browser, output device and volume weren't recorded.
+
+| Question | Owner's answer |
+|---|---|
+| Is the full-throttle oscillation gone? | Yes |
+| Does drifting still sound as good? | A little worse, but still good |
+| Is there a slow pulse around 4400–4700 RPM? | Didn't notice one |
+| Are the gear changes audible but unobtrusive? | Shifting sounds good |
+| Do downshifts and the move from a slide back into gear sound natural? | Yes |
+| Is the engine too high-pitched at 3000–5000 RPM? | Fine for now |
+
 ## Open questions for listening
 
+These are still open.
+
+
 - Is the master level right? It's about 5 dB above the lab's bench level, which measured a quiet -30 dBFS RMS while driving. Set it with `masterLevel`.
-- Do the short `load` and `high` loops (0.37 s and 0.32 s) repeat audibly at the RPM where the car spends much of its time? The median while racing is about 4700 RPM.
-- Is the engine too high-pitched overall without gears?
 - Does the foley tire loop hold up during a long drift?
