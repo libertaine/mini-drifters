@@ -53,19 +53,21 @@ const TITLE_COLORS = {
 const TITLE = {
   ground: '#17181b',
   groundBand: '#1c1d21',
-  anchor: { x: -94, y: 137 },  // where on the hairpin the car is posed, nearest centreline point
-  focus: { x: -74, y: 127 },   // the world point placed at the centre of the visible area
+  anchor: { x: -94, y: 128 },  // where on the hairpin the car is posed, nearest centreline point
+  focus: { x: -92, y: 134 },   // the world point placed at the centre of the visible area
   panelShare: 0.48,            // the part of the window behind the title panel
   rotation: Math.PI,           // turns the hairpin to open toward the panel
-  viewWidth: 70,               // metres that must fit across the visible area...
-  viewHeight: 62,              // ...and down it
-  carScale: 2,                 // a poster's exaggeration, on top of the usual draw scale
-  slip: 40 * (Math.PI / 180),
-  outwardOffset: 2.5,          // metres toward the outside of the corner
-  countersteer: -0.42,         // front wheels against the slide, in radians
+  viewWidth: 47,               // metres that must fit across the visible area...
+  viewHeight: 42,              // ...and down it
+  carScale: 2.5,               // a poster's exaggeration, on top of the usual draw scale
+  slip: 62 * (Math.PI / 180),  // well past what the road's own curve can hide
+  outwardOffset: 1.5,          // metres toward the outside of the corner
+  countersteer: -0.62,         // front wheels against the slide, in radians
   sway: 1.5 * (Math.PI / 180), // the slide breathing, so the frame isn't dead
-  skidPoints: 44,              // centreline samples of rubber behind the car
-  smokePuffs: 34,
+  skidPoints: 52,              // centreline samples of rubber behind the car
+  skidWidth: 1.4,              // metres, about the poster car's tyre where the mark starts
+  smokePuffs: 64,
+  smokeReach: 19,              // how many of those samples the smoke follows before it's gone
   smokeSprite: 96,             // pixels across the one soft puff that every puff is drawn from
 };
 
@@ -643,7 +645,7 @@ function drawMinimap(r, car, ghost) {
 }
 
 // Works out the posed slide once: the car, the rubber it has laid and its smoke.
-function buildTitleScene(track) {
+export function buildTitleScene(track) {
   const { points } = track;
   const n = points.length;
   let at = 0;
@@ -660,27 +662,29 @@ function buildTitleScene(track) {
     const p = points[(i + n) % n];
     return { x: p.x + p.ty * offset, y: p.y - p.tx * offset, heading: Math.atan2(p.ty, p.tx) + slip };
   };
-  const pose = poseAt(at, TITLE.slip, TITLE.outwardOffset);
-  // The rear tyres as drawn, scaled up with the poster car. The rubber and smoke start here.
-  const rear = wheelPositions(pose.x, pose.y, pose.heading).map((w) => ({
-    x: pose.x + (w.x - pose.x) * TITLE.carScale,
-    y: pose.y + (w.y - pose.y) * TITLE.carScale,
+  // Where the poster car's rear tyres are at a pose, at the size the car is drawn.
+  const size = TITLE.carScale * CAR.drawScale;
+  const tyres = (pose) => wheelPositions(pose.x, pose.y, pose.heading).map((w) => ({
+    x: pose.x + (w.x - pose.x) * size,
+    y: pose.y + (w.y - pose.y) * size,
   }));
-  const skids = [rear];
-  for (let k = 1; k < TITLE.skidPoints; k += 1) {
-    const fade = 1 - k / TITLE.skidPoints;
-    const trail = poseAt(at - k, TITLE.slip * fade, TITLE.outwardOffset * fade);
-    skids.push(wheelPositions(trail.x, trail.y, trail.heading));
-  }
+  const pose = poseAt(at, TITLE.slip, TITLE.outwardOffset);
+  // Row 0 is under the tyres. Going back in time the slide eases out, so the marks swing in
+  // from a straight entry the way a car's would, with no jump anywhere along them.
+  const skids = Array.from({ length: TITLE.skidPoints }, (_, k) => {
+    const ease = 1 - k / TITLE.skidPoints;
+    const fade = ease * ease * (3 - 2 * ease);
+    return tyres(poseAt(at - k, TITLE.slip * fade, TITLE.outwardOffset * fade));
+  });
   const rand = scatter(11);
   const puffs = Array.from({ length: TITLE.smokePuffs }, (_, i) => ({
     phase: i / TITLE.smokePuffs,
     side: i % 2,
     across: rand() - 0.5,
-    along: 0.75 + rand() * 0.5,
-    size: 0.9 + rand() * 0.9,
+    reach: 0.75 + rand() * 0.5,
+    size: 0.8 + rand() * 0.5,
   }));
-  return { pose, rear, skids, puffs, back: { x: -points[at].tx, y: -points[at].ty } };
+  return { pose, size, travel: Math.atan2(points[at].ty, points[at].tx), skids, puffs };
 }
 
 function buildSmokeSprite() {
@@ -690,19 +694,25 @@ function buildSmokeSprite() {
   sprite.height = size;
   const ctx = sprite.getContext('2d');
   const glow = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  glow.addColorStop(0, 'rgba(236,233,226,1)');
-  glow.addColorStop(0.55, 'rgba(236,233,226,0.55)');
-  glow.addColorStop(1, 'rgba(236,233,226,0)');
+  // Nearly solid to most of its width, so puffs read as billows and not as a glow.
+  glow.addColorStop(0, 'rgba(240,237,230,1)');
+  glow.addColorStop(0.62, 'rgba(240,237,230,0.82)');
+  glow.addColorStop(0.86, 'rgba(240,237,230,0.22)');
+  glow.addColorStop(1, 'rgba(240,237,230,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, size, size);
   return sprite;
 }
 
+// Solid colours that fade into the asphalt: translucent segments would show their joins.
 function drawTitleSkids(ctx, skids) {
-  ctx.strokeStyle = '#08080a';
-  ctx.lineWidth = 1.1;
+  ctx.lineCap = 'round';
   for (let k = 1; k < skids.length; k += 1) {
-    ctx.globalAlpha = 0.75 * (1 - k / skids.length);
+    const left = 1 - k / skids.length;
+    const rubber = 0.95 * Math.sqrt(left);
+    const [r, g, b] = [[52, 8], [53, 8], [59, 10]].map(([road, mark]) => Math.round(road + (mark - road) * rubber));
+    ctx.strokeStyle = `rgb(${r},${g},${b})`;
+    ctx.lineWidth = TITLE.skidWidth * (0.55 + 0.45 * left);
     ctx.beginPath();
     for (const side of [0, 1]) {
       ctx.moveTo(skids[k - 1][side].x, skids[k - 1][side].y);
@@ -710,22 +720,58 @@ function drawTitleSkids(ctx, skids) {
     }
     ctx.stroke();
   }
+}
+
+// The puffs loop on a fixed cycle: each leaves a rear tyre small and dense, then follows
+// its skid mark back along the road, swelling and thinning as it goes.
+function drawTitleSmoke(ctx, scene, sprite, time) {
+  const { skids, puffs } = scene;
+  for (const puff of puffs) {
+    const life = (puff.phase + time * 0.34) % 1;
+    const along = Math.min(skids.length - 2, TITLE.smokeReach * puff.reach * life);
+    const row = Math.floor(along);
+    const a = skids[row][puff.side];
+    const b = skids[row + 1][puff.side];
+    const t = along - row;
+    // The path's own sideways direction, so the spread stays across the trail around the bend.
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const spread = 4 * puff.across * life;
+    const x = a.x + dx * t - (dy / length) * spread;
+    const y = a.y + dy * t + (dx / length) * spread;
+    const radius = puff.size * (1.4 + Math.sqrt(life) * 3.9);
+    ctx.globalAlpha = 0.58 * (1 - life) ** 2.4 * Math.min(1, life * 24);
+    ctx.drawImage(sprite, x - radius, y - radius, radius * 2, radius * 2);
+  }
   ctx.globalAlpha = 1;
 }
 
-// The puffs loop on a fixed cycle, leaving the rear tyres and trailing back along the road.
-function drawTitleSmoke(ctx, scene, sprite, time) {
-  const { rear, puffs, back } = scene;
-  for (const puff of puffs) {
-    const life = (puff.phase + time * 0.42) % 1;
-    const { x, y } = rear[puff.side];
-    const reach = 16 * puff.along * life;
-    const spread = 9 * puff.across * life;
-    const radius = puff.size * (1.4 + life * 5);
-    ctx.globalAlpha = 0.3 * (1 - life) * Math.min(1, life * 8);
-    ctx.drawImage(sprite, x + back.x * reach - back.y * spread - radius, y + back.y * reach + back.x * spread - radius, radius * 2, radius * 2);
-  }
-  ctx.globalAlpha = 1;
+// The car's shadow goes under the smoke and its body over it, so the tyres stay crisp and
+// the smoke comes out from beneath them. The shadow would dirty the smoke the other way up.
+function drawTitleCar(ctx, scene, sprite, time) {
+  const { pose, size } = scene;
+  const heading = pose.heading + Math.sin(time * 1.3) * TITLE.sway;
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.scale(size, size);
+  ctx.save();
+  ctx.translate(-0.22, -0.3);
+  ctx.rotate(heading);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  roundedRect(ctx, -CAR.length / 2, -CAR.width / 2, CAR.length, CAR.width, 0.55);
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+
+  drawTitleSmoke(ctx, scene, sprite, time);
+
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.scale(size, size);
+  ctx.rotate(heading);
+  drawCarBody(ctx, { wheelAngle: TITLE.countersteer, brake: 0, handbrake: false }, COLORS);
+  ctx.restore();
 }
 
 function drawTitleScene(r, step) {
@@ -756,13 +802,7 @@ function drawTitleScene(r, step) {
   ctx.translate(-TITLE.focus.x, -TITLE.focus.y);
   drawRoad(r, TITLE_COLORS);
   drawTitleSkids(ctx, scene.skids);
-  const heading = scene.pose.heading + Math.sin(time * 1.3) * TITLE.sway;
-  ctx.save();
-  ctx.translate(scene.pose.x, scene.pose.y);
-  ctx.scale(TITLE.carScale, TITLE.carScale);
-  drawCar(ctx, { wheelAngle: TITLE.countersteer, brake: 0, handbrake: false }, { x: 0, y: 0, heading });
-  ctx.restore();
-  drawTitleSmoke(ctx, scene, r.titleSmoke, time);
+  drawTitleCar(ctx, scene, r.titleSmoke, time);
   ctx.restore();
 }
 

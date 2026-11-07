@@ -64,6 +64,23 @@ const countPixels = (page, [r, g, b], from = 0, to = 1) => page.evaluate(({ r, g
   return hits;
 }, { r, g, b, from, to });
 const CAR_BODY = [239, 77, 35];
+// The box around the car's paint, in window pixels.
+const carBox = (page) => page.evaluate(([r, g, b]) => {
+  const canvas = document.getElementById('view');
+  const scale = canvas.width / window.innerWidth;
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const box = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
+  for (let i = 0; i < data.length; i += 4) {
+    if (Math.abs(data[i] - r) >= 16 || Math.abs(data[i + 1] - g) >= 16 || Math.abs(data[i + 2] - b) >= 16) continue;
+    const x = ((i / 4) % canvas.width) / scale;
+    const y = Math.floor(i / 4 / canvas.width) / scale;
+    box.left = Math.min(box.left, x);
+    box.right = Math.max(box.right, x);
+    box.top = Math.min(box.top, y);
+    box.bottom = Math.max(box.bottom, y);
+  }
+  return box;
+}, CAR_BODY);
 const GRASS = [63, 154, 71];
 
 // Everything on the title that has to be readable or pressable, at the current size.
@@ -153,14 +170,17 @@ async function check(name, engine) {
       }
       assert.ok(layout.buttons[0].top >= layout.tagline.bottom, 'the menu sits under the title');
       assert.ok(layout.buttons.every((b) => b.right <= width * 0.5), 'the menu stays on the left');
-      // The car's paint alone, right of the panel. Glass and stripes don't count, so this
-      // is well under the car's whole area, which comes to about 170 px long at 1920x1080.
+      // The car is the focal point: whole, clear of the panel and large in the frame. Its
+      // paint alone is measured, since glass and stripes don't count.
       const car = await countPixels(page, CAR_BODY, 0.5, 1);
-      assert.ok(car > width * height * 0.001, `${car} car pixels at ${width}x${height}`);
+      assert.ok(car > width * height * 0.007, `${car} car pixels at ${width}x${height}`);
+      const box = await carBox(page);
+      assert.ok(box.left > width * 0.52 && box.right < width - 8 && box.top > 8 && box.bottom < height - 8, `the car is cut off at ${width}x${height}: ${JSON.stringify(box)}`);
+      assert.ok(box.right - box.left > height * 0.25, `the car spans only ${box.right - box.left} px at ${width}x${height}`);
       assert.equal(await countPixels(page, GRASS), 0, 'the poster has no daytime grass');
     }
     await page.setViewportSize({ width: 1366, height: 768 });
-    step('at 1920x1080, 1366x768 and 1024x600 nothing clips, overlaps or scrolls, and the car is in view');
+    step('at 1920x1080, 1366x768 and 1024x600 nothing clips, overlaps or scrolls, and the whole car is the focal point');
 
     // --- Focus and keys on the title ------------------------------------------------
     assert.equal(await focused(page), 'start', 'Start is selected from the first frame');
