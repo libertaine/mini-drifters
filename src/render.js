@@ -41,6 +41,36 @@ const GHOST_COLORS = {
 const GHOST_WHEELS = { wheelAngle: 0, brake: 0, handbrake: false };
 const GHOST_SPRITE_SCALE = 44; // pixels per metre of the car's artwork
 
+// The title screen's poster: the real hairpin and the real car on a night-time palette.
+const TITLE_COLORS = {
+  ...COLORS,
+  asphalt: '#34353b',
+  line: '#f6f1e4',
+  dash: '#ffb627',
+  curbRed: '#cf4a1b',
+  curbWhite: '#f6f1e4',
+};
+const TITLE = {
+  ground: '#17181b',
+  groundBand: '#1c1d21',
+  anchor: { x: -94, y: 128 },  // where on the hairpin the car is posed, nearest centreline point
+  focus: { x: -92, y: 134 },   // the world point placed at the centre of the visible area
+  panelShare: 0.48,            // the part of the window behind the title panel
+  rotation: Math.PI,           // turns the hairpin to open toward the panel
+  viewWidth: 47,               // metres that must fit across the visible area...
+  viewHeight: 42,              // ...and down it
+  carScale: 2.5,               // a poster's exaggeration, on top of the usual draw scale
+  slip: 62 * (Math.PI / 180),  // well past what the road's own curve can hide
+  outwardOffset: 1.5,          // metres toward the outside of the corner
+  countersteer: -0.62,         // front wheels against the slide, in radians
+  sway: 1.5 * (Math.PI / 180), // the slide breathing, so the frame isn't dead
+  skidPoints: 52,              // centreline samples of rubber behind the car
+  skidWidth: 1.4,              // metres, about the poster car's tyre where the mark starts
+  smokePuffs: 64,
+  smokeReach: 19,              // how many of those samples the smoke follows before it's gone
+  smokeSprite: 96,             // pixels across the one soft puff that every puff is drawn from
+};
+
 const VIEW = {
   zoomSlow: 11.5,         // pixels per metre near a standstill
   zoomFast: 8.2,          // pixels per metre at top speed
@@ -163,6 +193,10 @@ export function createRenderer(canvas, track) {
     smoke: [],
     smokeCarry: 0,
     ghostSprite: buildGhostSprite(),
+    title: buildTitleScene(track),
+    titleTime: 0,
+    titleSmoke: buildSmokeSprite(),
+    titleStill: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     width: 0,
     height: 0,
     dpr: 1,
@@ -305,30 +339,30 @@ function drawGrass(r) {
   ctx.fillRect(bounds.maxX, bounds.minY, Math.max(0, cam.x + hw + 1 - bounds.maxX), bounds.maxY - bounds.minY);
 }
 
-function drawRoad(r) {
+function drawRoad(r, colors = COLORS) {
   const { ctx, track, road, curbs, startPoint } = r;
   const width = track.halfWidth * 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'butt';
 
   ctx.setLineDash([]);
-  ctx.strokeStyle = COLORS.curbWhite;
+  ctx.strokeStyle = colors.curbWhite;
   ctx.lineWidth = width + track.curbWidth * 2;
   ctx.stroke(curbs);
   ctx.setLineDash([3.5, 3.5]);
-  ctx.strokeStyle = COLORS.curbRed;
+  ctx.strokeStyle = colors.curbRed;
   ctx.stroke(curbs);
   ctx.setLineDash([]);
 
-  ctx.strokeStyle = COLORS.line;
+  ctx.strokeStyle = colors.line;
   ctx.lineWidth = width + 0.9;
   ctx.stroke(road);
-  ctx.strokeStyle = COLORS.asphalt;
+  ctx.strokeStyle = colors.asphalt;
   ctx.lineWidth = width - 0.9;
   ctx.stroke(road);
 
   ctx.setLineDash([5, 9]);
-  ctx.strokeStyle = COLORS.dash;
+  ctx.strokeStyle = colors.dash;
   ctx.lineWidth = 0.42;
   ctx.stroke(road);
   ctx.setLineDash([]);
@@ -610,6 +644,168 @@ function drawMinimap(r, car, ghost) {
   ctx.restore();
 }
 
+// Works out the posed slide once: the car, the rubber it has laid and its smoke.
+export function buildTitleScene(track) {
+  const { points } = track;
+  const n = points.length;
+  let at = 0;
+  let nearest = Infinity;
+  points.forEach((p, i) => {
+    const d = Math.hypot(p.x - TITLE.anchor.x, p.y - TITLE.anchor.y);
+    if (d < nearest) {
+      nearest = d;
+      at = i;
+    }
+  });
+  // The hairpin turns right, so left of travel, (ty, -tx), is the outside of the corner.
+  const poseAt = (i, slip, offset) => {
+    const p = points[(i + n) % n];
+    return { x: p.x + p.ty * offset, y: p.y - p.tx * offset, heading: Math.atan2(p.ty, p.tx) + slip };
+  };
+  // Where the poster car's rear tyres are at a pose, at the size the car is drawn.
+  const size = TITLE.carScale * CAR.drawScale;
+  const tyres = (pose) => wheelPositions(pose.x, pose.y, pose.heading).map((w) => ({
+    x: pose.x + (w.x - pose.x) * size,
+    y: pose.y + (w.y - pose.y) * size,
+  }));
+  const pose = poseAt(at, TITLE.slip, TITLE.outwardOffset);
+  // Row 0 is under the tyres. Going back in time the slide eases out, so the marks swing in
+  // from a straight entry the way a car's would, with no jump anywhere along them.
+  const skids = Array.from({ length: TITLE.skidPoints }, (_, k) => {
+    const ease = 1 - k / TITLE.skidPoints;
+    const fade = ease * ease * (3 - 2 * ease);
+    return tyres(poseAt(at - k, TITLE.slip * fade, TITLE.outwardOffset * fade));
+  });
+  const rand = scatter(11);
+  const puffs = Array.from({ length: TITLE.smokePuffs }, (_, i) => ({
+    phase: i / TITLE.smokePuffs,
+    side: i % 2,
+    across: rand() - 0.5,
+    reach: 0.75 + rand() * 0.5,
+    size: 0.8 + rand() * 0.5,
+  }));
+  return { pose, size, travel: Math.atan2(points[at].ty, points[at].tx), skids, puffs };
+}
+
+function buildSmokeSprite() {
+  const size = TITLE.smokeSprite;
+  const sprite = document.createElement('canvas');
+  sprite.width = size;
+  sprite.height = size;
+  const ctx = sprite.getContext('2d');
+  const glow = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  // Nearly solid to most of its width, so puffs read as billows and not as a glow.
+  glow.addColorStop(0, 'rgba(240,237,230,1)');
+  glow.addColorStop(0.62, 'rgba(240,237,230,0.82)');
+  glow.addColorStop(0.86, 'rgba(240,237,230,0.22)');
+  glow.addColorStop(1, 'rgba(240,237,230,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, size, size);
+  return sprite;
+}
+
+// Solid colours that fade into the asphalt: translucent segments would show their joins.
+function drawTitleSkids(ctx, skids) {
+  ctx.lineCap = 'round';
+  for (let k = 1; k < skids.length; k += 1) {
+    const left = 1 - k / skids.length;
+    const rubber = 0.95 * Math.sqrt(left);
+    const [r, g, b] = [[52, 8], [53, 8], [59, 10]].map(([road, mark]) => Math.round(road + (mark - road) * rubber));
+    ctx.strokeStyle = `rgb(${r},${g},${b})`;
+    ctx.lineWidth = TITLE.skidWidth * (0.55 + 0.45 * left);
+    ctx.beginPath();
+    for (const side of [0, 1]) {
+      ctx.moveTo(skids[k - 1][side].x, skids[k - 1][side].y);
+      ctx.lineTo(skids[k][side].x, skids[k][side].y);
+    }
+    ctx.stroke();
+  }
+}
+
+// The puffs loop on a fixed cycle: each leaves a rear tyre small and dense, then follows
+// its skid mark back along the road, swelling and thinning as it goes.
+function drawTitleSmoke(ctx, scene, sprite, time) {
+  const { skids, puffs } = scene;
+  for (const puff of puffs) {
+    const life = (puff.phase + time * 0.34) % 1;
+    const along = Math.min(skids.length - 2, TITLE.smokeReach * puff.reach * life);
+    const row = Math.floor(along);
+    const a = skids[row][puff.side];
+    const b = skids[row + 1][puff.side];
+    const t = along - row;
+    // The path's own sideways direction, so the spread stays across the trail around the bend.
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const spread = 4 * puff.across * life;
+    const x = a.x + dx * t - (dy / length) * spread;
+    const y = a.y + dy * t + (dx / length) * spread;
+    const radius = puff.size * (1.4 + Math.sqrt(life) * 3.9);
+    ctx.globalAlpha = 0.58 * (1 - life) ** 2.4 * Math.min(1, life * 24);
+    ctx.drawImage(sprite, x - radius, y - radius, radius * 2, radius * 2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// The car's shadow goes under the smoke and its body over it, so the tyres stay crisp and
+// the smoke comes out from beneath them. The shadow would dirty the smoke the other way up.
+function drawTitleCar(ctx, scene, sprite, time) {
+  const { pose, size } = scene;
+  const heading = pose.heading + Math.sin(time * 1.3) * TITLE.sway;
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.scale(size, size);
+  ctx.save();
+  ctx.translate(-0.22, -0.3);
+  ctx.rotate(heading);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  roundedRect(ctx, -CAR.length / 2, -CAR.width / 2, CAR.length, CAR.width, 0.55);
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+
+  drawTitleSmoke(ctx, scene, sprite, time);
+
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.scale(size, size);
+  ctx.rotate(heading);
+  drawCarBody(ctx, { wheelAngle: TITLE.countersteer, brake: 0, handbrake: false }, COLORS);
+  ctx.restore();
+}
+
+function drawTitleScene(r, step) {
+  const { ctx, title: scene, width, height } = r;
+  if (!r.titleStill) r.titleTime += step;
+  const time = r.titleTime;
+  const visibleWidth = width * (1 - TITLE.panelShare);
+  const zoom = Math.min(visibleWidth / TITLE.viewWidth, height / TITLE.viewHeight);
+
+  ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
+  ctx.fillStyle = TITLE.ground;
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = TITLE.groundBand;
+  const band = Math.max(width, height) / 12;
+  for (let i = -6; i < 16; i += 2) {
+    ctx.beginPath();
+    ctx.moveTo(i * band, height);
+    ctx.lineTo((i + 1) * band, height);
+    ctx.lineTo((i + 1) * band + height * 0.5, 0);
+    ctx.lineTo(i * band + height * 0.5, 0);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.translate(width * TITLE.panelShare + visibleWidth / 2, height / 2);
+  ctx.scale(zoom, zoom);
+  ctx.rotate(TITLE.rotation);
+  ctx.translate(-TITLE.focus.x, -TITLE.focus.y);
+  drawRoad(r, TITLE_COLORS);
+  drawTitleSkids(ctx, scene.skids);
+  drawTitleCar(ctx, scene, r.titleSmoke, time);
+  ctx.restore();
+}
+
 // The player's car is drawn one step behind the simulation, blending toward its
 // latest position by `alpha`, so the ghost is sampled at that same moment.
 function ghostForFrame(game, pose, alpha) {
@@ -630,6 +826,10 @@ export function drawFrame(r, game, alpha, dt, debug) {
   const step = Math.min(dt, FX.maxDt);
   if (!game.paused && game.state !== 'finished' && game.state !== 'menu') updateEffects(r, game, pose, step);
   updateCamera(r, car, pose, step);
+  if (game.state === 'menu') {
+    drawTitleScene(r, step);
+    return;
+  }
   const ghost = ghostForFrame(game, pose, blend);
 
   ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
@@ -647,5 +847,5 @@ export function drawFrame(r, game, alpha, dt, debug) {
   drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
-  if (game.state !== 'menu') drawMinimap(r, car, ghost);
+  drawMinimap(r, car, ghost);
 }

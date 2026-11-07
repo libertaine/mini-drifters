@@ -27,6 +27,8 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 
 Enter also starts a run from the title and results screens.
 
+On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. **How to Play** has the controls and scoring, and Esc goes back.
+
 The **Sound** button under the score is the master switch for all sound, and remembers your choice. It works with the mouse, or with Tab and Enter.
 
 **Options** has the radio station, music volume and sound effects volume, all remembered between visits. The radio is off by default. Its three stations play [provisional built-in music](docs/RADIO.md), which may be replaced later.

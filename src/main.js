@@ -121,13 +121,46 @@ function closeOptions({ restoreFocus = true } = {}) {
   if (!optionsOpen) return;
   optionsOpen = false;
   syncScreens();
-  if (optionsOpener && restoreFocus) optionsOpener.focus();
-  else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  settleFocus(optionsOpener, restoreFocus);
   optionsOpener = null;
 }
 
+function settleFocus(opener, restoreFocus) {
+  if (opener && restoreFocus) opener.focus();
+  else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+}
+
+// --- How to play ----------------------------------------------------------
+let helpOpen = false;
+let helpOpener = null;
+
+function openHelp(opener = null) {
+  if (helpOpen || game.state !== 'menu') return;
+  helpOpen = true;
+  helpOpener = opener;
+  clearInput();
+  syncScreens();
+  $('help-back').focus();
+}
+
+function closeHelp({ restoreFocus = true } = {}) {
+  if (!helpOpen) return;
+  helpOpen = false;
+  syncScreens();
+  settleFocus(helpOpener, restoreFocus);
+  helpOpener = null;
+}
+
+// Up and Down walk the title's menu, wrapping at the ends.
+function moveMenuFocus(direction) {
+  const buttons = [...document.querySelectorAll('.title-menu button')];
+  const current = buttons.indexOf(document.activeElement);
+  const next = current < 0 ? (direction > 0 ? 0 : buttons.length - 1) : (current + direction + buttons.length) % buttons.length;
+  buttons[next].focus();
+}
+
 // These keep Enter, and Space when the car isn't being driven, for their own use.
-const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open');
+const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #again');
 
 // While driving, Space is always the handbrake, even with the Sound button focused.
 function buttonOwnsSpace(e) {
@@ -154,6 +187,21 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
+  // How to Play is only reading, so the game's keys stay out of it too.
+  if (helpOpen) {
+    // A key held from the button that opened this repeats on Back, and mustn't press it.
+    if (e.repeat) e.preventDefault();
+    else if (e.code === 'Escape') {
+      e.preventDefault();
+      closeHelp();
+    }
+    return;
+  }
+  if (game.state === 'menu' && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+    e.preventDefault();
+    if (!e.repeat) moveMenuFocus(e.code === 'ArrowDown' ? 1 : -1);
+    return;
+  }
   const held = CODE_TO_KEY[e.code];
   if (held) {
     // On the menu, Space may still activate a focused button.
@@ -161,6 +209,8 @@ window.addEventListener('keydown', (e) => {
     input[held] = true;
     return;
   }
+  // A held Enter mustn't press whichever button focus has just landed on.
+  if (e.repeat && e.code === 'Enter') e.preventDefault();
   if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.code === 'Enter' && keepsKeys(e.target)) {
     // Left to the browser, so Enter presses the focused button.
@@ -183,14 +233,15 @@ window.addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyN') {
     audio.nextStation(game);
   } else if (e.code === 'KeyO') {
-    openOptions();
+    // Closing goes back to whichever menu button the keyboard was on.
+    openOptions(document.activeElement instanceof HTMLButtonElement ? document.activeElement : null);
   }
 });
 
 window.addEventListener('keyup', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (!held) return;
-  if (optionsOpen) {
+  if (optionsOpen || helpOpen) {
     input[held] = false; // and Space stays free to press the focused control
     return;
   }
@@ -231,6 +282,8 @@ for (const button of document.querySelectorAll('.options-open')) {
   button.addEventListener('click', (e) => openOptions(e.detail > 0 ? null : button));
 }
 $('options-close').addEventListener('click', (e) => closeOptions({ restoreFocus: e.detail === 0 }));
+$('how-to-play').addEventListener('click', (e) => openHelp(e.detail > 0 ? null : e.currentTarget));
+$('help-back').addEventListener('click', (e) => closeHelp({ restoreFocus: e.detail === 0 }));
 // A click also covers selecting the current station again, to retry one that failed.
 for (const input of stationInputs) {
   const select = () => audio.setStation(input.value, game);
@@ -263,7 +316,9 @@ function showGhostStatus() {
 
 function syncScreens() {
   const { state, paused } = game;
-  $('menu').hidden = state !== 'menu' || optionsOpen;
+  document.body.dataset.screen = state === 'menu' ? 'title' : 'game';
+  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen;
+  $('help').hidden = !helpOpen;
   $('hud').hidden = state === 'menu';
   $('paused').hidden = !paused || optionsOpen;
   const finished = state === 'finished';
@@ -420,6 +475,7 @@ function frame(now) {
 syncScreens();
 showGhostStatus();
 showSound(audio.snapshot());
+$('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
 window.__miniDrifters = { game, input, projectOnTrack, audio: () => audio.snapshot() };
 requestAnimationFrame(frame);

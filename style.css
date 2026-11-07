@@ -6,7 +6,11 @@
   --orange: #f2542d;
   --green: #5fd38a;
   --red: #ff5a4f;
+  --burnt: #cf4a1b;
+  --charcoal: #131417;
+  --rule: #3a3b41;
   --display: Impact, Haettenschweiler, "Arial Narrow Bold", "Franklin Gothic Medium", sans-serif;
+  --poster: Impact, Haettenschweiler, "Arial Narrow Bold", "Liberation Sans Narrow", "DejaVu Sans Condensed", sans-serif;
   --body: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
 }
 
@@ -139,40 +143,58 @@ canvas#view {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(14, 15, 18, 0.52);
+  background: rgba(10, 11, 13, 0.62);
   overflow: auto;
 }
 
+/* The cut corner and the stripe are the shared motorsport details on every sheet. */
 .sheet {
+  --cut: 26px;
+  flex: none;
   width: min(860px, 100%);
-  background: #1b1c20;
-  border-radius: 8px;
-  border-top: 8px solid var(--orange);
-  padding: 26px 34px 28px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  margin: auto 0;
+  background: var(--charcoal);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+  padding: 30px 34px 28px;
+}
+.sheet::before {
+  content: "";
+  display: block;
+  height: 8px;
+  margin: -30px -34px 22px;
+  background: linear-gradient(100deg, var(--burnt) 0 62%, var(--charcoal) 62% 63%, var(--amber) 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
 }
 .sheet.small { width: min(500px, 100%); }
 
-h1 {
-  margin: 0;
-  font-family: var(--display);
+/* Slanted with a transform rather than italics, so every browser and font leans alike. */
+.sheet-title {
+  margin: 0 0 8px;
+  font-family: var(--poster);
   font-weight: 400;
-  font-size: clamp(50px, 8vw, 78px);
-  line-height: 1;
+  font-size: 44px;
+  line-height: 1.05;
   letter-spacing: 0.015em;
   text-transform: uppercase;
+  color: var(--ink);
+  transform: skewX(-8deg);
+  transform-origin: left bottom;
 }
-h1 em { color: var(--orange); font-style: italic; }
+.eyebrow {
+  margin: 0 0 2px;
+  font: 700 13px var(--body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
 h2 { margin: 16px 0 8px; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber); }
-.sheet.small > h2:first-child { margin-top: 0; font-family: var(--display); font-weight: 400; font-size: 36px; letter-spacing: 0.02em; color: var(--ink); }
+h3 { margin: 0 0 6px; font: 400 22px var(--poster); letter-spacing: 0.03em; text-transform: uppercase; color: var(--amber); }
 
 .pitch { margin: 8px 0 4px; font-size: 18px; color: var(--ink); }
 p { line-height: 1.45; margin: 0 0 8px; color: #dcd7ca; }
-.columns { display: grid; grid-template-columns: minmax(230px, 5fr) 8fr; gap: 34px; }
 .keys { border-collapse: collapse; }
-.keys td { padding: 4px 12px 4px 0; color: #dcd7ca; }
+.keys td { padding: 3px 12px 3px 0; color: #dcd7ca; }
 .keys td:first-child { white-space: nowrap; }
-.howto { margin: 0; padding-left: 20px; color: #dcd7ca; line-height: 1.45; }
+.howto { margin: 0; padding-left: 20px; color: #dcd7ca; line-height: 1.38; }
 .howto li { margin-bottom: 3px; }
 
 kbd {
@@ -181,9 +203,9 @@ kbd {
   padding: 1px 7px;
   text-align: center;
   font: 700 13px/1.5 var(--body);
-  color: #1b1c20;
+  color: var(--charcoal);
   background: var(--ink);
-  border-radius: 4px;
+  border-radius: 2px;
   box-shadow: 0 2px 0 #8d8a80;
 }
 
@@ -205,9 +227,105 @@ button {
 button:hover { background: #ff6a40; }
 button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; background: rgba(0, 0, 0, 0.28); letter-spacing: 0; }
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
-button.quiet { background: transparent; color: var(--ink); font-size: 20px; box-shadow: inset 0 0 0 2px #55565d; }
-button.quiet:hover { background: rgba(246, 241, 228, 0.1); }
+
+/* Menu buttons lean as whole shapes, so their focus outlines follow the angle. */
+.sheet button, .title-menu button {
+  border-radius: 0;
+  background: var(--burnt);
+  color: var(--ink);
+  font-family: var(--poster);
+  text-transform: uppercase;
+  transform: skewX(-10deg);
+}
+.sheet button:hover, .title-menu button:hover { background: #e4591f; }
+.sheet button.quiet, .title-menu button.quiet { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px #6a6b72; }
+.sheet button.quiet:hover, .title-menu button.quiet:hover { background: rgba(246, 241, 228, 0.12); }
+.sheet button.quiet { font-size: 20px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; }
+
+/* ---- Title screen ---- */
+/* The left panel is solid. The right of the window is the canvas's drifting car. */
+.title-screen {
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+  background: none;
+  overflow: hidden auto;
+}
+.title-panel {
+  position: relative;
+  flex: none;
+  width: 46vw;
+  min-height: max(100%, 440px);
+  padding: 2vh 2vw 2vh clamp(28px, 5vw, 96px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+/* A leaning edge with three racing stripes. A skew only moves things sideways, so they fill the height. */
+.title-panel::before, .title-panel::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform: skewX(-8deg);
+  z-index: -1;
+}
+.title-panel::before { left: -30vw; right: 0; background: var(--charcoal); }
+.title-panel::after {
+  right: calc(-1 * clamp(26px, 2.6vw, 50px));
+  width: clamp(26px, 2.6vw, 50px);
+  background: linear-gradient(90deg, var(--burnt) 0 38%, var(--charcoal) 38% 50%, var(--amber) 50% 72%, var(--charcoal) 72% 84%, var(--ink) 84%);
+}
+.title {
+  margin: 0;
+  font-family: var(--poster);
+  font-weight: 400;
+  font-size: min(10.2vw, 19vh);
+  line-height: 0.94;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  transform: skewX(-9deg);
+  transform-origin: left bottom;
+}
+.title span { display: block; }
+.title span + span { color: var(--orange); }
+.tagline {
+  margin: 1.6vh 0 3.4vh;
+  padding-bottom: 1.8vh;
+  font: 400 clamp(18px, 2.3vh, 28px)/1.2 var(--poster);
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  /* Track markings: the same dashed centre line as the road. */
+  background: repeating-linear-gradient(90deg, var(--amber) 0 26px, transparent 26px 44px) left bottom / 100% 3px no-repeat;
+}
+.title-menu { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(8px, 1.5vh, 16px); }
+.title-menu button {
+  justify-content: space-between;
+  width: min(100%, 25vw + 90px);
+  min-height: clamp(44px, 6.4vh, 68px);
+  margin: 0 0 0 0.6vw;
+  padding: 4px 22px;
+  font-size: clamp(24px, 3.6vh, 38px);
+}
+.title-menu button:focus-visible { outline-color: var(--ink); outline-offset: 3px; }
+
+/* The Sound button sits under the score while driving, but there's no score here. */
+body[data-screen="title"] #sound { top: 16px; }
+
+/* Sheets opened from the title sit where the title was, leaving the car in view. */
+body[data-screen="title"] .overlay:not(.title-screen) {
+  justify-content: flex-start;
+  padding-left: clamp(24px, 5vw, 96px);
+  background: linear-gradient(90deg, rgba(10, 11, 13, 0.82) 0 45%, rgba(10, 11, 13, 0.2) 80%);
+}
+
+/* ---- How to play ---- */
+.help { width: min(880px, calc(100vw - 230px)); padding-bottom: 22px; }
+.help-grid { display: grid; grid-template-columns: 5fr 6fr; gap: 12px 30px; margin-top: 10px; font-size: 14px; }
+.help-grid > section:nth-child(n+3) { border-top: 1px solid var(--rule); padding-top: 10px; }
+.help-grid .keys { font-size: 14px; }
+.help .actions button { margin-top: 12px; }
 
 #sound {
   position: fixed;
@@ -262,7 +380,6 @@ button.quiet:hover { background: rgba(246, 241, 228, 0.1); }
 .station span {
   display: block;
   padding: 9px 10px;
-  border-radius: 5px;
   box-shadow: inset 0 0 0 2px #55565d;
   font: 700 13px var(--body);
   letter-spacing: 0.08em;
@@ -271,23 +388,28 @@ button.quiet:hover { background: rgba(246, 241, 228, 0.1); }
   color: var(--ink);
 }
 .station:hover span { background: rgba(246, 241, 228, 0.1); }
-.station input:checked + span { background: var(--amber); box-shadow: none; color: #1b1c20; }
+.station input:checked + span { background: var(--amber); box-shadow: none; color: var(--charcoal); }
 .station input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
 .radio-note { min-height: 2.9em; margin: 8px 0 4px; font-size: 14px; color: var(--muted); }
-.options-warning { margin-top: 10px; padding: 7px 10px; border-radius: 5px; background: rgba(242, 84, 45, 0.18); font-size: 14px; color: var(--ink); }
+.options-warning { margin-top: 10px; padding: 7px 10px; background: rgba(242, 84, 45, 0.18); font-size: 14px; color: var(--ink); }
 .volume { display: block; margin-top: 10px; }
 .volume-head { display: flex; justify-content: space-between; font-size: 14px; color: #dcd7ca; }
 .volume-head output { font-weight: 700; font-variant-numeric: tabular-nums; }
 .volume input { display: block; width: 100%; margin: 4px 0 0; accent-color: var(--orange); cursor: pointer; }
 
 .stats { margin: 14px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
-.stats div { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #36373d; padding-bottom: 5px; gap: 10px; }
+.stats div { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--rule); padding-bottom: 5px; gap: 10px; }
 .stats .big { grid-column: 1 / -1; }
 .stats dt { color: var(--muted); font-size: 14px; }
 .stats dd { margin: 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.stats .big dd { font-family: var(--display); font-weight: 400; font-size: 44px; color: var(--amber); }
+.stats .big dd { font-family: var(--poster); font-weight: 400; font-size: 44px; color: var(--amber); }
 
 @media (max-width: 720px), (max-height: 620px) {
-  .columns { grid-template-columns: 1fr; gap: 0; }
-  .sheet { padding: 18px 22px; }
+  .help-grid { gap: 8px 22px; margin-top: 4px; }
+  .help-grid, .help-grid .keys { font-size: 13px; }
+  .help-grid h3 { font-size: 19px; margin-bottom: 3px; }
+  .help-grid .keys td { padding: 1px 10px 1px 0; }
+  .sheet { padding: 22px 22px 18px; }
+  .sheet::before { margin: -22px -22px 14px; }
+  .sheet-title { font-size: 36px; }
 }

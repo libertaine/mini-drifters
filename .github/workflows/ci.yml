@@ -43,6 +43,8 @@ jobs:
         run: npm run test:ghost:browser
       - name: Radio in Chromium and Firefox
         run: npm run test:radio:browser
+      - name: Title screen and menus in Chromium and Firefox
+        run: npm run test:menus:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7
