@@ -591,7 +591,7 @@ test('audio holds a read-only view of the game: any write would throw', () => {
 });
 
 test('audio code does not import the simulation or its tuning', () => {
-  const files = ['audio.js', 'audio-telemetry.js', 'audio-voices.js', 'coyote.js', 'coyote-model.js'];
+  const files = ['audio.js', 'audio-preferences.js', 'audio-telemetry.js', 'audio-voices.js', 'coyote.js', 'coyote-model.js', 'radio.js', 'radio-stations.js'];
   const banned = /from '\.\/(tuning|physics|scoring|laps|track|game|render|main)\.js'/;
   for (const file of files) assert.doesNotMatch(readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8'), banned, file);
   // The simulation knows nothing about audio, and game.js has no browser audio.

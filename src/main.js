@@ -5,6 +5,7 @@ import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
 import { projectOnTrack } from './track.js';
 import { GameAudio } from './audio.js';
+import { RADIO_OFF, STATIONS, hasProvisionalMusic, stationById } from './radio-stations.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -30,6 +31,44 @@ function showSound(sound) {
   soundButton.title = sound.failure ? `${sound.failure}. Click to try again.`
     : sound.engine === 'coyote' ? 'Engine: Coyote Hybrid (recorded)'
       : sound.engine === 'fallback' ? 'Engine: synthesized fallback (not a recording)' : '';
+  showRadio(sound);
+}
+
+// --- Radio -----------------------------------------------------------------
+const stationInputs = STATIONS.map((station) => {
+  const label = document.createElement('label');
+  label.className = 'station';
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'station';
+  input.value = station.id;
+  const name = document.createElement('span');
+  name.textContent = station.name;
+  label.append(input, name);
+  $('stations').append(label);
+  return input;
+});
+
+function radioNote(sound, station) {
+  if (sound.radio.status === 'unavailable') return 'This station could not load. Select it again to retry. Driving is not affected.';
+  if (sound.station === RADIO_OFF) return 'No music. Engine and tire sounds stay on.';
+  const provisional = hasProvisionalMusic(station) ? 'Provisional built-in music, which may be replaced later. ' : '';
+  return `${provisional}Press N to change station while driving.`;
+}
+
+function showRadio(sound) {
+  const station = stationById(sound.station);
+  const unavailable = sound.radio.status === 'unavailable';
+  const status = $('radio-status');
+  status.dataset.state = sound.station === RADIO_OFF ? 'off' : unavailable ? 'unavailable' : sound.muted ? 'muted' : 'on';
+  setText('radio-status', `${station.name}${unavailable ? ' · Unavailable' : ''}`);
+  for (const input of stationInputs) input.checked = input.value === sound.station;
+  $('music-volume').value = String(sound.musicVolume);
+  setText('music-volume-value', `${sound.musicVolume}%`);
+  $('effects-volume').value = String(sound.effectsVolume);
+  setText('effects-volume-value', `${sound.effectsVolume}%`);
+  setText('radio-note', radioNote(sound, station));
+  $('options-muted').hidden = !sound.muted;
 }
 
 // --- Input -----------------------------------------------------------------
@@ -62,13 +101,59 @@ function restart() {
   audio.newRun(game);
 }
 
+// --- Options --------------------------------------------------------------
+let optionsOpen = false;
+let optionsOpener = null;
+
+// Options only opens where a sheet is already showing, and the car is never moving there.
+const optionsAvailable = () => game.state === 'menu' || game.paused || game.state === 'finished';
+
+function openOptions(opener = null) {
+  if (optionsOpen || !optionsAvailable()) return;
+  optionsOpen = true;
+  optionsOpener = opener;
+  clearInput();
+  syncScreens();
+  (stationInputs.find((input) => input.checked) ?? stationInputs[0]).focus();
+}
+
+function closeOptions({ restoreFocus = true } = {}) {
+  if (!optionsOpen) return;
+  optionsOpen = false;
+  syncScreens();
+  if (optionsOpener && restoreFocus) optionsOpener.focus();
+  else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  optionsOpener = null;
+}
+
+// These keep Enter, and Space when the car isn't being driven, for their own use.
+const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open');
+
 // While driving, Space is always the handbrake, even with the Sound button focused.
 function buttonOwnsSpace(e) {
   if (game.state === 'menu') return e.target instanceof HTMLButtonElement;
-  return e.target === soundButton && (game.paused || game.state === 'finished');
+  return keepsKeys(e.target) && (game.paused || game.state === 'finished');
 }
 
+// Browsers let audio start only after the player has done something. This is what lets
+// a saved station begin at the first key or click.
+function noteInteraction() {
+  if (navigator.userActivation?.hasBeenActive !== false) audio.interaction(game);
+}
+window.addEventListener('pointerdown', noteInteraction, { capture: true });
+window.addEventListener('keydown', noteInteraction, { capture: true });
+
 window.addEventListener('keydown', (e) => {
+  // With Options open the car isn't being driven, and its controls need their own keys.
+  if (optionsOpen) {
+    // A pedal still held from driving repeats, and mustn't walk through the stations.
+    if (e.repeat && e.target instanceof HTMLInputElement && e.target.type === 'radio') e.preventDefault();
+    if (!e.repeat && (e.code === 'Escape' || e.code === 'KeyO')) {
+      e.preventDefault();
+      closeOptions();
+    }
+    return;
+  }
   const held = CODE_TO_KEY[e.code];
   if (held) {
     // On the menu, Space may still activate a focused button.
@@ -77,8 +162,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.code === 'Enter' && e.target === soundButton) {
-    // Left to the browser, so Enter toggles the focused Sound button.
+  if (e.code === 'Enter' && keepsKeys(e.target)) {
+    // Left to the browser, so Enter presses the focused button.
   } else if (e.code === 'Enter' && (game.state === 'menu' || game.state === 'finished')) {
     e.preventDefault();
     beginRun();
@@ -95,12 +180,20 @@ window.addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyG' && game.state !== 'menu') {
     toggleGhost(game);
     showGhostStatus();
+  } else if (e.code === 'KeyN') {
+    audio.nextStation(game);
+  } else if (e.code === 'KeyO') {
+    openOptions();
   }
 });
 
 window.addEventListener('keyup', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (!held) return;
+  if (optionsOpen) {
+    input[held] = false; // and Space stays free to press the focused control
+    return;
+  }
   // Firefox activates a focused button on keyup, so that needs blocking as well.
   if (!(e.code === 'Space' && buttonOwnsSpace(e))) e.preventDefault();
   input[held] = false;
@@ -133,6 +226,19 @@ soundButton.addEventListener('click', (e) => {
   // After a mouse click, hand the keyboard straight back to the car.
   if (e.detail > 0) soundButton.blur();
 });
+for (const button of document.querySelectorAll('.options-open')) {
+  // A mouse click leaves nothing focused afterward, so Enter and Space go back to the game.
+  button.addEventListener('click', (e) => openOptions(e.detail > 0 ? null : button));
+}
+$('options-close').addEventListener('click', (e) => closeOptions({ restoreFocus: e.detail === 0 }));
+// A click also covers selecting the current station again, to retry one that failed.
+for (const input of stationInputs) {
+  const select = () => audio.setStation(input.value, game);
+  input.addEventListener('change', select);
+  input.addEventListener('click', select);
+}
+$('music-volume').addEventListener('input', (e) => audio.setMusicVolume(Number(e.target.value)));
+$('effects-volume').addEventListener('input', (e) => audio.setEffectsVolume(Number(e.target.value)));
 
 // --- HUD -------------------------------------------------------------------
 function formatTime(seconds) {
@@ -157,13 +263,14 @@ function showGhostStatus() {
 
 function syncScreens() {
   const { state, paused } = game;
-  $('menu').hidden = state !== 'menu';
+  $('menu').hidden = state !== 'menu' || optionsOpen;
   $('hud').hidden = state === 'menu';
-  $('paused').hidden = !paused;
+  $('paused').hidden = !paused || optionsOpen;
   const finished = state === 'finished';
-  $('results').hidden = !finished;
+  $('results').hidden = !finished || optionsOpen;
+  $('options').hidden = !optionsOpen;
   if (finished) showResults();
-  if (document.activeElement instanceof HTMLElement && state !== 'menu' && !finished) document.activeElement.blur();
+  if (document.activeElement instanceof HTMLElement && state !== 'menu' && !finished && !optionsOpen) document.activeElement.blur();
 }
 
 function showResults() {

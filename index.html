@@ -45,6 +45,7 @@
     </section>
 
     <div id="ghost-status" data-state="on" title="Press G to show or hide the ghost of your last valid lap">Ghost On</div>
+    <div id="radio-status" data-state="off" title="Press N to change the radio station">Radio Off</div>
 
     <pre id="debug" hidden></pre>
   </div>
@@ -77,7 +78,10 @@
           <p>Angle and speed on the road build unbanked points. Link drifts within two seconds to climb to &times;3. When you straighten up, the points <b>bank</b>. Spin out, hit the wall or stay on the grass, and you <b>lose</b> them.</p>
         </div>
       </div>
-      <button id="start" type="button">Start driving <span>Enter</span></button>
+      <div class="actions">
+        <button id="start" type="button">Start driving <span>Enter</span></button>
+        <button class="options-open quiet" type="button">Options <span>O</span></button>
+      </div>
     </div>
   </section>
 
@@ -85,6 +89,9 @@
     <div class="sheet small">
       <h2>Paused</h2>
       <p>Press <kbd>P</kbd> to carry on, or <kbd>R</kbd> to start over.</p>
+      <div class="actions">
+        <button class="options-open quiet" type="button">Options <span>O</span></button>
+      </div>
     </div>
   </section>
 
@@ -99,7 +106,31 @@
         <div><dt>Highest combo</dt><dd id="r-combo"></dd></div>
         <div><dt>Spinouts</dt><dd id="r-spins"></dd></div>
       </dl>
-      <button id="again" type="button">Drive again <span>R</span></button>
+      <div class="actions">
+        <button id="again" type="button">Drive again <span>R</span></button>
+        <button class="options-open quiet" type="button">Options <span>O</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="options" class="overlay" role="dialog" aria-labelledby="options-title" hidden>
+    <div class="sheet small">
+      <h2 id="options-title">Options</h2>
+      <p id="options-muted" class="options-warning" hidden>Sound is off, so nothing will play. These settings are kept for when it's back on.</p>
+      <h2>Radio</h2>
+      <div id="stations" class="stations" role="radiogroup" aria-label="Radio station"></div>
+      <p id="radio-note" class="radio-note"></p>
+      <label class="volume">
+        <span class="volume-head">Music volume <output id="music-volume-value">70%</output></span>
+        <input id="music-volume" type="range" min="0" max="100" step="5" value="70">
+      </label>
+      <label class="volume">
+        <span class="volume-head">Sound effects volume <output id="effects-volume-value">100%</output></span>
+        <input id="effects-volume" type="range" min="0" max="100" step="5" value="100">
+      </label>
+      <div class="actions">
+        <button id="options-close" type="button">Done <span>Esc</span></button>
+      </div>
     </div>
   </section>
 

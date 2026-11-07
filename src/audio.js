@@ -1,12 +1,20 @@
 // The game's sound: one AudioContext, one engine voice and one tire voice, driven
-// by the car's telemetry. It only reads the game. A failure in here must never
-// reach the game loop, so every entry point the game calls is guarded.
+// by the car's telemetry, plus the radio on its own bus. It only reads the game. A
+// failure in here must never reach the game loop, so every entry point is guarded.
+//
+//   engine, tires -> compressor -> master -> gate -> effects volume -> output
+//   radio tracks  -> music volume -> music gate ------------------------^
+//
+// Mute, pause and focus close the gates. The player's two volumes are the only other
+// controls on those paths, and neither one touches the other's.
 import { createCoyote, loadCoyote } from './coyote.js';
 import { mapCoyote } from './coyote-model.js';
 import { createMixCompressor, createProcedural, createTireVoice, loadTire, mapProceduralEngine, smooth } from './audio-voices.js';
 import { AUDIO_TUNING, createAudioState, engineParams, readTelemetry, resetAudioState, stepAudioState, tireParams } from './audio-telemetry.js';
+import { cleanVolume, readAudioPreferences, volumeGain, writeAudioPreferences, writeMuted } from './audio-preferences.js';
+import { MUSIC_FADE_MS, MUSIC_LEVEL, RadioPlayer, loadTrack } from './radio.js';
+import { RADIO_OFF, STATIONS, stationById } from './radio-stations.js';
 
-const STORAGE_KEY = 'mini-drifters-sound';
 const RESUME_DEADLINE_MS = 8000;
 const LOAD_DEADLINE_MS = 12000;
 const RESUME_RETRY_MS = 1000;
@@ -16,6 +24,7 @@ const FINISH_FADE_TIME = 0.45;
 const FINISH_SUSPEND_MS = 2400;
 const RESTART_GAP = 0.35;      // long enough for the old engine note to fall to idle unheard
 const APPLY_INTERVAL = 1 / 30; // the voices glide between updates, so 30 Hz is plenty
+const VOLUME_GLIDE = 0.03;     // quick enough to follow a slider, slow enough not to click
 
 const liveState = (game) => (game.state === 'ready' || game.state === 'racing') && !game.paused;
 
@@ -29,6 +38,8 @@ export class GameAudio {
     coyoteEnabled = false,
     coyoteLoader = loadCoyote,
     tireLoader = loadTire,
+    trackLoader = loadTrack,
+    stations = STATIONS,
     storage = browserStorage(),
     isHidden = () => false,
     onChange = () => {},
@@ -38,11 +49,17 @@ export class GameAudio {
     this.coyoteEnabled = coyoteEnabled;
     this.coyoteLoader = coyoteLoader;
     this.tireLoader = tireLoader;
+    this.trackLoader = trackLoader;
+    this.stations = stations;
     this.storage = storage;
     this.isHidden = isHidden;
     this.onChange = onChange;
     this.tuning = tuning;
-    this.muted = this.readMuted();
+    const preferences = readAudioPreferences(storage, stations);
+    this.muted = preferences.muted;
+    this.station = preferences.station;
+    this.musicVolume = preferences.musicVolume;
+    this.effectsVolume = preferences.effectsVolume;
     this.pageActive = true;
     this.mode = 'silent';
     this.session = null;
@@ -53,19 +70,26 @@ export class GameAudio {
     this.applied = null;
   }
 
-  readMuted() {
-    try { return this.storage?.getItem(STORAGE_KEY) === 'off'; } catch { return false; }
-  }
-
   // --- What the game calls --------------------------------------------------
 
   // From a user gesture: the only place an AudioContext may be created or woken.
   gesture(game) {
     this.guard(() => {
       this.pageActive = !this.isHidden();
-      if (!this.muted && liveState(game)) this.ensureSession();
+      if (!this.muted && (liveState(game) || this.station !== RADIO_OFF)) this.ensureSession();
       if (this.session) this.session.nextResumeAt = 0;
       this.sync(game);
+    });
+  }
+
+  // Any key or click once the browser counts the page as interacted with. It only matters
+  // to a saved station, which waits for this. After a failure, only a deliberate action
+  // tries again, so that driving keys can't keep rebuilding the audio.
+  interaction(game) {
+    this.guard(() => {
+      if (this.station === RADIO_OFF || this.muted || this.failure) return;
+      const s = this.session;
+      if (!s || s.ctx.state !== 'running') this.gesture(game);
     });
   }
 
@@ -84,15 +108,53 @@ export class GameAudio {
   setMuted(muted, game) {
     this.guard(() => {
       this.muted = !!muted;
-      try { this.storage?.setItem(STORAGE_KEY, this.muted ? 'off' : 'on'); } catch { /* stays for this visit */ }
+      writeMuted(this.storage, this.muted);
       this.failure = null;
     });
     this.gesture(game);
     this.notify();
   }
 
-  // Focus and visibility. Never resumes anything by itself: the game stays paused
-  // when focus returns, and sound follows the game.
+  setStation(id, game) {
+    if (!stationById(id, this.stations)) return;
+    this.guard(() => {
+      this.station = id;
+      this.savePreferences();
+      // Selecting a station that failed is the player asking to try it again.
+      this.session?.radio.tune(id, { immediate: !this.audible(), retry: true });
+    });
+    this.gesture(game);
+    this.notify();
+  }
+
+  nextStation(game) {
+    const at = this.stations.findIndex((station) => station.id === this.station);
+    this.setStation(this.stations[(at + 1) % this.stations.length].id, game);
+  }
+
+  setMusicVolume(percent) {
+    this.guard(() => {
+      this.musicVolume = cleanVolume(percent, this.musicVolume);
+      this.savePreferences();
+      const s = this.session;
+      if (s) smooth(s.musicBus.gain, this.musicGain(), s.ctx, VOLUME_GLIDE);
+    });
+    this.notify();
+  }
+
+  setEffectsVolume(percent) {
+    this.guard(() => {
+      this.effectsVolume = cleanVolume(percent, this.effectsVolume);
+      this.savePreferences();
+      const s = this.session;
+      if (s) smooth(s.effects.gain, volumeGain(this.effectsVolume), s.ctx, VOLUME_GLIDE);
+    });
+    this.notify();
+  }
+
+  // Focus and visibility. Never resumes the engine by itself: the game stays paused
+  // when focus returns, and its sound follows the game. The radio isn't part of the
+  // race, so it comes back with the page.
   setPageActive(active, game) {
     this.guard(() => {
       this.pageActive = active && !this.isHidden();
@@ -103,7 +165,10 @@ export class GameAudio {
   // Once per rendered frame, after the simulation has advanced.
   update(game, dt) {
     this.guard(() => {
-      if (game.state === 'menu') return;
+      if (game.state === 'menu') {
+        if (this.session) this.sync(game);
+        return;
+      }
       const running = liveState(game);
       if (running || game.state === 'finished') {
         stepAudioState(this.audioState, readTelemetry(game.car), dt, running, this.tuning);
@@ -148,10 +213,31 @@ export class GameAudio {
       gear: this.audioState.gear,
       shifts: this.audioState.shifts,
       tireIntensity: this.audioState.tire,
+      station: this.station,
+      stationName: stationById(this.station, this.stations)?.name ?? '',
+      musicVolume: this.musicVolume,
+      effectsVolume: this.effectsVolume,
+      radio: s?.radio.snapshot() ?? { station: this.station, status: this.station === RADIO_OFF ? 'off' : 'waiting', track: null, title: null, starts: 0, active: 0, failures: [] },
     };
   }
 
   // --- Internals ------------------------------------------------------------
+
+  audible() {
+    return !this.muted && this.pageActive && !this.isHidden();
+  }
+
+  musicWanted() {
+    return this.station !== RADIO_OFF && this.audible();
+  }
+
+  musicGain() {
+    return MUSIC_LEVEL * volumeGain(this.musicVolume);
+  }
+
+  savePreferences() {
+    writeAudioPreferences(this.storage, { station: this.station, musicVolume: this.musicVolume, effectsVolume: this.effectsVolume });
+  }
 
   guard(action) {
     try {
@@ -199,9 +285,16 @@ export class GameAudio {
     s.master = gain(this.tuning.masterLevel);
     s.engineBus = gain(this.tuning.engineLevel);
     s.tireBus = gain(this.tuning.tireLevel);
+    s.effects = gain(volumeGain(this.effectsVolume));
     const compressor = createMixCompressor(ctx); nodes.push(compressor);
     s.engineBus.connect(compressor); s.tireBus.connect(compressor);
-    compressor.connect(s.master).connect(s.gate).connect(ctx.destination);
+    compressor.connect(s.master).connect(s.gate).connect(s.effects).connect(ctx.destination);
+    s.musicBus = gain(this.musicGain());
+    s.musicGate = gain(0);
+    s.gateOpen = false;
+    s.musicOn = false;
+    s.musicBus.connect(s.musicGate).connect(ctx.destination);
+    s.radio = new RadioPlayer(ctx, s.musicBus, { stations: this.stations, loader: this.trackLoader, onChange: () => this.notify() });
     ctx.onstatechange = () => this.guard(() => {
       if (this.session === s && ctx.state === 'closed') this.fail(s, 'Audio stopped');
     });
@@ -214,11 +307,13 @@ export class GameAudio {
     this.mode = next;
     const s = this.session;
     if (!s) return;
-    if (next === 'live') {
+    if (next === 'live' || this.musicWanted()) {
       this.clearSuspend(s);
       // A context made inside a gesture may already be running, so the first
       // resume still has to happen: it is what starts the loading.
       if (!s.started || s.ctx.state !== 'running') this.resume(s);
+    }
+    if (next === 'live') {
       if (changed) smooth(s.gate.gain, 1, s.ctx, 0.03);
     } else if (changed) {
       if (next === 'silent') {
@@ -229,7 +324,24 @@ export class GameAudio {
         this.scheduleSuspend(s, FINISH_SUSPEND_MS);
       }
     }
+    this.syncMusic(s, next);
     if (changed) this.notify();
+  }
+
+  // The radio follows the page and the mute button, not the race.
+  syncMusic(s, next) {
+    const audible = this.audible();
+    if (audible !== s.gateOpen) {
+      s.gateOpen = audible;
+      smooth(s.musicGate.gain, audible ? 1 : 0, s.ctx, audible ? VOLUME_GLIDE : SILENCE_TIME);
+    }
+    s.radio.tune(this.station, { immediate: !audible });
+    const wanted = this.musicWanted();
+    if (s.musicOn && !wanted && next !== 'live') {
+      // Nothing is left to keep the context awake. Radio Off still has its fade to finish.
+      this.scheduleSuspend(s, next === 'fade' ? FINISH_SUSPEND_MS : audible ? MUSIC_FADE_MS + SILENCE_SUSPEND_MS : SILENCE_SUSPEND_MS);
+    }
+    s.musicOn = wanted;
   }
 
   // Silence the old run quickly, let the voices fall to idle, then come back.
@@ -273,7 +385,7 @@ export class GameAudio {
     this.clearSuspend(s);
     s.suspendTimer = setTimeout(() => {
       s.suspendTimer = null;
-      if (this.session === s && this.mode !== 'live' && s.ctx.state === 'running') {
+      if (this.session === s && this.mode !== 'live' && !this.musicWanted() && s.ctx.state === 'running') {
         s.ctx.suspend().catch(() => {});
       }
     }, delay);
@@ -372,6 +484,7 @@ export class GameAudio {
     this.clearSuspend(s);
     for (const timer of s.timers) clearTimeout(timer);
     s.ctx.onstatechange = null;
+    s.radio.dispose();
     s.engine?.stop();
     s.tire?.stop();
     for (const node of s.nodes) node.disconnect();

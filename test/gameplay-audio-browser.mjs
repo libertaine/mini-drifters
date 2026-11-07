@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { RADIO_FILES } from '../src/radio-stations.js';
 
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
 const root = new URL('../', import.meta.url);
@@ -29,7 +30,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=
 
 // The same files the deploy job publishes.
 const PUBLISHED_AUDIO = ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md', ...COYOTE_FILES.map((key) => `audio-lab/assets/coyote-local/${key}.wav`)];
-const siteFiles = ['index.html', 'style.css', ...PUBLISHED_AUDIO, ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
+const siteFiles = ['index.html', 'style.css', ...PUBLISHED_AUDIO, ...RADIO_FILES, ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
 
 async function serveLikePages() {
   const server = http.createServer(async (req, res) => {

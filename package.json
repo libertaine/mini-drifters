@@ -11,6 +11,7 @@
     "test:audio:browser": "node test/audio-lab-browser.mjs",
     "test:coyote:browser": "node test/coyote-browser.mjs",
     "test:gameplay-audio:browser": "node test/gameplay-audio-browser.mjs",
-    "test:ghost:browser": "node test/ghost-browser.mjs"
+    "test:ghost:browser": "node test/ghost-browser.mjs",
+    "test:radio:browser": "node test/radio-browser.mjs"
   }
 }

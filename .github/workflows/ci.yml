@@ -41,6 +41,8 @@ jobs:
         run: npm run test:gameplay-audio:browser
       - name: Previous-lap ghost in Chromium and Firefox
         run: npm run test:ghost:browser
+      - name: Radio in Chromium and Firefox
+        run: npm run test:radio:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7
@@ -68,7 +70,7 @@ jobs:
       - name: Assemble the site (only the files the game needs)
         run: |
           mkdir -p _site/audio-lab/assets/coyote-local
-          cp -r index.html style.css src _site/
+          cp -r index.html style.css src radio _site/
           cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/
           cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/
       - uses: actions/upload-pages-artifact@v5

@@ -21,11 +21,15 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 | R | Restart |
 | P | Pause |
 | G | Show or hide the ghost |
+| N | Next radio station |
+| O | Options, from the title, pause or results screen |
 | D | Debug display |
 
 Enter also starts a run from the title and results screens.
 
-The **Sound** button under the score turns sound on and off, and remembers your choice. It works with the mouse, or with Tab and Enter.
+The **Sound** button under the score is the master switch for all sound, and remembers your choice. It works with the mouse, or with Tab and Enter.
+
+**Options** has the radio station, music volume and sound effects volume, all remembered between visits. The radio is off by default. Its three stations play [provisional built-in music](docs/RADIO.md), which may be replaced later.
 
 ### How to drift
 
@@ -81,7 +85,7 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, session, ghost, audio and publishing tests.
+This runs the physics, scoring, lap, session, ghost, audio, radio and publishing tests.
 
 The browser check drives the game with real key presses in Chromium and Firefox, served the same way as on GitHub Pages. It needs Playwright, which the game itself doesn't depend on:
 
@@ -110,6 +114,8 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/render.js`, `src/main.js` | Drawing, input and the HUD |
 | `src/audio.js`, `src/audio-telemetry.js` | Sound, and how the car's telemetry maps to it |
 | `src/audio-voices.js`, `src/coyote.js`, `src/coyote-model.js` | Engine and tire voices, shared with the audio lab |
+| `src/radio-stations.js`, `src/radio.js`, `src/audio-preferences.js` | Station and track data, music playback and saved sound settings |
+| `radio/` | Radio audio and its attribution |
 | `test/` | Automated tests and the scripted drivers they use |
 
 Press D in the game to see live slip angles, grip, drift qualification and checkpoint progress.

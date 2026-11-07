@@ -205,6 +205,9 @@ button {
 button:hover { background: #ff6a40; }
 button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; background: rgba(0, 0, 0, 0.28); letter-spacing: 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
+button.quiet { background: transparent; color: var(--ink); font-size: 20px; box-shadow: inset 0 0 0 2px #55565d; }
+button.quiet:hover { background: rgba(246, 241, 228, 0.1); }
 
 #sound {
   position: fixed;
@@ -235,6 +238,47 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
   color: #8fe6ff;
 }
 #ghost-status[data-state="off"] { color: var(--muted); }
+
+/* Under the ghost note, and just as quiet. */
+#radio-status {
+  position: absolute;
+  top: 164px;
+  right: 16px;
+  padding: 4px 12px;
+  border-radius: 5px;
+  background: var(--panel);
+  font: 700 11px var(--body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+#radio-status[data-state="off"], #radio-status[data-state="muted"] { color: var(--muted); }
+#radio-status[data-state="unavailable"] { color: var(--red); }
+
+/* ---- Options ---- */
+.stations { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.station { position: relative; display: block; cursor: pointer; }
+.station input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.station span {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 2px #55565d;
+  font: 700 13px var(--body);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.station:hover span { background: rgba(246, 241, 228, 0.1); }
+.station input:checked + span { background: var(--amber); box-shadow: none; color: #1b1c20; }
+.station input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
+.radio-note { min-height: 2.9em; margin: 8px 0 4px; font-size: 14px; color: var(--muted); }
+.options-warning { margin-top: 10px; padding: 7px 10px; border-radius: 5px; background: rgba(242, 84, 45, 0.18); font-size: 14px; color: var(--ink); }
+.volume { display: block; margin-top: 10px; }
+.volume-head { display: flex; justify-content: space-between; font-size: 14px; color: #dcd7ca; }
+.volume-head output { font-weight: 700; font-variant-numeric: tabular-nums; }
+.volume input { display: block; width: 100%; margin: 4px 0 0; accent-color: var(--orange); cursor: pointer; }
 
 .stats { margin: 14px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
 .stats div { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #36373d; padding-bottom: 5px; gap: 10px; }

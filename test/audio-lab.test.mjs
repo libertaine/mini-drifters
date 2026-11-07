@@ -173,7 +173,7 @@ test('failed HTTP/decode sample requests produce explicit missing layers', async
 
 test('Pages keeps its explicit game-only deployment allowlist', async () => {
   const workflow = await readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /cp -r index\.html style\.css src _site\//);
+  assert.match(workflow, /cp -r index\.html style\.css src radio _site\//);
   // Of the lab's folder, only the game's recordings and their attribution go out.
   const labCopies = workflow.split('\n').filter((line) => /\bcp\b/.test(line) && line.includes('audio-lab')).map((line) => line.trim());
   assert.deepEqual(labCopies, [
