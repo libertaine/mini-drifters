@@ -5,13 +5,14 @@ import { createCar, stepCar, updateDerived } from './physics.js';
 import { buildTrack, projectOnTrack, surfaceFromDistance, trackDelta } from './track.js';
 import { createLaps, updateLaps } from './laps.js';
 import { createScoring, updateScoring, bankCombo } from './scoring.js';
+import { createGhost, beginGhostRecording, recordGhostTick } from './ghost.js';
 
 export const NO_INPUT = Object.freeze({ up: false, down: false, left: false, right: false, handbrake: false });
 
 const sharedTrack = buildTrack();
 
 export function createGame(track = sharedTrack) {
-  const game = { track, state: 'menu', paused: false };
+  const game = { track, state: 'menu', paused: false, ghostVisible: true };
   resetRun(game);
   game.state = 'menu';
   return game;
@@ -40,6 +41,7 @@ function resetRun(game) {
   game.furthest = 0;       // the "new ground" high-water mark
   game.progressRate = 0;   // smoothed along-track speed
   game.lastImpact = 0;
+  game.ghost = createGhost(track);
   game.runId = (game.runId ?? 0) + 1;
 }
 
@@ -54,6 +56,12 @@ export const restartRun = startRun;
 export function togglePause(game) {
   if (game.state === 'ready' || game.state === 'racing') game.paused = !game.paused;
   return game.paused;
+}
+
+// Only hides the ghost. It keeps recording, so it can come back at any time.
+export function toggleGhost(game) {
+  game.ghostVisible = !game.ghostVisible;
+  return game.ghostVisible;
 }
 
 function resolveBarrier(game) {
@@ -94,7 +102,10 @@ export function tick(game, input = NO_INPUT) {
   game.prev.y = car.y;
   game.prev.heading = car.heading;
 
-  if (game.state === 'ready' && (input.up || input.down)) game.state = 'racing';
+  if (game.state === 'ready' && (input.up || input.down)) {
+    game.state = 'racing';
+    if (game.ghost) beginGhostRecording(game.ghost, car.x, car.y, car.heading);
+  }
   const racing = game.state === 'racing';
 
   const ax = car.x;
@@ -142,6 +153,8 @@ export function tick(game, input = NO_INPUT) {
     game.lapEvent = lapResult;
     game.lapEventSerial += 1;
   }
+  // The ghost gets copies of these numbers and hands nothing back to the simulation.
+  if (game.ghost) recordGhostTick(game.ghost, car.x, car.y, car.heading, lapResult);
   if (game.laps.completed >= T.runLaps) finishRun(game);
 }
 

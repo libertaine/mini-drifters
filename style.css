@@ -221,6 +221,21 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 }
 #sound:hover { background: rgba(50, 51, 56, 0.9); }
 
+/* Under the Sound button. A quiet note, not a control: the G key changes it. */
+#ghost-status {
+  position: absolute;
+  top: 136px;
+  right: 16px;
+  padding: 4px 12px;
+  border-radius: 5px;
+  background: var(--panel);
+  font: 700 11px var(--body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8fe6ff;
+}
+#ghost-status[data-state="off"] { color: var(--muted); }
+
 .stats { margin: 14px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
 .stats div { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #36373d; padding-bottom: 5px; gap: 10px; }
 .stats .big { grid-column: 1 / -1; }

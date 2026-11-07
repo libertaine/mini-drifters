@@ -1,6 +1,6 @@
 // Browser glue: keyboard, the animation loop and the HUD.
 import { TUNING } from './tuning.js';
-import { createGame, startRun, restartRun, togglePause, advance } from './game.js';
+import { createGame, startRun, restartRun, togglePause, toggleGhost, advance } from './game.js';
 import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
 import { projectOnTrack } from './track.js';
@@ -92,6 +92,9 @@ window.addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyD') {
     debug = !debug;
     $('debug').hidden = !debug;
+  } else if (e.code === 'KeyG' && game.state !== 'menu') {
+    toggleGhost(game);
+    showGhostStatus();
   }
 });
 
@@ -144,6 +147,12 @@ const formatNumber = (n) => Math.round(n).toLocaleString('en-US');
 function setText(id, text) {
   const el = $(id);
   if (el.textContent !== text) el.textContent = text;
+}
+
+function showGhostStatus() {
+  const el = $('ghost-status');
+  el.dataset.state = game.ghostVisible ? 'on' : 'off';
+  setText('ghost-status', game.ghostVisible ? 'Ghost On' : 'Ghost Off');
 }
 
 function syncScreens() {
@@ -302,6 +311,7 @@ function frame(now) {
 }
 
 syncScreens();
+showGhostStatus();
 showSound(audio.snapshot());
 // A small read-only hook for the browser checks and tuning from the console.
 window.__miniDrifters = { game, input, projectOnTrack, audio: () => audio.snapshot() };

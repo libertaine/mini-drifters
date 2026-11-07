@@ -20,6 +20,7 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 | Space | Handbrake |
 | R | Restart |
 | P | Pause |
+| G | Show or hide the ghost |
 | D | Debug display |
 
 Enter also starts a run from the title and results screens.
@@ -43,6 +44,8 @@ The longer you pull, the bigger the slide. A very short tap only unsettles the c
 **Combos.** Keep drifting, link drifts within two seconds, or flick from one side to the other to climb the multiplier from ×1 through ×1.5 and ×2 to ×3. The multiplier applies to the whole combo when it's banked.
 
 **Spinouts and penalties.** Straighten up and the combo banks into your score. If you spin past 75°, hit the wall hard, stay on the grass for more than 1.5 seconds or stop making progress, you lose the unbanked combo. Points you've already banked are safe.
+
+**Ghost.** After your first valid lap, a translucent blue car replays your previous valid lap so you can race it. It can't touch you and doesn't affect your score or lap times, and G hides it. A restart clears it. This is an experiment: see [the ghost notes](docs/GHOST.md).
 
 **Lap timing.** A lap counts only if you pass every checkpoint in order. Cutting across the grass voids that lap, and timing restarts at the finish line so you never have to turn back. Your best valid lap is kept for the run. Running wide on the outside of a corner costs time but doesn't void the lap.
 
@@ -78,7 +81,7 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, session, audio and publishing tests.
+This runs the physics, scoring, lap, session, ghost, audio and publishing tests.
 
 The browser check drives the game with real key presses in Chromium and Firefox, served the same way as on GitHub Pages. It needs Playwright, which the game itself doesn't depend on:
 
@@ -102,6 +105,7 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/physics.js` | The car |
 | `src/track.js`, `src/laps.js` | The circuit and lap validation |
 | `src/scoring.js` | Drift detection and combos |
+| `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
 | `src/render.js`, `src/main.js` | Drawing, input and the HUD |
 | `src/audio.js`, `src/audio-telemetry.js` | Sound, and how the car's telemetry maps to it |
