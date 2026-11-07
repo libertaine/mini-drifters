@@ -79,4 +79,3 @@ To regenerate the built-in loops, run `node scripts/radio-test-tracks.mjs`.
 None of this is needed for the radio to be complete:
 
 - Better music, and a listening check of the balance against the engine.
-- Moving the Options entry into the title screen and menu design when that work happens.
