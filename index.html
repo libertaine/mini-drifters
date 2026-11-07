@@ -50,7 +50,7 @@
     <pre id="debug" hidden></pre>
   </div>
 
-  <div id="prompt" class="prompt" hidden></div>
+  <div id="prompt" class="prompt" aria-live="polite" hidden></div>
 
   <section id="menu" class="overlay title-screen">
     <div class="title-panel">
@@ -105,7 +105,8 @@
         </section>
       </div>
       <div class="actions">
-        <button id="help-back" type="button">Back <span>Esc</span></button>
+        <button id="help-back" class="quiet" type="button">Back <span>Esc</span></button>
+        <button id="help-try" type="button">Try it</button>
       </div>
     </div>
   </section>
@@ -113,9 +114,11 @@
   <section id="paused" class="overlay" hidden>
     <div class="sheet small">
       <h2 class="sheet-title">Paused</h2>
-      <p>Press <kbd>P</kbd> to carry on, or <kbd>R</kbd> to start over.</p>
+      <p id="paused-note">Press P to carry on, or R to start over.</p>
       <div class="actions">
         <button class="options-open quiet" type="button">Options <span>O</span></button>
+        <button id="tutorial-skip" class="quiet" type="button" hidden>Skip this step</button>
+        <button class="return-title quiet" type="button">Return to title</button>
       </div>
     </div>
   </section>
@@ -135,6 +138,20 @@
       <div class="actions">
         <button id="again" type="button">Drive again <span>R</span></button>
         <button class="options-open quiet" type="button">Options <span>O</span></button>
+        <button class="return-title quiet" type="button">Return to title</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tutorial-done" class="overlay" role="dialog" aria-labelledby="done-title" hidden>
+    <div class="sheet small">
+      <p id="done-banked" class="eyebrow"></p>
+      <h2 id="done-title" class="sheet-title"></h2>
+      <p id="done-text" class="pitch"></p>
+      <div class="actions">
+        <button id="done-start" type="button">Start driving</button>
+        <button id="done-again" class="quiet" type="button">Practice again</button>
+        <button class="return-title quiet" type="button">Return to title <span>Esc</span></button>
       </div>
     </div>
   </section>

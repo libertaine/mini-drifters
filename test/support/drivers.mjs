@@ -134,3 +134,83 @@ export function recklessDriver() {
     return keys;
   };
 }
+
+// Works through the driving lesson the way the prompt asks, using the drivers above. It's
+// handed the step the prompt is showing and nothing else about the lesson.
+export function lessonDriver() {
+  const grip = gripDriver();
+  const drift = driftDriver();
+  return (game, step) => {
+    const road = grip(game);
+    const sliding = drift(game);
+    if (step === 'steer') {
+      const left = Math.floor(game.ticks * TUNING.simStep * 2) % 2 === 0;
+      return { ...road, left, right: !left };
+    }
+    if (step === 'slide' || step === 'countersteer') return sliding;
+    if (step === 'bank') return game.scoring.combo || game.scoring.drifting ? road : sliding;
+    return road;
+  };
+}
+
+// Somebody new. On/off keys, a few decisions a second, a slow reaction to the tail stepping
+// out and no corner-reading: it builds speed, turns the wheel, holds the handbrake for
+// `tap` seconds, then steers against the slide if `counter` is set.
+export function noviceDriver({ decisions = 6, reaction = 0.45, tap = 0.25, entrySpeed = 20, counter = true } = {}) {
+  const grip = gripDriver();
+  let next = 0;
+  let keys = { up: true, down: false, left: false, right: false, handbrake: false };
+  let slideAt = null;
+  let tapFrom = null;
+  let side = 1;
+  return (game, step) => {
+    const t = game.ticks * TUNING.simStep;
+    const road = grip(game);
+    if (t < next) {
+      if (tapFrom !== null) keys.handbrake = t < tapFrom + tap;
+      return keys;
+    }
+    next = t + 1 / decisions;
+    const { car, track, scoring } = game;
+    const at = projectOnTrack(track, car.x, car.y);
+    keys = { ...road, handbrake: false };
+    if (step === 'steer') {
+      const left = Math.floor(t * 1.2) % 2 === 0;
+      keys = { ...keys, left, right: !left };
+      return keys;
+    }
+    if (step !== 'slide' && step !== 'countersteer' && !(step === 'bank' && !scoring.combo && !scoring.drifting)) return keys;
+
+    const sliding = Math.abs(car.slipAngle) > 10 * DEG;
+    if (sliding && slideAt === null) slideAt = t;
+    if (!sliding) slideAt = null;
+    if (sliding) {
+      if (counter && t >= slideAt + reaction) {
+        keys.left = car.slipAngle < 0;
+        keys.right = car.slipAngle > 0;
+      } else if (!counter) {
+        keys.left = false;
+        keys.right = false;
+      } else {
+        keys.left = side < 0;
+        keys.right = side > 0;
+      }
+      return keys;
+    }
+    // Stays on the road until there's room and speed, then turns in and pulls the handbrake.
+    const roomy = Math.abs(at.offset) < 6;
+    if (tapFrom !== null && t < tapFrom + tap + 2) {
+      if (t < tapFrom + tap) keys.handbrake = true;
+      return keys;
+    }
+    tapFrom = null;
+    if (roomy && car.speed >= entrySpeed) {
+      side = pointAhead(track, at.s, 30).curvature < 0 ? -1 : 1;
+      keys.left = side < 0;
+      keys.right = side > 0;
+      keys.handbrake = true;
+      tapFrom = t;
+    }
+    return keys;
+  };
+}

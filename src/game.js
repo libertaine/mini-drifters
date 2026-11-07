@@ -46,12 +46,21 @@ function resetRun(game) {
 }
 
 // Start (or restart) a run. The clock waits on the grid for the first pedal press.
-export function startRun(game) {
+// A run that shouldn't leave a ghost behind passes { ghost: false }.
+export function startRun(game, { ghost = true } = {}) {
   resetRun(game);
+  if (!ghost) game.ghost = null;
   game.state = 'ready';
 }
 
 export const restartRun = startRun;
+
+// Abandon the session and go back to the state the game opens in. Nothing runs from here
+// until the next startRun: advance() does nothing on the menu.
+export function returnToMenu(game) {
+  resetRun(game);
+  game.state = 'menu';
+}
 
 export function togglePause(game) {
   if (game.state === 'ready' || game.state === 'racing') game.paused = !game.paused;
