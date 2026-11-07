@@ -1,6 +1,7 @@
 // Everything drawn on the canvas: the circuit, the car, skid marks, smoke and the
 // minimap. Nothing here feeds back into the simulation.
 import { TUNING } from './tuning.js';
+import { ghostDisplay } from './ghost.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -25,6 +26,20 @@ const COLORS = {
   headlight: '#fff6c9',
   taillight: '#ff2316',
 };
+
+// The same car in a cold colour, with an outline so it reads on asphalt and on grass.
+const GHOST_COLORS = {
+  ...COLORS,
+  body: '#46d6ff',
+  bodyShade: '#1c9ccb',
+  stripe: '#effcff',
+  glass: '#0e4a63',
+  roof: '#0b3a4e',
+  tyre: '#0a2d3c',
+  outline: '#f2fdff',
+};
+const GHOST_WHEELS = { wheelAngle: 0, brake: 0, handbrake: false };
+const GHOST_SPRITE_SCALE = 44; // pixels per metre of the car's artwork
 
 const VIEW = {
   zoomSlow: 11.5,         // pixels per metre near a standstill
@@ -147,6 +162,7 @@ export function createRenderer(canvas, track) {
     lastWheels: null,
     smoke: [],
     smokeCarry: 0,
+    ghostSprite: buildGhostSprite(),
     width: 0,
     height: 0,
     dpr: 1,
@@ -411,8 +427,6 @@ function roundedRect(ctx, x, y, w, h, radius) {
   ctx.roundRect(x, y, w, h, radius);
 }
 
-// Drawn nose-toward +x at the origin. Original artwork: a long-hooded, wide-hipped
-// two-door shape, not based on any particular model.
 function drawCar(ctx, car, pose) {
   const L = CAR.length;
   const W = CAR.width;
@@ -430,13 +444,22 @@ function drawCar(ctx, car, pose) {
   ctx.restore();
 
   ctx.rotate(pose.heading);
+  drawCarBody(ctx, car, COLORS);
+  ctx.restore();
+}
+
+// Drawn nose-toward +x at the origin. Original artwork: a long-hooded, wide-hipped
+// two-door shape, not based on any particular model.
+function drawCarBody(ctx, car, colors) {
+  const L = CAR.length;
+  const W = CAR.width;
 
   // Tyres: the front pair turn with the steering, so input is visible.
   const tyre = (x, y, angle) => {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
-    ctx.fillStyle = COLORS.tyre;
+    ctx.fillStyle = colors.tyre;
     roundedRect(ctx, -0.5, -0.26, 1, 0.52, 0.12);
     ctx.fill();
     ctx.restore();
@@ -448,7 +471,7 @@ function drawCar(ctx, car, pose) {
   tyre(-1.48, wheelY, 0);
 
   // Body with haunches: narrower at the nose, widest over the rear wheels.
-  ctx.fillStyle = COLORS.body;
+  ctx.fillStyle = colors.body;
   ctx.beginPath();
   ctx.moveTo(L / 2 - 0.12, -W * 0.34);
   ctx.quadraticCurveTo(L / 2, 0, L / 2 - 0.12, W * 0.34);
@@ -461,32 +484,37 @@ function drawCar(ctx, car, pose) {
   ctx.quadraticCurveTo(L / 2 - 0.4, -W * 0.45, L / 2 - 0.12, -W * 0.34);
   ctx.closePath();
   ctx.fill();
+  if (colors.outline) {
+    ctx.strokeStyle = colors.outline;
+    ctx.lineWidth = 0.16;
+    ctx.stroke();
+  }
 
   // Twin racing stripes, nose to tail.
-  ctx.fillStyle = COLORS.stripe;
+  ctx.fillStyle = colors.stripe;
   ctx.fillRect(-L / 2 + 0.05, -0.34, L - 0.14, 0.24);
   ctx.fillRect(-L / 2 + 0.05, 0.1, L - 0.14, 0.24);
 
   // Greenhouse set well back: a long hood and a short rear deck.
-  ctx.fillStyle = COLORS.glass;
+  ctx.fillStyle = colors.glass;
   roundedRect(ctx, -1.35, -W * 0.36, 1.95, W * 0.72, 0.28);
   ctx.fill();
-  ctx.fillStyle = COLORS.roof;
+  ctx.fillStyle = colors.roof;
   roundedRect(ctx, -1.08, -W * 0.3, 1.1, W * 0.6, 0.16);
   ctx.fill();
 
   // Hood scoop.
-  ctx.fillStyle = COLORS.bodyShade;
+  ctx.fillStyle = colors.bodyShade;
   roundedRect(ctx, 1.1, -0.18, 0.72, 0.36, 0.08);
   ctx.fill();
 
   // Bright lights at both ends, so front and rear can't be confused mid-spin.
-  ctx.fillStyle = COLORS.headlight;
+  ctx.fillStyle = colors.headlight;
   roundedRect(ctx, L / 2 - 0.3, -W * 0.38, 0.26, 0.44, 0.1);
   ctx.fill();
   roundedRect(ctx, L / 2 - 0.3, W * 0.38 - 0.44, 0.26, 0.44, 0.1);
   ctx.fill();
-  ctx.fillStyle = COLORS.taillight;
+  ctx.fillStyle = colors.taillight;
   ctx.fillRect(-L / 2 + 0.06, -W * 0.42, 0.2, 0.62);
   ctx.fillRect(-L / 2 + 0.06, W * 0.42 - 0.62, 0.2, 0.62);
 
@@ -498,6 +526,30 @@ function drawCar(ctx, car, pose) {
     ctx.arc(-L / 2 + 0.1, W * 0.3, 0.55, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+// One image, drawn once. Translucent layers would otherwise show through each other,
+// and a single drawImage costs less each frame than repainting the car's shapes.
+function buildGhostSprite() {
+  const sprite = document.createElement('canvas');
+  sprite.width = Math.ceil((CAR.length + 1) * GHOST_SPRITE_SCALE);
+  sprite.height = Math.ceil((CAR.width + 1) * GHOST_SPRITE_SCALE);
+  const ctx = sprite.getContext('2d');
+  ctx.translate(sprite.width / 2, sprite.height / 2);
+  ctx.scale(GHOST_SPRITE_SCALE, GHOST_SPRITE_SCALE);
+  drawCarBody(ctx, GHOST_WHEELS, GHOST_COLORS);
+  return sprite;
+}
+
+function drawGhost(r, ghost) {
+  const { ctx, ghostSprite: sprite } = r;
+  const scale = CAR.drawScale / GHOST_SPRITE_SCALE;
+  ctx.save();
+  ctx.translate(ghost.x, ghost.y);
+  ctx.rotate(ghost.heading);
+  ctx.scale(scale, scale);
+  ctx.globalAlpha = ghost.opacity;
+  ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2);
   ctx.restore();
 }
 
@@ -525,7 +577,7 @@ function drawDebugWorld(r, game, pose) {
   ctx.stroke();
 }
 
-function drawMinimap(r, car) {
+function drawMinimap(r, car, ghost) {
   const { ctx, track } = r;
   const { bounds } = track;
   const maxW = 170;
@@ -545,11 +597,24 @@ function drawMinimap(r, car) {
   ctx.lineWidth = 3.4 / scale;
   ctx.lineJoin = 'round';
   ctx.stroke(r.road);
+  if (ghost) {
+    ctx.fillStyle = GHOST_COLORS.body;
+    ctx.beginPath();
+    ctx.arc(ghost.x, ghost.y, 3.2 / scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.fillStyle = COLORS.body;
   ctx.beginPath();
   ctx.arc(car.x, car.y, 4 / scale, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
+
+// The player's car is drawn one step behind the simulation, blending toward its
+// latest position by `alpha`, so the ghost is sampled at that same moment.
+function ghostForFrame(game, pose, alpha) {
+  if (!game.ghost || !game.ghostVisible || game.state !== 'racing') return null;
+  return ghostDisplay(game.ghost, game.ghost.lapTick - 1 + alpha, pose.x, pose.y);
 }
 
 // Draw one frame. `alpha` blends between the last two physics steps.
@@ -565,6 +630,7 @@ export function drawFrame(r, game, alpha, dt, debug) {
   const step = Math.min(dt, FX.maxDt);
   if (!game.paused && game.state !== 'finished' && game.state !== 'menu') updateEffects(r, game, pose, step);
   updateCamera(r, car, pose, step);
+  const ghost = ghostForFrame(game, pose, blend);
 
   ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
   ctx.save();
@@ -575,10 +641,11 @@ export function drawFrame(r, game, alpha, dt, debug) {
   drawRoad(r);
   drawSkids(r);
   drawWall(r);
+  if (ghost) drawGhost(r, ghost);
   drawCar(ctx, car, pose);
   drawSmoke(r);
   drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
-  if (game.state !== 'menu') drawMinimap(r, car);
+  if (game.state !== 'menu') drawMinimap(r, car, ghost);
 }

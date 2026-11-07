@@ -39,6 +39,8 @@ jobs:
         run: npm run test:coyote:browser
       - name: Gameplay audio on the published files, and the fallback
         run: npm run test:gameplay-audio:browser
+      - name: Previous-lap ghost in Chromium and Firefox
+        run: npm run test:ghost:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7
