@@ -108,7 +108,9 @@ async function check(name, engine) {
     await page.waitForFunction(() => window.__miniDrifters);
     assert.ok(await visible(page, 'menu'));
     assert.equal(await visible(page, 'hud'), false);
-    step('start screen shows title, controls and scoring');
+    assert.match(await page.locator('#menu').innerText(), /MINI\s+DRIFTERS/);
+    assert.match(await page.locator('#help').textContent(), /Accelerate[\s\S]*Scoring|Scoring[\s\S]*Accelerate/);
+    step('start screen shows the title, and How to Play holds the controls and scoring');
     await page.waitForTimeout(150);
     await page.screenshot({ path: artifact(`${name}-menu.png`) });
 

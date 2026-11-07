@@ -152,9 +152,9 @@ async function check(name, engine) {
     // --- The controls, on the menu and in the HUD ------------------------------
     page = await newPage();
     await start(page);
-    assert.match(await page.locator('.keys').textContent(), /Restart \/ Pause \/ Ghost/);
-    assert.equal(await page.locator('.keys kbd', { hasText: /^G$/ }).count(), 1);
-    // The ghost's line in the controls must not push Start off a small laptop screen.
+    assert.match(await page.locator('#help-keys').textContent(), /Ghost/);
+    assert.equal(await page.locator('#help-keys kbd', { hasText: /^G$/ }).count(), 1);
+    // Start must stay on a small laptop screen.
     await page.setViewportSize({ width: 1024, height: 600 });
     const startBottom = await page.evaluate(() => document.getElementById('start').getBoundingClientRect().bottom);
     assert.ok(startBottom <= 600, `Start ends at ${startBottom}`);
@@ -162,7 +162,7 @@ async function check(name, engine) {
     await page.keyboard.press('KeyG');
     assert.equal((await ghostState(page)).visible, true, 'G does nothing on the menu');
     assert.equal(await visible(page, 'ghost-status'), false);
-    step('the menu lists G, and G does nothing before a run');
+    step('How to Play lists G, and G does nothing before a run');
 
     await page.keyboard.press('Enter');
     assert.equal(await page.locator('#ghost-status').textContent(), 'Ghost On');

@@ -52,42 +52,67 @@
 
   <div id="prompt" class="prompt" hidden></div>
 
-  <section id="menu" class="overlay">
-    <div class="sheet">
-      <h1>Mini <em>Drifters</em></h1>
-      <p class="pitch">Three laps. One small, overpowered car. Get it sideways and keep it there.</p>
-      <div class="columns">
-        <div>
-          <h2>Controls</h2>
+  <section id="menu" class="overlay title-screen">
+    <div class="title-panel">
+      <h1 class="title"><span>MINI</span> <span>DRIFTERS</span></h1>
+      <p class="tagline">ONE OVERPOWERED CAR. ZERO GOOD IDEAS.</p>
+      <nav class="title-menu" aria-label="Main menu">
+        <button id="start" type="button">Start driving <span>Enter</span></button>
+        <button id="how-to-play" class="quiet" type="button">How to play</button>
+        <button class="options-open quiet" type="button">Options <span>O</span></button>
+      </nav>
+    </div>
+  </section>
+
+  <section id="help" class="overlay" role="dialog" aria-labelledby="help-title" hidden>
+    <div class="sheet help">
+      <h2 id="help-title" class="sheet-title">How to play</h2>
+      <div class="help-grid">
+        <section>
+          <h3>Driving</h3>
           <table class="keys">
             <tr><td><kbd>&uarr;</kbd></td><td>Accelerate</td></tr>
             <tr><td><kbd>&darr;</kbd></td><td>Brake, then reverse</td></tr>
             <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Steer</td></tr>
-            <tr><td><kbd>Space</kbd></td><td>Handbrake</td></tr>
-            <tr><td><kbd>R</kbd> / <kbd>P</kbd> / <kbd>G</kbd></td><td>Restart / Pause / Ghost</td></tr>
           </table>
-        </div>
-        <div>
-          <h2>How to drift</h2>
+        </section>
+        <section>
+          <h3>Scoring</h3>
+          <ul class="howto">
+            <li>Angle and speed on the road build unbanked points. 25&deg; to 50&deg; pays best.</li>
+            <li>Link drifts within two seconds to climb from &times;1 to &times;3.</li>
+            <li>Straighten up and the points <b>bank</b>. Banked points are safe.</li>
+            <li>Spin out, hit the wall, stop making progress or stay on the grass, and you <b>lose</b> the unbanked points. The grass isn't part of the racing line.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Drifting</h3>
           <ol class="howto">
-            <li>Steer into a corner and pull the handbrake until the tail steps out.</li>
-            <li>Stay on the throttle and steer the other way to hold the slide.</li>
-            <li>Lift off to straighten up.</li>
+            <li><kbd>Space</kbd> is the handbrake. Steer into a corner and pull it for about a quarter of a second. Hold it too long and the car spins.</li>
+            <li>When the tail steps out, stay on the throttle and countersteer to hold the slide.</li>
+            <li>To recover, lift off the throttle and the car straightens up.</li>
           </ol>
-          <h2>Scoring</h2>
-          <p>Angle and speed on the road build unbanked points. Link drifts within two seconds to climb to &times;3. When you straighten up, the points <b>bank</b>. Spin out, hit the wall or stay on the grass, and you <b>lose</b> them.</p>
-        </div>
+        </section>
+        <section>
+          <h3>Other keys</h3>
+          <table id="help-keys" class="keys">
+            <tr><td><kbd>Enter</kbd></td><td>Start, or drive again</td></tr>
+            <tr><td><kbd>R</kbd> / <kbd>P</kbd></td><td>Restart / Pause</td></tr>
+            <tr><td><kbd>G</kbd> / <kbd>N</kbd></td><td>Ghost / Next radio station</td></tr>
+            <tr><td><kbd>O</kbd></td><td>Options, from a menu</td></tr>
+            <tr><td><kbd>D</kbd></td><td>Debug display</td></tr>
+          </table>
+        </section>
       </div>
       <div class="actions">
-        <button id="start" type="button">Start driving <span>Enter</span></button>
-        <button class="options-open quiet" type="button">Options <span>O</span></button>
+        <button id="help-back" type="button">Back <span>Esc</span></button>
       </div>
     </div>
   </section>
 
   <section id="paused" class="overlay" hidden>
     <div class="sheet small">
-      <h2>Paused</h2>
+      <h2 class="sheet-title">Paused</h2>
       <p>Press <kbd>P</kbd> to carry on, or <kbd>R</kbd> to start over.</p>
       <div class="actions">
         <button class="options-open quiet" type="button">Options <span>O</span></button>
@@ -97,7 +122,8 @@
 
   <section id="results" class="overlay" hidden>
     <div class="sheet small">
-      <h2>Run complete</h2>
+      <p class="eyebrow">Somehow, you made it.</p>
+      <h2 class="sheet-title">Run complete</h2>
       <p id="remark" class="pitch"></p>
       <dl class="stats">
         <div class="big"><dt>Drift score</dt><dd id="r-score"></dd></div>
@@ -115,7 +141,7 @@
 
   <section id="options" class="overlay" role="dialog" aria-labelledby="options-title" hidden>
     <div class="sheet small">
-      <h2 id="options-title">Options</h2>
+      <h2 id="options-title" class="sheet-title">Options</h2>
       <p id="options-muted" class="options-warning" hidden>Sound is off, so nothing will play. These settings are kept for when it's back on.</p>
       <h2>Radio</h2>
       <div id="stations" class="stations" role="radiogroup" aria-label="Radio station"></div>
