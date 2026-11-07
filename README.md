@@ -8,7 +8,7 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 
 ## Status
 
-**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, one track and simple engine and tire sound, and handling and scoring may change. See the [roadmap](docs/ROADMAP.md) for what might come next.
+**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, and handling and scoring may change. Prototype 0.1 was released as [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) with one track. Prototype 0.2 is trying a second track, **Switchback**, which is an experiment still waiting for its playtest. See the [roadmap](docs/ROADMAP.md) for what might come next.
 
 ## Controls
 
@@ -28,6 +28,17 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 Enter also starts a run from the title and results screens.
 
 On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. **How to Play** has the controls and scoring, and Esc goes back.
+
+### Choosing a track
+
+The title screen has a **Track** choice under the tagline: **Original** or **Switchback**. Press Left or Right to change it, or click one, then start as usual.
+
+- A new visit starts on Original, and the choice isn't saved.
+- Restart and Drive Again stay on the same track. Use **Return to Title** to change it.
+- Changing track starts a fresh run, with no score, laps or ghost carried over.
+- The Try It lesson always uses Original.
+
+Switchback trades Original's long bends and hairpin for a staircase of linked medium corners and one tight right. See [the Switchback notes](docs/SWITCHBACK.md).
 
 **Return to Title** is on the pause and results screens, so leaving a run no longer takes a reload.
 
@@ -95,7 +106,7 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, session, ghost, tutorial, audio, radio and publishing tests.
+This runs the physics, scoring, lap, track, session, ghost, tutorial, audio, radio and publishing tests.
 
 The browser check drives the game with real key presses in Chromium and Firefox, served the same way as on GitHub Pages. It needs Playwright, which the game itself doesn't depend on:
 
@@ -109,6 +120,8 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 
 `npm run test:tutorial:browser` plays the whole lesson with real key presses at each supported window size. It takes a few minutes.
 
+`npm run test:tracks:browser` checks the track choice and drives a lap of Switchback with real key presses. It also takes a few minutes.
+
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
 Changes reach `main` through a pull request, and the `test` check must pass before it can merge.
@@ -119,7 +132,7 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 |---|---|
 | `src/tuning.js` | Every handling and scoring number, with comments |
 | `src/physics.js` | The car |
-| `src/track.js`, `src/laps.js` | The circuit and lap validation |
+| `src/track.js`, `src/laps.js` | The two circuits and lap validation |
 | `src/scoring.js` | Drift detection and combos |
 | `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
@@ -163,7 +176,7 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 - Fishtailing down a straight still scores. It costs speed, but it isn't prevented.
 - A careful driver can occasionally slide by accident and score, and a bad drifting run can score less than a good reckless one.
 - Drifting is slower than grip driving in the scripted test runs, so points and lap time pull in different directions.
-- It's keyboard and desktop only, and scores aren't saved.
+- It's keyboard and desktop only, and scores and the track choice aren't saved.
 
 ## License
 

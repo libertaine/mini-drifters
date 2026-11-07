@@ -171,21 +171,27 @@ function buildScenery(track) {
   return { trees, tufts };
 }
 
-export function createRenderer(canvas, track) {
-  const ctx = canvas.getContext('2d', { alpha: false });
-  const road = buildRoadPath(track);
-  const curbs = buildCurbPath(track);
-  const scenery = buildScenery(track);
-  const startPoint = track.points[0];
+// Everything drawn for one circuit that only depends on its shape, worked out once.
+function buildCourse(track) {
+  return {
+    track,
+    road: buildRoadPath(track),
+    curbs: buildCurbPath(track),
+    scenery: buildScenery(track),
+    startPoint: track.points[0],
+  };
+}
 
+// The poster always shows `titleTrack`, whichever circuit is being driven.
+export function createRenderer(canvas, track, titleTrack = track) {
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const courses = new Map();
   const r = {
     ctx,
     canvas,
-    track,
-    road,
-    curbs,
-    scenery,
-    startPoint,
+    courses,
+    course: null,
+    track: null,
     cam: { x: track.start.x, y: track.start.y, zoom: VIEW.zoomSlow },
     skids: [],
     skidHead: 0,
@@ -193,7 +199,8 @@ export function createRenderer(canvas, track) {
     smoke: [],
     smokeCarry: 0,
     ghostSprite: buildGhostSprite(),
-    title: buildTitleScene(track),
+    titleCourse: buildCourse(titleTrack),
+    title: buildTitleScene(titleTrack),
     titleTime: 0,
     titleSmoke: buildSmokeSprite(),
     titleStill: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -201,8 +208,25 @@ export function createRenderer(canvas, track) {
     height: 0,
     dpr: 1,
   };
+  useTrack(r, track);
   resize(r);
   return r;
+}
+
+// Switches the driving view to another circuit. drawFrame calls this whenever the session's
+// track differs, so the picture and the simulation can never show different circuits.
+export function useTrack(r, track) {
+  if (r.track === track) return;
+  if (!r.courses.has(track)) r.courses.set(track, buildCourse(track));
+  r.course = r.courses.get(track);
+  r.track = track;
+  r.skids.length = 0;
+  r.skidHead = 0;
+  r.lastWheels = null;
+  r.smoke.length = 0;
+  r.smokeCarry = 0;
+  r.cam.x = track.start.x;
+  r.cam.y = track.start.y;
 }
 
 export function resize(r) {
@@ -329,7 +353,7 @@ function drawGrass(r) {
     if (i % 2 === 0) ctx.fillRect(i * band, cam.y - hh - 1, band, hh * 2 + 2);
   }
   ctx.fillStyle = COLORS.tuft;
-  ctx.fill(r.scenery.tufts);
+  ctx.fill(r.course.scenery.tufts);
 
   // Darken the world beyond the perimeter barrier.
   ctx.fillStyle = '#2f7f3a';
@@ -339,8 +363,8 @@ function drawGrass(r) {
   ctx.fillRect(bounds.maxX, bounds.minY, Math.max(0, cam.x + hw + 1 - bounds.maxX), bounds.maxY - bounds.minY);
 }
 
-function drawRoad(r, colors = COLORS) {
-  const { ctx, track, road, curbs, startPoint } = r;
+function drawRoad(ctx, course, colors = COLORS) {
+  const { track, road, curbs, startPoint } = course;
   const width = track.halfWidth * 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'butt';
@@ -424,7 +448,7 @@ function drawTrees(r) {
   const { ctx, cam } = r;
   const hw = r.width / 2 / cam.zoom + 10;
   const hh = r.height / 2 / cam.zoom + 10;
-  for (const t of r.scenery.trees) {
+  for (const t of r.course.scenery.trees) {
     if (Math.abs(t.x - cam.x) > hw || Math.abs(t.y - cam.y) > hh) continue;
     ctx.fillStyle = COLORS.treeDark;
     ctx.beginPath();
@@ -630,7 +654,7 @@ function drawMinimap(r, car, ghost) {
   ctx.strokeStyle = 'rgba(246,241,228,0.85)';
   ctx.lineWidth = 3.4 / scale;
   ctx.lineJoin = 'round';
-  ctx.stroke(r.road);
+  ctx.stroke(r.course.road);
   if (ghost) {
     ctx.fillStyle = GHOST_COLORS.body;
     ctx.beginPath();
@@ -800,7 +824,7 @@ function drawTitleScene(r, step) {
   ctx.scale(zoom, zoom);
   ctx.rotate(TITLE.rotation);
   ctx.translate(-TITLE.focus.x, -TITLE.focus.y);
-  drawRoad(r, TITLE_COLORS);
+  drawRoad(ctx, r.titleCourse, TITLE_COLORS);
   drawTitleSkids(ctx, scene.skids);
   drawTitleCar(ctx, scene, r.titleSmoke, time);
   ctx.restore();
@@ -823,6 +847,7 @@ export function drawFrame(r, game, alpha, dt, debug) {
     y: prev.y + (car.y - prev.y) * blend,
     heading: prev.heading + (car.heading - prev.heading) * blend,
   };
+  useTrack(r, game.track);
   const step = Math.min(dt, FX.maxDt);
   if (!game.paused && game.state !== 'finished' && game.state !== 'menu') updateEffects(r, game, pose, step);
   updateCamera(r, car, pose, step);
@@ -838,7 +863,7 @@ export function drawFrame(r, game, alpha, dt, debug) {
   ctx.scale(r.cam.zoom, r.cam.zoom);
   ctx.translate(-r.cam.x, -r.cam.y);
   drawGrass(r);
-  drawRoad(r);
+  drawRoad(ctx, r.course);
   drawSkids(r);
   drawWall(r);
   if (ghost) drawGhost(r, ghost);

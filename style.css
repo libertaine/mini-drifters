@@ -318,6 +318,25 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
   /* Track markings: the same dashed centre line as the road. */
   background: repeating-linear-gradient(90deg, var(--amber) 0 26px, transparent 26px 44px) left bottom / 100% 3px no-repeat;
 }
+/* The circuit for the next run. Left and Right change it from anywhere on the title. */
+.track-select { display: flex; align-items: center; gap: 14px; margin: 0 0 clamp(10px, 2vh, 22px) 0.6vw; }
+.track-label { font: 400 clamp(16px, 2.2vh, 24px)/1 var(--poster); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
+.track-label span { margin-left: 6px; padding: 2px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); font: 700 11px var(--body); letter-spacing: 0; color: var(--muted); vertical-align: middle; }
+.tracks { display: flex; gap: 8px; }
+.track { position: relative; display: block; cursor: pointer; transform: skewX(-10deg); }
+.track input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.track span {
+  display: block;
+  padding: clamp(5px, 0.9vh, 9px) 14px;
+  box-shadow: inset 0 0 0 2px #6a6b72;
+  font: 400 clamp(16px, 2.3vh, 24px)/1 var(--poster);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.track:hover span { background: rgba(246, 241, 228, 0.12); }
+.track input:checked + span { background: var(--amber); box-shadow: none; color: var(--charcoal); }
+.track input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 3px; }
 .title-menu { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(8px, 1.5vh, 16px); }
 .title-menu button {
   justify-content: space-between;

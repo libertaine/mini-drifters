@@ -1,7 +1,7 @@
-// The one fixed circuit: a closed centreline with lookups for surface, progress
-// along the lap, and the checkpoint gates. The lap runs clockwise on screen.
+// The circuits: closed centrelines with lookups for surface, progress along the lap,
+// and the checkpoint gates. Both laps run clockwise on screen.
 
-// Control points, in metres. The first point sits on the start/finish line.
+// Original's control points, in metres. The first point sits on the start/finish line.
 const CENTERLINE = [
   // Main straight, heading east.
   [-60, -110], [30, -110], [80, -110], [120, -110],
@@ -19,6 +19,30 @@ const CENTERLINE = [
   [-20, 6], [-75, 0], [-130, -2],
   // Final long right-hander onto the main straight.
   [-180, -24], [-204, -66], [-186, -100], [-145, -110], [-105, -110],
+];
+
+// Switchback: medium corners linked into one another, rather than Original's long
+// sweepers and hairpin. The start/finish line is on the west straight, heading north.
+const SWITCHBACK = [
+  // West straight: the one long run to top speed.
+  [-200, 100], [-200, 41], [-200, -18], [-200, -76],
+  // Top-left right-hander, then a short straight.
+  [-196, -95], [-185, -112], [-169, -122], [-150, -126], [-100, -126],
+  // Five switchbacks stepping down to the south-east: right, left, right, left, right.
+  [-77, -120], [-61, -102], [-56, -78], [-58, -60],
+  [-53, -37], [-36, -20], [-12, -15], [6, -17],
+  [30, -11], [48, 6], [53, 31], [52, 49],
+  [57, 73], [74, 90], [97, 95], [115, 93],
+  [139, 97], [157, 114], [163, 137],
+  // Short east straight into the tight right, the one corner that wants the handbrake.
+  [163, 189], [163, 242],
+  [156, 259], [140, 268], [122, 263], [106, 252],
+  // A left flick out of it, then a right-left sweep onto the bottom straight.
+  [89, 244], [71, 241], [41, 241],
+  [18, 236], [-1, 221], [-10, 210], [-29, 195], [-53, 190],
+  [-101, 190], [-150, 190],
+  // Bottom-left right-hander onto the west straight.
+  [-169, 186], [-185, 175], [-196, 159], [-200, 140],
 ];
 
 export const TRACK_HALF_WIDTH = 10;
@@ -164,6 +188,22 @@ export function buildTrack(control = CENTERLINE) {
     bounds,
     start: { x: start.x, y: start.y, heading: Math.atan2(start.ty, start.tx) },
   };
+}
+
+// Both circuits, in the order the title offers them. Ids are stable: tests and the page use them.
+export const TRACKS = Object.freeze([
+  Object.freeze({ id: 'original', name: 'Original', control: CENTERLINE }),
+  Object.freeze({ id: 'switchback', name: 'Switchback', control: SWITCHBACK }),
+]);
+export const DEFAULT_TRACK_ID = 'original';
+
+// Each circuit is built once, so every session on it shares one track object.
+const built = new Map();
+export function trackById(id) {
+  const entry = TRACKS.find((t) => t.id === id);
+  if (!entry) throw new Error(`Unknown track: ${id}`);
+  if (!built.has(id)) built.set(id, { ...buildTrack(entry.control), id: entry.id, name: entry.name });
+  return built.get(id);
 }
 
 // Nearest point on the centreline. `offset` is signed, positive to the right of travel.
