@@ -13,6 +13,7 @@ const LAB = new Set(['index.html', 'lab.css', 'lab.js', 'model.js', 'audio.js', 
   'assets/engine-low.wav', 'assets/engine-high.wav', 'assets/tire-foley.mp3', 'assets/ATTRIBUTION.md']
   .map((file) => `/audio-lab/${file}`));
 const SOURCE = /^\/src\/[a-z]+(-[a-z]+)*\.js$/;
+const RADIO = /^\/radio\/(ATTRIBUTION\.md|[a-z0-9-]+\/[a-z0-9-]+\.(wav|mp3))$/;
 const port = Number(process.env.PORT || 4190);
 
 // The page asks for the Coyote recordings because of this tag. COYOTE_LOCAL=off removes
@@ -26,7 +27,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (path === '/audio-lab/') path = '/audio-lab/index.html';
   if (path === '/') path = '/index.html';
-  if (!['GET', 'HEAD'].includes(req.method) || !(ALLOWED.has(path) || SOURCE.test(path) || LAB.has(path))) {
+  if (!['GET', 'HEAD'].includes(req.method) || !(ALLOWED.has(path) || SOURCE.test(path) || RADIO.test(path) || LAB.has(path))) {
     res.writeHead(404);
     res.end('Not found');
     return;

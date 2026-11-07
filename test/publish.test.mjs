@@ -7,6 +7,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RADIO_FILES, STATIONS } from '../src/radio-stations.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const sourceFiles = readdirSync(join(root, 'src')).map((name) => join(root, 'src', name));
@@ -50,10 +51,10 @@ test('gameplay needs no external services', () => {
 
 test('the only network requests in the game are for its own sound files', () => {
   const requesters = sourceFiles.filter((file) => /\bfetcher\(/.test(readFileSync(file, 'utf8')));
-  assert.deepEqual(requesters.map((file) => relative(join(root, 'src'), file)).sort(), ['audio-voices.js', 'coyote.js']);
+  assert.deepEqual(requesters.map((file) => relative(join(root, 'src'), file)).sort(), ['audio-voices.js', 'coyote.js', 'radio.js']);
   for (const file of requesters) {
     for (const [, target] of readFileSync(file, 'utf8').matchAll(/fetcher\(new URL\(([^,]+), import\.meta\.url\)/g)) {
-      assert.match(target, /^(TIRE_FILE|COYOTE_FOLDER \+ file)$/, file);
+      assert.match(target, /^(TIRE_FILE|COYOTE_FOLDER \+ file|RADIO_ROOT \+ track\.file)$/, file);
     }
   }
   assert.match(readFileSync(join(root, 'src/audio-voices.js'), 'utf8'), /TIRE_FILE = '\.\.\/audio-lab\/assets\/tire-foley\.mp3'/);
@@ -63,12 +64,12 @@ test('the only network requests in the game are for its own sound files', () => 
 const COYOTE_LOOPS = ['idle', 'mid', 'load', 'high'].map((key) => `audio-lab/assets/coyote-local/${key}.wav`);
 const provenance = JSON.parse(readFileSync(join(root, 'docs/COYOTE-PROVENANCE.json'), 'utf8'));
 
-test('Pages publishes the tire file, the four authorized loops and their attribution, and nothing else', () => {
+test('Pages publishes the tire file, the four authorized loops, the radio folder and their attribution, and nothing else', () => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
   const copies = workflow.split('\n').map((line) => line.trim()).filter((line) => /^(cp|mkdir|rsync|mv|tar)\b/.test(line));
   assert.deepEqual(copies, [
     'mkdir -p _site/audio-lab/assets/coyote-local',
-    'cp -r index.html style.css src _site/',
+    'cp -r index.html style.css src radio _site/',
     'cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/',
     `cp ${COYOTE_LOOPS.join(' ')} _site/audio-lab/assets/coyote-local/`,
   ]);
@@ -130,8 +131,44 @@ test('private recordings are ignored, untracked and not embedded in anything tra
     return;
   }
   const audio = tracked.filter((file) => /\.(wav|mp3|ogg|flac|m4a|aac)$/i.test(file)).sort();
-  assert.deepEqual(audio, [...COYOTE_LOOPS, 'audio-lab/assets/engine-high.wav', 'audio-lab/assets/engine-low.wav', 'audio-lab/assets/tire-foley.mp3'].sort());
+  const radio = RADIO_FILES.filter((file) => !file.endsWith('.md'));
+  assert.deepEqual(audio, [...COYOTE_LOOPS, ...radio, 'audio-lab/assets/engine-high.wav', 'audio-lab/assets/engine-low.wav', 'audio-lab/assets/tire-foley.mp3'].sort());
   assert.equal(tracked.some((file) => /Mustang|incar-reference|^\.local\//.test(file)), false);
+});
+
+test('the radio folder holds exactly its attribution and the tracks in the station list', () => {
+  const walk = (dir) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? walk(`${dir}/${entry.name}`) : [`${dir}/${entry.name}`]));
+  assert.deepEqual(walk('radio').sort(), [...RADIO_FILES].sort());
+  for (const file of RADIO_FILES) assert.ok(existsWithExactCase(join(root, file)), file);
+});
+
+test('every radio track has a recorded license and a matching attribution hash', () => {
+  const attribution = readFileSync(join(root, 'radio/ATTRIBUTION.md'), 'utf8');
+  const tracks = STATIONS.flatMap((station) => station.tracks);
+  assert.ok(tracks.length >= 3);
+  for (const track of tracks) {
+    assert.ok(track.license, track.id);
+    const digest = createHash('sha256').update(readFileSync(join(root, track.file))).digest('hex');
+    assert.ok(attribution.includes(digest), `${track.file} is missing from the attribution, or changed`);
+  }
+  assert.match(readFileSync(join(root, 'LICENSE-AUDIO.md'), 'utf8'), /radio\/ATTRIBUTION\.md/);
+});
+
+test('generated test audio stays labelled as test audio', () => {
+  for (const station of STATIONS) {
+    for (const track of station.tracks) {
+      if (track.file.startsWith('radio/test-tracks/')) {
+        assert.equal(track.status, 'test', track.id);
+        assert.match(track.title, /test/i, track.id);
+      }
+    }
+  }
+  assert.match(readFileSync(join(root, 'src/main.js'), 'utf8'), /Temporary test audio, not finished music/);
+});
+
+test('radio audio stays small enough for Pages', () => {
+  const bytes = RADIO_FILES.filter((file) => !file.endsWith('.md')).reduce((sum, file) => sum + readFileSync(join(root, file)).length, 0);
+  assert.ok(bytes < 40 * 1024 * 1024, `${bytes} bytes`);
 });
 
 test('the public fallback is never described as a recording', () => {
@@ -160,6 +197,9 @@ test('the local server serves the game and nothing else', async () => {
     assert.equal(await status('/server.mjs'), 404);
     assert.equal(await status('/package.json'), 404);
     assert.equal(await status('/src/audio-telemetry.js'), 200);
+    assert.equal(await status('/radio/ATTRIBUTION.md'), 200);
+    for (const file of RADIO_FILES) assert.equal(await status(`/${file}`), 200, file);
+    for (const path of ['/radio/', '/radio/x.exe', '/radio/test-tracks/../../server.mjs', '/radio/test-tracks/Missing.wav']) assert.equal(await status(path), 404, path);
     for (const path of ['/src/../server.mjs', '/src/-audio.js', '/src/audio-.js', '/src/Audio.js', '/src/audio.mjs', '/src/x/audio.js', '/src/audio-telemetry.js.map']) {
       assert.equal(await status(path), 404, path);
     }

@@ -6,6 +6,7 @@ import http from 'node:http';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { RADIO_FILES } from '../src/radio-stations.js';
 
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
 
@@ -14,7 +15,7 @@ const artifact = (name) => fileURLToPath(new URL(`artifacts/ghost-${name}`, root
 await mkdir(new URL('artifacts/', root), { recursive: true });
 
 const siteFiles = ['index.html', 'style.css', 'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md',
-  ...['idle', 'mid', 'load', 'high'].map((key) => `audio-lab/assets/coyote-local/${key}.wav`),
+  ...['idle', 'mid', 'load', 'high'].map((key) => `audio-lab/assets/coyote-local/${key}.wav`), ...RADIO_FILES,
   ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.md': 'text/plain; charset=utf-8' };
 const server = http.createServer(async (req, res) => {
