@@ -10,9 +10,9 @@ export const FADE_OUT = 0.35;
 export const FADE_IN = 0.6;
 export const MUSIC_FADE_MS = FADE_OUT * 1000;
 // The music bus's level at 100%, set so the radio can't bury the engine, which tells the
-// driver what the car is doing. Measured on the test loops: about level with the engine at
-// 100%, and 4 to 5 dB under it at the default 70%. That is a measurement, not a listening
-// result, and final music may need this revisited.
+// driver what the car is doing. Measured on the built-in loops: about level with the engine
+// at 100%, and 4 to 5 dB under it at the default 70%. That is a measurement, not a listening
+// result, and replacement music may need this revisited.
 export const MUSIC_LEVEL = 0.2;
 const END_FADE = 0.03;
 const LOAD_DEADLINE_MS = 30000;

@@ -3,6 +3,8 @@
 // reached the destination. It can't tell whether anything sounds good, and nobody
 // listened here.
 //   node test/radio-browser.mjs [/path/to/playwright/index.mjs]
+// By default it serves what gets deployed, under /mini-drifters/. To check a deployed site:
+//   TEST_URL=https://libertaine.github.io/mini-drifters/ npm run test:radio:browser
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
@@ -12,7 +14,8 @@ import { RADIO_FILES, STATIONS } from '../src/radio-stations.js';
 
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
 const root = new URL('../', import.meta.url);
-const artifact = (name) => fileURLToPath(new URL(`artifacts/radio-${name}`, root));
+const PUBLIC_URL = process.env.TEST_URL;
+const artifact = (name) => fileURLToPath(new URL(`artifacts/${PUBLIC_URL ? 'public-' : ''}radio-${name}`, root));
 await mkdir(new URL('artifacts/', root), { recursive: true });
 
 const SILENCE = 0.0005;
@@ -20,15 +23,15 @@ const siteFiles = ['index.html', 'style.css', 'audio-lab/assets/tire-foley.mp3',
   ...['idle', 'mid', 'load', 'high'].map((key) => `audio-lab/assets/coyote-local/${key}.wav`), ...RADIO_FILES,
   ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.md': 'text/plain; charset=utf-8' };
-const server = http.createServer(async (req, res) => {
+const server = PUBLIC_URL ? null : http.createServer(async (req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
   const file = path === '/mini-drifters/' ? 'index.html' : path.replace('/mini-drifters/', '');
   if (!siteFiles.includes(file)) { res.writeHead(404); res.end('Not found'); return; }
   res.writeHead(200, { 'Content-Type': types[extname(file)] });
   res.end(await readFile(new URL(file, root)));
 });
-await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const BASE = `http://127.0.0.1:${server.address().port}/mini-drifters/`;
+if (server) await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+const BASE = PUBLIC_URL ?? `http://127.0.0.1:${server.address().port}/mini-drifters/`;
 
 // Taps whatever reaches the destination and counts contexts. It observes only.
 const instrument = () => {
@@ -189,7 +192,7 @@ async function run(browser, browserName) {
       const asked = t.requests.filter((path) => path.includes('/radio/'));
       if (asked.length) assert.deepEqual(asked, [`/mini-drifters/${tracks[0].file}`]);
       assert.equal((await t.sound()).radio.track, tracks[0].id);
-      assert.match(await page.locator('#radio-note').textContent(), /Temporary test audio/);
+      assert.match(await page.locator('#radio-note').textContent(), /Provisional built-in music/);
       step(`${name} plays its own track on the title screen (level ${level.toFixed(4)})`);
     }
 
@@ -356,7 +359,7 @@ async function run(browser, browserName) {
     assert.equal((await t.sound()).station, 'off', 'Redline, then Radio Off');
     assert.match(await t.status(), /Radio Off/);
     await page.keyboard.press('KeyN');
-    assert.match(await t.status(), /Garage Rock . Test/);
+    assert.equal(await t.status(), 'Garage Rock');
     await page.waitForTimeout(150);
     assert.ok((await t.game()).ticks > g.ticks, 'the race carries on');
     await page.screenshot({ path: artifact(`${browserName}-driving.png`) });
@@ -710,7 +713,7 @@ try {
     }
   }
 } finally {
-  server.close();
+  server?.close();
 }
 await writeFile(artifact('report.json'), `${JSON.stringify(report, null, 2)}\n`);
 for (const r of report.runs) {

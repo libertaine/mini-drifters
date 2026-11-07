@@ -5,7 +5,7 @@ import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
 import { projectOnTrack } from './track.js';
 import { GameAudio } from './audio.js';
-import { RADIO_OFF, STATIONS, hasTestAudio, stationById } from './radio-stations.js';
+import { RADIO_OFF, STATIONS, hasProvisionalMusic, stationById } from './radio-stations.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -52,8 +52,8 @@ const stationInputs = STATIONS.map((station) => {
 function radioNote(sound, station) {
   if (sound.radio.status === 'unavailable') return 'This station could not load. Select it again to retry. Driving is not affected.';
   if (sound.station === RADIO_OFF) return 'No music. Engine and tire sounds stay on.';
-  const test = hasTestAudio(station) ? 'Temporary test audio, not finished music. ' : '';
-  return `${test}Press N to change station while driving.`;
+  const provisional = hasProvisionalMusic(station) ? 'Provisional built-in music, which may be replaced later. ' : '';
+  return `${provisional}Press N to change station while driving.`;
 }
 
 function showRadio(sound) {
@@ -61,7 +61,7 @@ function showRadio(sound) {
   const unavailable = sound.radio.status === 'unavailable';
   const status = $('radio-status');
   status.dataset.state = sound.station === RADIO_OFF ? 'off' : unavailable ? 'unavailable' : sound.muted ? 'muted' : 'on';
-  setText('radio-status', `${station.name}${unavailable ? ' · Unavailable' : hasTestAudio(station) ? ' · Test' : ''}`);
+  setText('radio-status', `${station.name}${unavailable ? ' · Unavailable' : ''}`);
   for (const input of stationInputs) input.checked = input.value === sound.station;
   $('music-volume').value = String(sound.musicVolume);
   setText('music-volume-value', `${sound.musicVolume}%`);

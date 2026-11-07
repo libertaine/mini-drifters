@@ -29,7 +29,7 @@ Enter also starts a run from the title and results screens.
 
 The **Sound** button under the score is the master switch for all sound, and remembers your choice. It works with the mouse, or with Tab and Enter.
 
-**Options** has the radio station, music volume and sound effects volume, all remembered between visits. The radio is off by default. Its three stations currently play [temporary test loops](docs/RADIO.md), not finished music.
+**Options** has the radio station, music volume and sound effects volume, all remembered between visits. The radio is off by default. Its three stations play [provisional built-in music](docs/RADIO.md), which may be replaced later.
 
 ### How to drift
 
@@ -85,7 +85,7 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, session, ghost, audio and publishing tests.
+This runs the physics, scoring, lap, session, ghost, audio, radio and publishing tests.
 
 The browser check drives the game with real key presses in Chromium and Firefox, served the same way as on GitHub Pages. It needs Playwright, which the game itself doesn't depend on:
 

@@ -1,6 +1,6 @@
-// Generates the radio's TEMPORARY TEST LOOPS. They exist so the radio can be built and
-// tested before real music is chosen, and they are not finished music. Everything here
-// is synthesized from scratch: no samples, no downloads and no external tools.
+// Generates the radio's built-in loops. They began as test audio and now ship as
+// provisional music, which may be replaced later. Everything here is synthesized from
+// scratch: no samples, no downloads and no external tools.
 //
 //   node scripts/radio-test-tracks.mjs
 //

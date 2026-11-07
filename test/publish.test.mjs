@@ -154,16 +154,16 @@ test('every radio track has a recorded license and a matching attribution hash',
   assert.match(readFileSync(join(root, 'LICENSE-AUDIO.md'), 'utf8'), /radio\/ATTRIBUTION\.md/);
 });
 
-test('generated test audio stays labelled as test audio', () => {
+test('generated loops stay described as provisional music', () => {
   for (const station of STATIONS) {
     for (const track of station.tracks) {
       if (track.file.startsWith('radio/test-tracks/')) {
-        assert.equal(track.status, 'test', track.id);
-        assert.match(track.title, /test/i, track.id);
+        assert.equal(track.status, 'provisional', track.id);
+        assert.match(track.title, /provisional/i, track.id);
       }
     }
   }
-  assert.match(readFileSync(join(root, 'src/main.js'), 'utf8'), /Temporary test audio, not finished music/);
+  assert.match(readFileSync(join(root, 'src/main.js'), 'utf8'), /Provisional built-in music/);
 });
 
 test('radio audio stays small enough for Pages', () => {

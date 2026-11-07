@@ -19,9 +19,9 @@ The Mini Drifters project owner ([libertaine](https://github.com/libertaine)) ow
 
 `tire-foley.mp3`, `engine-low.wav` and `engine-high.wav` in `audio-lab/assets/` are third-party recordings under CC0.
 
-## Radio test loops: temporary, and not finished music
+## Radio music: provisional loops
 
-The files in `radio/test-tracks/` are synthesized from scratch by `scripts/radio-test-tracks.mjs`. They contain no samples or third-party audio, and they're under the repository's MIT License, like the script. [`radio/ATTRIBUTION.md`](radio/ATTRIBUTION.md) lists them, and will record the source and terms of any final music.
+The files in `radio/test-tracks/` are synthesized from scratch by `scripts/radio-test-tracks.mjs`. They contain no samples or third-party audio, and they're under the repository's MIT License, like the script. [`radio/ATTRIBUTION.md`](radio/ATTRIBUTION.md) lists them, and will record the source and terms of any music that replaces them.
 
 ## Sources
 
