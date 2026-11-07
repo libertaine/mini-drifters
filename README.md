@@ -29,6 +29,8 @@ Enter also starts a run from the title and results screens.
 
 On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. **How to Play** has the controls and scoring, and Esc goes back.
 
+**Return to Title** is on the pause and results screens, so leaving a run no longer takes a reload.
+
 The **Sound** button under the score is the master switch for all sound, and remembers your choice. It works with the mouse, or with Tab and Enter.
 
 **Options** has the radio station, music volume and sound effects volume, all remembered between visits. The radio is off by default. Its three stations play [provisional built-in music](docs/RADIO.md), which may be replaced later.
@@ -40,6 +42,12 @@ The **Sound** button under the score is the master switch for all sound, and rem
 3. Lift off the throttle to straighten up.
 
 The longer you pull, the bigger the slide. A very short tap only unsettles the car, and holding the handbrake spins it.
+
+### Try It
+
+**Try It** on the How to Play screen starts an optional five-step lesson: accelerate, steer, start a slide, countersteer and bank the points. It's the real car, track and scoring, there's no time limit, and each step waits until you've really done it.
+
+While you're in the lesson, Esc leaves it, R goes back to the grid and keeps your place, and P pauses. The pause screen can also skip a step. A lesson records no ghost, and nothing from it carries into your next run.
 
 ## Gameplay
 
@@ -87,7 +95,7 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, session, ghost, audio, radio and publishing tests.
+This runs the physics, scoring, lap, session, ghost, tutorial, audio, radio and publishing tests.
 
 The browser check drives the game with real key presses in Chromium and Firefox, served the same way as on GitHub Pages. It needs Playwright, which the game itself doesn't depend on:
 
@@ -98,6 +106,8 @@ npm run test:browser
 ```
 
 To run the same check against the live site, set `TEST_URL=https://libertaine.github.io/mini-drifters/` first. It also confirms the live files match your checkout.
+
+`npm run test:tutorial:browser` plays the whole lesson with real key presses at each supported window size. It takes a few minutes.
 
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
@@ -113,6 +123,7 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/scoring.js` | Drift detection and combos |
 | `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
+| `src/tutorial.js` | The driving lesson. It watches a session and never writes to it |
 | `src/render.js`, `src/main.js` | Drawing, input and the HUD |
 | `src/audio.js`, `src/audio-telemetry.js` | Sound, and how the car's telemetry maps to it |
 | `src/audio-voices.js`, `src/coyote.js`, `src/coyote-model.js` | Engine and tire voices, shared with the audio lab |

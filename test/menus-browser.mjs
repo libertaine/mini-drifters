@@ -51,6 +51,17 @@ const focusRing = (page) => page.evaluate(() => {
   return el.matches(':focus-visible') && outlineStyle !== 'none' && parseFloat(outlineWidth) >= 2;
 });
 const station = (page) => page.evaluate(() => window.__miniDrifters.audio().station);
+// The game loop shows a screen only when a frame sees the state change. Driving a restarted run
+// to the finish in one go needs a frame to have seen it on the grid first, or the loop sees
+// finished both times and the results stay hidden. A player's run always spans many frames.
+const frameShowsGrid = async (page) => {
+  await page.waitForFunction(() => window.__miniDrifters.game.state === 'ready');
+  await page.waitForSelector('#prompt:not([hidden])');
+  // The prompt can already be up from before a restart, so also let the loop run for certain.
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+};
 
 // Counts canvas pixels near a colour, in a part of the window.
 const countPixels = (page, [r, g, b], from = 0, to = 1) => page.evaluate(({ r, g, b, from, to }) => {
@@ -380,6 +391,7 @@ async function check(name, engine) {
     step('the pause screen keeps P, R and Options, and Options returns to it still paused');
 
     await page.keyboard.press('KeyR');
+    await frameShowsGrid(page);
     await page.evaluate(async () => {
       const { driftDriver } = await import(new URL('test/support/drivers.mjs', document.baseURI).href);
       const { tick } = await import(new URL('src/game.js', document.baseURI).href);
@@ -414,6 +426,7 @@ async function check(name, engine) {
     step('results keep every statistic, and their buttons work with Tab, Enter and Space');
 
     // A driver mashing the handbrake across the line can't dismiss the results by accident.
+    await frameShowsGrid(page);
     await page.evaluate(async () => {
       const { driftDriver } = await import(new URL('test/support/drivers.mjs', document.baseURI).href);
       const { tick } = await import(new URL('src/game.js', document.baseURI).href);

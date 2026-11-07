@@ -134,6 +134,25 @@ canvas#view {
   pointer-events: none;
 }
 .prompt[data-kind="warn"] { color: var(--red); font-weight: 700; }
+/* The lesson. It sits under the car and over nothing the driver needs, and stays short. */
+.prompt[data-kind="tutorial"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: min(560px, calc(100vw - 32px));
+  bottom: 112px;
+  padding: 8px 18px 7px;
+  border-radius: 0;
+  border-top: 3px solid var(--burnt);
+  background: rgba(19, 20, 23, 0.86);
+  text-align: center;
+}
+.lesson-step { font: 700 11px var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.lesson-title { font: 400 24px/1.1 var(--poster); letter-spacing: 0.03em; color: var(--ink); }
+.lesson-text { font-size: 16px; color: var(--ink); }
+.lesson-hint { font-size: 15px; font-weight: 700; color: var(--amber); }
+.lesson-keys { margin-top: 2px; font-size: 12px; color: var(--muted); }
 
 /* ---- Screens ---- */
 .overlay {
@@ -405,6 +424,10 @@ body[data-screen="title"] .overlay:not(.title-screen) {
 .stats .big dd { font-family: var(--poster); font-weight: 400; font-size: 44px; color: var(--amber); }
 
 @media (max-width: 720px), (max-height: 620px) {
+  .prompt[data-kind="tutorial"] { padding: 6px 14px 5px; }
+  .lesson-title { font-size: 21px; }
+  .lesson-text { font-size: 15px; }
+  .lesson-hint { font-size: 14px; }
   .help-grid { gap: 8px 22px; margin-top: 4px; }
   .help-grid, .help-grid .keys { font-size: 13px; }
   .help-grid h3 { font-size: 19px; margin-bottom: 3px; }
