@@ -13,6 +13,7 @@
     "test:gameplay-audio:browser": "node test/gameplay-audio-browser.mjs",
     "test:ghost:browser": "node test/ghost-browser.mjs",
     "test:menus:browser": "node test/menus-browser.mjs",
-    "test:radio:browser": "node test/radio-browser.mjs"
+    "test:radio:browser": "node test/radio-browser.mjs",
+    "test:tutorial:browser": "node test/tutorial-browser.mjs"
   }
 }

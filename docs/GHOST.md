@@ -25,6 +25,7 @@ Port 4190 may already be in use if another copy of the game is running. Stop tha
 | Pause | Freezes with the game |
 | Restart, or a new run | The ghost is cleared. The G setting stays until the page reloads |
 | Run finished | Hidden |
+| Try It lesson | Not recorded at all. The G key does nothing there, so the setting carries through unchanged |
 | It overlaps your car | Drawn underneath, and thins out within 9 m so your car stays clear |
 
 It leaves no skid marks or smoke, makes no sound and has no collisions.

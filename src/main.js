@@ -1,11 +1,12 @@
 // Browser glue: keyboard, the animation loop and the HUD.
 import { TUNING } from './tuning.js';
-import { createGame, startRun, restartRun, togglePause, toggleGhost, advance } from './game.js';
+import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance } from './game.js';
 import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
 import { projectOnTrack } from './track.js';
 import { GameAudio } from './audio.js';
 import { RADIO_OFF, STATIONS, hasProvisionalMusic, stationById } from './radio-stations.js';
+import { createTutorial, updateTutorial, skipStep, tutorialView, tutorialEnding } from './tutorial.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -87,6 +88,8 @@ function clearInput() {
 }
 
 function beginRun() {
+  doneOpen = false;
+  tutorial = null;
   startRun(game);
   resetEffects(renderer, game.car);
   clearInput();
@@ -95,10 +98,70 @@ function beginRun() {
 }
 
 function restart() {
-  restartRun(game);
+  restartRun(game, { ghost: !tutorial }); // a lesson leaves no ghost behind
   resetEffects(renderer, game.car);
   syncScreens();
   audio.newRun(game);
+}
+
+// --- Tutorial -------------------------------------------------------------
+// The lesson is a normal session being watched. Its progress lives here, and not on the game.
+let tutorial = null;
+let doneOpen = false;
+let doneOpenedAt = 0;
+const DONE_KEY_GUARD_MS = 500; // the player was just driving, and may still be stabbing at keys
+
+function startTutorial() {
+  doneOpen = false;
+  tutorial = createTutorial();
+  startRun(game, { ghost: false });
+  resetEffects(renderer, game.car);
+  clearInput();
+  syncScreens();
+  audio.newRun(game);
+}
+
+// The single way out of a session: anything running or showing is discarded, and the game
+// is back in the state it opens in.
+function leaveSession() {
+  tutorial = null;
+  optionsOpen = false;
+  optionsOpener = null;
+  helpOpen = false;
+  helpOpener = null;
+  doneOpen = false;
+  returnToMenu(game);
+  resetEffects(renderer, game.car);
+  clearInput();
+  banner.until = 0;
+  syncScreens();
+  audio.newRun(game);
+}
+
+function returnToTitle() {
+  leaveSession();
+  $('start').focus();
+}
+
+function finishTutorial() {
+  const ending = tutorialEnding(tutorial);
+  leaveSession();
+  setText('done-banked', ending.banked > 0 ? `You banked ${formatNumber(ending.banked)} points.` : '');
+  setText('done-title', ending.title);
+  setText('done-text', ending.text);
+  doneOpen = true;
+  doneOpenedAt = performance.now();
+  syncScreens();
+  $('done-start').focus();
+}
+
+function skipTutorialStep() {
+  if (!tutorial) return;
+  skipStep(tutorial);
+  if (game.paused) togglePause(game);
+  clearInput();
+  syncScreens();
+  audio.gesture(game);
 }
 
 // --- Options --------------------------------------------------------------
@@ -160,7 +223,7 @@ function moveMenuFocus(direction) {
 }
 
 // These keep Enter, and Space when the car isn't being driven, for their own use.
-const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #again');
+const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #again, .return-title, #tutorial-skip');
 
 // While driving, Space is always the handbrake, even with the Sound button focused.
 function buttonOwnsSpace(e) {
@@ -197,6 +260,22 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
+  // The lesson's last sheet. It appears by itself, so a key meant for the car is ignored.
+  if (doneOpen) {
+    const tooSoon = performance.now() - doneOpenedAt < DONE_KEY_GUARD_MS;
+    if (e.repeat || (tooSoon && (e.code === 'Space' || e.code === 'Enter'))) {
+      e.preventDefault();
+    } else if (e.code === 'Escape') {
+      e.preventDefault();
+      returnToTitle();
+    }
+    return;
+  }
+  if (tutorial && !game.paused && e.code === 'Escape' && !e.repeat) {
+    e.preventDefault();
+    returnToTitle();
+    return;
+  }
   if (game.state === 'menu' && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
     e.preventDefault();
     if (!e.repeat) moveMenuFocus(e.code === 'ArrowDown' ? 1 : -1);
@@ -227,7 +306,7 @@ window.addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyD') {
     debug = !debug;
     $('debug').hidden = !debug;
-  } else if (e.code === 'KeyG' && game.state !== 'menu') {
+  } else if (e.code === 'KeyG' && game.state !== 'menu' && !tutorial) {
     toggleGhost(game);
     showGhostStatus();
   } else if (e.code === 'KeyN') {
@@ -241,7 +320,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (!held) return;
-  if (optionsOpen || helpOpen) {
+  if (optionsOpen || helpOpen || doneOpen) {
     input[held] = false; // and Space stays free to press the focused control
     return;
   }
@@ -284,6 +363,14 @@ for (const button of document.querySelectorAll('.options-open')) {
 $('options-close').addEventListener('click', (e) => closeOptions({ restoreFocus: e.detail === 0 }));
 $('how-to-play').addEventListener('click', (e) => openHelp(e.detail > 0 ? null : e.currentTarget));
 $('help-back').addEventListener('click', (e) => closeHelp({ restoreFocus: e.detail === 0 }));
+$('help-try').addEventListener('click', () => {
+  closeHelp({ restoreFocus: false });
+  startTutorial();
+});
+$('tutorial-skip').addEventListener('click', skipTutorialStep);
+$('done-start').addEventListener('click', beginRun);
+$('done-again').addEventListener('click', startTutorial);
+for (const button of document.querySelectorAll('.return-title')) button.addEventListener('click', returnToTitle);
 // A click also covers selecting the current station again, to retry one that failed.
 for (const input of stationInputs) {
   const select = () => audio.setStation(input.value, game);
@@ -314,11 +401,35 @@ function showGhostStatus() {
   setText('ghost-status', game.ghostVisible ? 'Ghost On' : 'Ghost Off');
 }
 
+// Tab carries on from whatever last had focus, even once that's hidden, and that can be past
+// a sheet's buttons in the page. Firefox then has no way back to them. So Tab starts at the top
+// of a sheet when it appears, with nothing focused until the player asks.
+let tabAnchor = null;
+
+function startTabAt(section) {
+  if (section === tabAnchor) return;
+  tabAnchor = section;
+  if (!section) return;
+  section.tabIndex = -1;
+  section.focus({ preventScroll: true });
+  section.blur();
+}
+
 function syncScreens() {
   const { state, paused } = game;
   document.body.dataset.screen = state === 'menu' ? 'title' : 'game';
-  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen;
+  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen;
   $('help').hidden = !helpOpen;
+  $('tutorial-done').hidden = !doneOpen;
+  $('tutorial-skip').hidden = !tutorial;
+  $('ghost-status').hidden = !!tutorial;
+  setText('paused-note', tutorial ? 'Press P to carry on, or R to go back to the grid. You keep your place in the lesson.' : 'Press P to carry on, or R to start over.');
+  // The HUD stops updating on the menu, so nothing of it may be left showing.
+  if (state === 'menu') {
+    $('prompt').hidden = true;
+    $('prompt').replaceChildren();
+    $('banner').hidden = true;
+  }
   $('hud').hidden = state === 'menu';
   $('paused').hidden = !paused || optionsOpen;
   const finished = state === 'finished';
@@ -326,6 +437,7 @@ function syncScreens() {
   $('options').hidden = !optionsOpen;
   if (finished) showResults();
   if (document.activeElement instanceof HTMLElement && state !== 'menu' && !finished && !optionsOpen) document.activeElement.blur();
+  startTabAt(optionsOpen ? null : paused ? $('paused') : finished ? $('results') : null);
 }
 
 function showResults() {
@@ -375,8 +487,38 @@ function updateBanners(now) {
   if (now >= banner.until) $('banner').hidden = true;
 }
 
+let shownLesson = '';
+
+function showLesson(el) {
+  const view = tutorialView(tutorial);
+  const help = view.stuck ? 'Stuck? Press P, and you can skip this step from there.' : 'R back to the grid · P pause · Esc exit';
+  el.hidden = game.paused;
+  el.dataset.kind = 'tutorial';
+  const lesson = [`Step ${view.number} of ${view.total}`, view.title, view.text, view.hint, help];
+  const key = lesson.join('|');
+  if (key === shownLesson && el.childElementCount) return;
+  shownLesson = key;
+  const line = (className, text) => {
+    const part = document.createElement('span');
+    part.className = className;
+    part.textContent = text;
+    return part;
+  };
+  el.replaceChildren(
+    line('lesson-step', lesson[0]),
+    line('lesson-title', lesson[1]),
+    line('lesson-text', lesson[2]),
+    ...(view.hint ? [line('lesson-hint', view.hint)] : []),
+    line('lesson-keys', help),
+  );
+}
+
 function updatePrompt() {
   const el = $('prompt');
+  if (tutorial) {
+    showLesson(el);
+    return;
+  }
   let text = '';
   let kind = '';
   if (game.state === 'ready') {
@@ -461,6 +603,11 @@ function frame(now) {
   const dt = Math.max(0, (now - last) / 1000);
   last = now;
   advance(game, dt, input);
+  if (tutorial) {
+    updateTutorial(tutorial, game);
+    if (tutorial.phase === 'complete') finishTutorial();
+    else if (game.state === 'finished') restart(); // three laps mustn't end a lesson with no time limit
+  }
   if (game.state !== shownState) {
     shownState = game.state;
     syncScreens();
@@ -477,5 +624,5 @@ showGhostStatus();
 showSound(audio.snapshot());
 $('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
-window.__miniDrifters = { game, input, projectOnTrack, audio: () => audio.snapshot() };
+window.__miniDrifters = { game, input, projectOnTrack, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
 requestAnimationFrame(frame);
