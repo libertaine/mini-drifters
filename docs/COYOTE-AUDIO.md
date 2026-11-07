@@ -8,17 +8,16 @@ The owner has since chosen this engine for the game: see
 oscillation, and the `mid` anchor moved to 2736. See
 [COYOTE-OSCILLATION.md](COYOTE-OSCILLATION.md). The tables below describe the first bank.
 
-This extends draft PR #5 at unchanged baseline
-9fe61ed5c43193671b2d97863fd4d5510c7b768f. Worktree:
-D:/Projects/mini-drifters-coyote; branch: experiment/coyote-hybrid.
-The original checkout and its two untracked masters were preserved. This is a
-stacked draft for experiment/audio-lab, with no gameplay integration or deployment.
+This began as PR #6, stacked on PR #5 at unchanged baseline
+9fe61ed5c43193671b2d97863fd4d5510c7b768f, on branch experiment/coyote-hybrid.
+The original checkout and its two untracked masters were preserved. At that point it
+had no gameplay integration or deployment.
 
 ## Local audition
 
 Requires Node 24. The actual read-only source directory supplied by the owner is
 D:/Projects/mini-drifters/audio-lab/assets. No substitute recordings are downloaded.
-From the Coyote worktree:
+From the repository root:
 
 ~~~powershell
 node scripts/coyote-process.mjs --source D:/Projects/mini-drifters/audio-lab/assets
@@ -37,10 +36,12 @@ retains A procedural / B recorded tires, and C uses B tires.
 
 All four Coyote files are required. Missing/corrupt/incomplete banks report the
 filenames and leave C's engine silent. A/B and tires remain available. Stop/Start
-retries. A public checkout intentionally contains no Coyote recordings. Its tests
+retries. A checkout now contains the four published loops. With `COYOTE_PUBLIC_CHECK=1`,
+the Coyote browser test blocks them and checks that missing bank. Those tests
 use explicitly labeled synthetic graph fixtures; these never become runtime fallbacks.
 
-Optional separate perspective audition:
+Optional separate perspective audition, using the unpublished file that the processing
+command above writes:
 http://127.0.0.1:4197/audio-lab/assets/coyote-local/incar-reference.wav .
 It is not loaded by the lab, so listen separately at a low volume.
 
@@ -207,9 +208,10 @@ npm run test:coyote:browser
 ~~~
 
 All browser scripts accept an optional absolute Playwright index.mjs path. Set
-COYOTE_REQUIRED=1 for local qualification that must decode owner audio. Public CI
-has no owner assets: C remains explicitly unavailable in the UI and graph-only
-offline tests use labeled synthetic sine buffers. Reports distinguish owner audio
+COYOTE_REQUIRED=1 for local qualification that must decode owner audio. CI now
+decodes the published loops. With `COYOTE_PUBLIC_CHECK=1` they are blocked: C remains
+explicitly unavailable in the UI and graph-only offline tests use labeled synthetic
+sine buffers. Reports distinguish owner audio
 from fixtures; no synthetic source is used for the runtime C mode.
 
 The original Linux Firefox output-device limitation remains: on device-less Linux,
@@ -235,6 +237,6 @@ blank until a human listens:
 | Mode switching with tires muted | Distracting loudness differences | | | |
 | 30+ seconds per mode | Clicks, gaps or unnatural fluctuations | | | |
 
-Objective qualification evidence is recorded in the draft PR and ignored
+Objective qualification evidence is recorded in PR #6 and ignored
 artifacts/coyote-report.json. Automated finite-output, peak, adjacent-sample and
 lifecycle bounds cannot establish these subjective answers.

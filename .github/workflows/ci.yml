@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, experiment/audio-lab, experiment/coyote-hybrid, experiment/gameplay-audio]
+    branches: [main]
 
 permissions:
   contents: read

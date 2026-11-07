@@ -128,9 +128,9 @@ The project owner has confirmed they own all rights in the Mustang recordings an
 
 `.gitignore` and a test guard the unpublished files, and another test checks each published loop against [the provenance hashes](COYOTE-PROVENANCE.json).
 
-### What this adds to the public site
+### What the public site includes
 
-When this work reaches `main`, the deploy job adds `audio-lab/assets/tire-foley.mp3` (1.19 MB), the four loops (180 KB) and `audio-lab/assets/ATTRIBUTION.md`. Visitors download the audio only when they start a run. The rest of the lab isn't deployed. **Merging to `main` deploys.** Afterwards, check the live site with `TEST_URL=https://libertaine.github.io/mini-drifters/ npm run test:browser`.
+The deploy job publishes `audio-lab/assets/tire-foley.mp3` (1.19 MB), the four loops (180 KB) and `audio-lab/assets/ATTRIBUTION.md`. Visitors download the audio only when they start a run. The rest of the lab isn't deployed. **Merging to `main` deploys.** Afterwards, check the live site with `TEST_URL=https://libertaine.github.io/mini-drifters/ npm run test:browser`.
 
 ### If the recordings can't load
 
