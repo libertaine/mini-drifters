@@ -3,7 +3,7 @@ import { TUNING } from './tuning.js';
 import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance } from './game.js';
 import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
-import { projectOnTrack } from './track.js';
+import { DEFAULT_TRACK_ID, TRACKS, projectOnTrack, trackById } from './track.js';
 import { GameAudio } from './audio.js';
 import { RADIO_OFF, STATIONS, hasProvisionalMusic, stationById } from './radio-stations.js';
 import { createTutorial, updateTutorial, skipStep, tutorialView, tutorialEnding } from './tutorial.js';
@@ -14,8 +14,43 @@ const DEG = 180 / Math.PI;
 const BANNER_TIME = 1.9;
 const ANGLE_GAUGE_MAX = 90;
 
+// The lesson's prompts and checks were written for Original, so it always drives there.
+const LESSON_TRACK_ID = 'original';
+
 const game = createGame();
-const renderer = createRenderer($('view'), game.track);
+// The title's poster is Original's hairpin, whichever circuit is chosen for driving.
+const renderer = createRenderer($('view'), game.track, trackById('original'));
+
+// --- Track -----------------------------------------------------------------
+// The circuit for the next normal run. It isn't saved, so a new visit starts on Original.
+let selectedTrackId = DEFAULT_TRACK_ID;
+
+const trackInputs = TRACKS.map((track) => {
+  const label = document.createElement('label');
+  label.className = 'track';
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'track';
+  input.value = track.id;
+  const name = document.createElement('span');
+  name.textContent = track.name;
+  label.append(input, name);
+  $('tracks').append(label);
+  input.addEventListener('change', () => selectTrack(track.id));
+  return input;
+});
+
+function selectTrack(id) {
+  selectedTrackId = id;
+  for (const input of trackInputs) input.checked = input.value === id;
+}
+
+// Left and Right, wrapping. Focus follows only if it was already on the choice.
+function stepTrack(direction) {
+  const i = TRACKS.findIndex((t) => t.id === selectedTrackId);
+  selectTrack(TRACKS[(i + direction + TRACKS.length) % TRACKS.length].id);
+  if (trackInputs.includes(document.activeElement)) trackInputs.find((input) => input.checked).focus();
+}
 
 // --- Sound -----------------------------------------------------------------
 const soundButton = $('sound');
@@ -90,7 +125,7 @@ function clearInput() {
 function beginRun() {
   doneOpen = false;
   tutorial = null;
-  startRun(game);
+  startRun(game, { track: trackById(selectedTrackId) });
   resetEffects(renderer, game.car);
   clearInput();
   syncScreens();
@@ -114,7 +149,7 @@ const DONE_KEY_GUARD_MS = 500; // the player was just driving, and may still be 
 function startTutorial() {
   doneOpen = false;
   tutorial = createTutorial();
-  startRun(game, { ghost: false });
+  startRun(game, { ghost: false, track: trackById(LESSON_TRACK_ID) });
   resetEffects(renderer, game.car);
   clearInput();
   syncScreens();
@@ -227,7 +262,7 @@ const keepsKeys = (target) => target instanceof Element && target.matches('#soun
 
 // While driving, Space is always the handbrake, even with the Sound button focused.
 function buttonOwnsSpace(e) {
-  if (game.state === 'menu') return e.target instanceof HTMLButtonElement;
+  if (game.state === 'menu') return e.target instanceof HTMLButtonElement || trackInputs.includes(e.target);
   return keepsKeys(e.target) && (game.paused || game.state === 'finished');
 }
 
@@ -279,6 +314,11 @@ window.addEventListener('keydown', (e) => {
   if (game.state === 'menu' && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
     e.preventDefault();
     if (!e.repeat) moveMenuFocus(e.code === 'ArrowDown' ? 1 : -1);
+    return;
+  }
+  if (game.state === 'menu' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+    e.preventDefault();
+    if (!e.repeat) stepTrack(e.code === 'ArrowRight' ? 1 : -1);
     return;
   }
   const held = CODE_TO_KEY[e.code];
@@ -619,10 +659,11 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+selectTrack(selectedTrackId);
 syncScreens();
 showGhostStatus();
 showSound(audio.snapshot());
 $('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
-window.__miniDrifters = { game, input, projectOnTrack, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
+window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId, drawnTrack: () => renderer.track.id, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
 requestAnimationFrame(frame);

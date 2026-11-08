@@ -47,6 +47,8 @@ jobs:
         run: npm run test:menus:browser
       - name: Driving tutorial and Return to Title in Chromium and Firefox
         run: npm run test:tutorial:browser
+      - name: Track choice and Switchback in Chromium and Firefox
+        run: npm run test:tracks:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7

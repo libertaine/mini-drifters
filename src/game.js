@@ -2,16 +2,14 @@
 // timestep. Contains no browser code, so the tests can run it directly.
 import { TUNING } from './tuning.js';
 import { createCar, stepCar, updateDerived } from './physics.js';
-import { buildTrack, projectOnTrack, surfaceFromDistance, trackDelta } from './track.js';
+import { DEFAULT_TRACK_ID, trackById, projectOnTrack, surfaceFromDistance, trackDelta } from './track.js';
 import { createLaps, updateLaps } from './laps.js';
 import { createScoring, updateScoring, bankCombo } from './scoring.js';
 import { createGhost, beginGhostRecording, recordGhostTick } from './ghost.js';
 
 export const NO_INPUT = Object.freeze({ up: false, down: false, left: false, right: false, handbrake: false });
 
-const sharedTrack = buildTrack();
-
-export function createGame(track = sharedTrack) {
+export function createGame(track = trackById(DEFAULT_TRACK_ID)) {
   const game = { track, state: 'menu', paused: false, ghostVisible: true };
   resetRun(game);
   game.state = 'menu';
@@ -46,8 +44,11 @@ function resetRun(game) {
 }
 
 // Start (or restart) a run. The clock waits on the grid for the first pedal press.
-// A run that shouldn't leave a ghost behind passes { ghost: false }.
-export function startRun(game, { ghost = true } = {}) {
+// A run that shouldn't leave a ghost behind passes { ghost: false }, and a run on another
+// circuit passes { track }. Everything about the session is rebuilt either way, so nothing
+// from the last circuit's run carries over. Without { track }, the run stays where it was.
+export function startRun(game, { ghost = true, track = game.track } = {}) {
+  game.track = track;
   resetRun(game);
   if (!ghost) game.ghost = null;
   game.state = 'ready';
