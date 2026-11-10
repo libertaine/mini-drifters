@@ -20,11 +20,22 @@ Also built during Prototype 0.1:
 - A redesigned title screen and menus.
 - An optional interactive driving lesson.
 
-## Prototype 0.2: Track Variety (in progress)
+## Current candidate: Desktop controllers
 
-The first experiment is a second handcrafted circuit, **Switchback**, chosen on the title screen. It's waiting for a human driving review: see [the Switchback notes](SWITCHBACK.md). It only stays if it makes the game more interesting.
+**Switchback is complete** and available alongside Original on the title screen:
+see [the Switchback notes](SWITCHBACK.md).
 
-Candidate work, depending on what that review finds:
+Controller support is the current candidate: proportional steering/pedals, menu
+navigation and controller tutorial instructions. It remains a draft pending physical
+controller testing; see [the controller notes](CONTROLLERS.md).
+
+Local best scores and records are a separate Phase 2 follow-up PR. Neither feature
+implies a version bump: whether they justify v0.2.0 will be decided after implementation
+and human testing. There is no new release or publication in this phase.
+
+## Possible track variety work
+
+Candidate work:
 
 - More handcrafted tracks.
 - Procedurally generated tracks.

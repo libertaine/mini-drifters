@@ -268,12 +268,20 @@ export function updateTutorial(t, game) {
 }
 
 // What the prompt shows.
-export function tutorialView(t) {
+export function tutorialView(t, device = 'keyboard') {
   const step = TUTORIAL_STEPS[t.step];
   if (t.phase === 'banked') {
     return { number: t.step + 1, total: TUTORIAL_STEPS.length, title: `+${t.bankedPoints.toLocaleString('en-US')} BANKED.`, text: "That's yours now.", hint: '', stuck: false };
   }
-  return { number: t.step + 1, total: TUTORIAL_STEPS.length, title: step.title, text: step.text, hint: t.hint, stuck: t.misses >= L.stuckMisses };
+  const words = (text) => device === 'controller' ? text.replaceAll('SPACE', 'A').replaceAll('↑', 'RT').replaceAll('←', 'left stick left').replaceAll('→', 'left stick right') : text;
+  const controllerText = [
+    'Hold RT to accelerate.',
+    'Use the left stick to steer. Try both directions.',
+    'Steer into a corner. Tap A to loosen the rear tyres.',
+  ];
+  return { number: t.step + 1, total: TUTORIAL_STEPS.length, title: step.title,
+    text: device === 'controller' ? controllerText[t.step] ?? step.text : step.text,
+    hint: words(t.hint), stuck: t.misses >= L.stuckMisses };
 }
 
 // The ending stays honest about anything that was skipped.

@@ -1,5 +1,7 @@
-// Browser glue: keyboard, the animation loop and the HUD.
+// Browser glue: keyboard/controller input, the animation loop and the HUD.
 import { TUNING } from './tuning.js';
+import { Controller, NEUTRAL_DRIVE } from './controller.js';
+import { InputArbiter } from './controls.js';
 import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance } from './game.js';
 import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
@@ -117,9 +119,16 @@ const CODE_TO_KEY = {
 };
 const input = { up: false, down: false, left: false, right: false, handbrake: false };
 let debug = false;
+const controller = new Controller(typeof navigator.getGamepads === 'function' ? () => navigator.getGamepads() : null);
+const arbiter = new InputArbiter();
+let pageActive = true;
+let controllerContext = '';
+let instructionDevice = 'keyboard';
 
 function clearInput() {
   for (const key of Object.keys(input)) input[key] = false;
+  controller.reset();
+  arbiter.reset();
 }
 
 function beginRun() {
@@ -133,6 +142,7 @@ function beginRun() {
 }
 
 function restart() {
+  clearInput();
   restartRun(game, { ghost: !tutorial }); // a lesson leaves no ghost behind
   resetEffects(renderer, game.car);
   syncScreens();
@@ -258,7 +268,7 @@ function moveMenuFocus(direction) {
 }
 
 // These keep Enter, and Space when the car isn't being driven, for their own use.
-const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #again, .return-title, #tutorial-skip');
+const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #again, #resume, #restart, .return-title, #tutorial-skip');
 
 // While driving, Space is always the handbrake, even with the Sound button focused.
 function buttonOwnsSpace(e) {
@@ -372,6 +382,7 @@ window.addEventListener('keyup', (e) => {
 // Keys released while the page lacks focus would otherwise stay "held". The
 // clock also stops, because the driver has lost control of the car.
 function onFocusLost() {
+  pageActive = false;
   clearInput();
   if ((game.state === 'racing' || game.state === 'ready') && !game.paused) {
     togglePause(game);
@@ -381,14 +392,20 @@ function onFocusLost() {
   audio.setPageActive(false, game);
 }
 window.addEventListener('blur', onFocusLost);
-window.addEventListener('focus', () => audio.setPageActive(true, game));
+window.addEventListener('focus', () => {
+  pageActive = true;
+  controller.reset();
+  audio.setPageActive(true, game);
+});
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) onFocusLost();
-  else audio.setPageActive(true, game);
+  else { pageActive = true; controller.reset(); audio.setPageActive(true, game); }
 });
 window.addEventListener('pagehide', () => audio.dispose());
 
 window.addEventListener('resize', () => resize(renderer));
+$('resume').addEventListener('click', pauseOrResume);
+$('restart').addEventListener('click', restart);
 $('start').addEventListener('click', beginRun);
 $('again').addEventListener('click', beginRun);
 soundButton.addEventListener('click', (e) => {
@@ -419,6 +436,119 @@ for (const input of stationInputs) {
 }
 $('music-volume').addEventListener('input', (e) => audio.setMusicVolume(Number(e.target.value)));
 $('effects-volume').addEventListener('input', (e) => audio.setEffectsVolume(Number(e.target.value)));
+
+// --- Controller ------------------------------------------------------------
+function clearControllerFocus() {
+  document.querySelectorAll('.controller-focus').forEach((el) => el.classList.remove('controller-focus'));
+}
+const keyboardInstructions = () => { instructionDevice = 'keyboard'; clearControllerFocus(); };
+window.addEventListener('keydown', keyboardInstructions, { capture: true });
+window.addEventListener('pointerdown', keyboardInstructions, { capture: true });
+
+function controllerFocus(el) {
+  clearControllerFocus();
+  el.focus();
+  el.classList.add('controller-focus');
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+function pauseOrResume() {
+  togglePause(game);
+  clearInput();
+  syncScreens();
+  audio.gesture(game);
+}
+
+function controllerLost() {
+  const wasDriving = arbiter.source === 'controller';
+  if (wasDriving) clearInput();
+  else controller.reset();
+  if (wasDriving && !game.paused && (game.state === 'ready' || game.state === 'racing')) {
+    togglePause(game);
+    syncScreens();
+  }
+}
+window.addEventListener('gamepaddisconnected', (e) => {
+  if (controller.disconnect(e.gamepad.index)) controllerLost();
+});
+
+function controllerSheet() {
+  return optionsOpen ? $('options') : helpOpen ? $('help') : doneOpen ? $('tutorial-done')
+    : game.paused ? $('paused') : game.state === 'finished' ? $('results') : game.state === 'menu' ? $('menu') : null;
+}
+
+function menuControls(sheet) {
+  const selector = sheet === $('menu') ? '.title-menu button' : 'button, input';
+  return [...sheet.querySelectorAll(selector), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
+}
+
+function controllerMenu(pressed, sheet) {
+  if (pressed.back) {
+    if (optionsOpen) closeOptions();
+    else if (helpOpen) closeHelp();
+    else if (doneOpen || game.state === 'finished') returnToTitle();
+    else if (game.paused) pauseOrResume();
+    const nextSheet = controllerSheet();
+    if (nextSheet) {
+      const controls = menuControls(nextSheet);
+      controllerFocus(controls.includes(document.activeElement) ? document.activeElement : controls[0]);
+    }
+    return;
+  }
+  if (pressed.pause && game.paused && !optionsOpen) { pauseOrResume(); return; }
+  const controls = menuControls(sheet);
+  const current = controls.indexOf(document.activeElement);
+  const horizontal = pressed.right ? 1 : pressed.left ? -1 : 0;
+  if (horizontal && sheet === $('menu')) { stepTrack(horizontal); return; }
+  if (horizontal && document.activeElement instanceof HTMLInputElement) {
+    const el = document.activeElement;
+    if (el.type === 'range') {
+      if (horizontal > 0) el.stepUp(); else el.stepDown();
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      controllerFocus(el);
+      return;
+    }
+    if (el.type === 'radio') {
+      const radios = controls.filter((c) => c instanceof HTMLInputElement && c.type === 'radio' && c.name === el.name);
+      const next = radios[(radios.indexOf(el) + horizontal + radios.length) % radios.length];
+      next.click();
+      controllerFocus(next);
+      return;
+    }
+  }
+  const direction = pressed.down ? 1 : pressed.up ? -1 : horizontal;
+  if (direction) {
+    const next = current < 0 ? (direction > 0 ? 0 : controls.length - 1) : (current + direction + controls.length) % controls.length;
+    controllerFocus(controls[next]);
+    return;
+  }
+  if (pressed.confirm && !(doneOpen && performance.now() - doneOpenedAt < DONE_KEY_GUARD_MS)) {
+    const el = controls[current < 0 ? 0 : current];
+    controllerFocus(el);
+    el.click();
+    // Click handlers may have moved focus to a newly opened sheet.
+    if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) controllerFocus(document.activeElement);
+  }
+}
+
+function pollController() {
+  if (!pageActive || document.hidden || !document.hasFocus()) return NEUTRAL_DRIVE;
+  const pad = controller.poll();
+  if (pad.lost) controllerLost();
+  setText('controller-note', pad.unavailable ? 'Controller API unavailable. Keyboard ready.'
+    : pad.connected ? 'Controller ready · D-pad move · A select · B back'
+      : pad.unsupported ? 'Controller needs a standard browser mapping.' : 'Controller: press a button to connect.');
+  if (Object.values(pad.pressed).some(Boolean)) instructionDevice = 'controller';
+  const sheet = controllerSheet();
+  if (sheet) {
+    controllerMenu(pad.pressed, sheet);
+    return NEUTRAL_DRIVE;
+  }
+  if (pad.pressed.pause) { pauseOrResume(); return NEUTRAL_DRIVE; }
+  if (pad.pressed.ghost && !tutorial) { toggleGhost(game); showGhostStatus(); }
+  if (pad.pressed.radio) audio.nextStation(game);
+  return pad.drive;
+}
 
 // --- HUD -------------------------------------------------------------------
 function formatTime(seconds) {
@@ -457,13 +587,21 @@ function startTabAt(section) {
 
 function syncScreens() {
   const { state, paused } = game;
+  const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done'
+    : paused ? 'paused' : state === 'menu' || state === 'finished' ? state : 'driving';
+  if (context !== controllerContext) {
+    controllerContext = context;
+    clearInput();
+  }
   document.body.dataset.screen = state === 'menu' ? 'title' : 'game';
   $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen;
   $('help').hidden = !helpOpen;
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
   $('ghost-status').hidden = !!tutorial;
-  setText('paused-note', tutorial ? 'Press P to carry on, or R to go back to the grid. You keep your place in the lesson.' : 'Press P to carry on, or R to start over.');
+  setText('paused-note', instructionDevice === 'controller'
+    ? tutorial ? 'Menu to carry on, or Restart at the grid. You keep your place in the lesson.' : 'Menu to carry on, or Restart to start over.'
+    : tutorial ? 'Press P to carry on, or R to go back to the grid. You keep your place in the lesson.' : 'Press P to carry on, or R to start over.');
   // The HUD stops updating on the menu, so nothing of it may be left showing.
   if (state === 'menu') {
     $('prompt').hidden = true;
@@ -530,8 +668,10 @@ function updateBanners(now) {
 let shownLesson = '';
 
 function showLesson(el) {
-  const view = tutorialView(tutorial);
-  const help = view.stuck ? 'Stuck? Press P, and you can skip this step from there.' : 'R back to the grid · P pause · Esc exit';
+  const view = tutorialView(tutorial, instructionDevice);
+  const help = instructionDevice === 'controller'
+    ? 'Menu pause · Restart / Skip / Exit in pause menu'
+    : view.stuck ? 'Stuck? Press P, and you can skip this step from there.' : 'R back to the grid · P pause · Esc exit';
   el.hidden = game.paused;
   el.dataset.kind = 'tutorial';
   const lesson = [`Step ${view.number} of ${view.total}`, view.title, view.text, view.hint, help];
@@ -562,7 +702,7 @@ function updatePrompt() {
   let text = '';
   let kind = '';
   if (game.state === 'ready') {
-    text = 'Press ↑ to go. The clock starts when you move.';
+    text = instructionDevice === 'controller' ? 'Press RT to go. The clock starts when you move.' : 'Press ↑ to go. The clock starts when you move.';
   } else if (game.state === 'racing') {
     if (game.wrongWayTime > 1.2) {
       text = 'WRONG WAY';
@@ -642,7 +782,11 @@ let shownState = game.state;
 function frame(now) {
   const dt = Math.max(0, (now - last) / 1000);
   last = now;
-  advance(game, dt, input);
+  const padDrive = pollController();
+  const drivingInput = arbiter.resolve(input, padDrive);
+  if (arbiter.source === 'controller') instructionDevice = 'controller';
+  else if (Object.values(input).some(Boolean)) instructionDevice = 'keyboard';
+  advance(game, dt, drivingInput);
   if (tutorial) {
     updateTutorial(tutorial, game);
     if (tutorial.phase === 'complete') finishTutorial();
