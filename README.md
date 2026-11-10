@@ -4,7 +4,7 @@ A tiny top-down arcade drifting game for the browser. Race a small muscle car ar
 
 ## [▶ Play Mini Drifters](https://libertaine.github.io/mini-drifters/)
 
-It runs in a desktop browser and needs a keyboard. There's nothing to install and no account to create.
+It runs in a desktop browser with a keyboard or a standard-mapped controller (controller support is awaiting physical testing). There's nothing to install and no account to create.
 
 ![Mini Drifters title screen](docs/media/title-screen.png)
 
@@ -34,6 +34,33 @@ It runs in a desktop browser and needs a keyboard. There's nothing to install an
 Enter also starts a run from the title and results screens.
 
 On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. **How to Play** has the controls and scoring, and Esc goes back.
+
+### Controller (candidate)
+
+Standard-mapped Xbox-style controllers are the initial target; PlayStation controllers
+can work through the browser's standard mapping. Press a button with the page focused,
+then release all controls before using it. Compatibility depends on browser and OS.
+
+| Controller | Action |
+|---|---|
+| Left stick | Analog steering |
+| RT / LT | Analog accelerator / Brake, then reverse |
+| A | Handbrake while driving; Confirm in menus |
+| B | Back / Close; Resume from Pause; Title from Results |
+| Menu / Start | Pause / Resume |
+| D-pad | Menu navigation; Left/Right selects track or adjusts Options |
+| X / Y | Toggle ghost / Next radio station while driving |
+
+Use the pause menu for Restart, Return to Title and tutorial Skip. Keyboard driving
+keys take priority while held; release the controller to neutral before taking over.
+Release all controller controls between screens and before resuming. Losing the driving
+controller pauses; reconnecting never resumes automatically. An unused controller's
+disconnection leaves keyboard driving alone.
+
+HTTPS or localhost is recommended. Missing/denied Gamepad API access retains keyboard
+and mouse controls. Some browsers need one click or key press to unlock audio even
+when gamepad driving works. See [controller notes and physical testing steps](docs/CONTROLLERS.md).
+There is no remapping, vibration or universal hardware compatibility claim.
 
 ### Choosing a track
 
@@ -112,7 +139,9 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, track, session, ghost, tutorial, audio, radio and publishing tests.
+This runs the physics, scoring, lap, track, session, ghost, tutorial, controller, audio, radio and publishing tests.
+
+`npm run test:controller:browser` checks mocked Gamepad snapshots and controller menus in Chromium and Firefox; physical hardware is not required by CI.
 
 The browser check drives the game with real key presses in Chromium and Firefox, served the same way as on GitHub Pages. It needs Playwright, which the game itself doesn't depend on:
 

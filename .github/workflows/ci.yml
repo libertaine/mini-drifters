@@ -49,6 +49,8 @@ jobs:
         run: npm run test:tutorial:browser
       - name: Track choice and Switchback in Chromium and Firefox
         run: npm run test:tracks:browser
+      - name: Mocked controller in Chromium and Firefox
+        run: npm run test:controller:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7

@@ -1,6 +1,7 @@
 // The session: ties the car, track, laps and scoring together on a fixed
 // timestep. Contains no browser code, so the tests can run it directly.
 import { TUNING } from './tuning.js';
+import { drivingCommands } from './controls.js';
 import { createCar, stepCar, updateDerived } from './physics.js';
 import { DEFAULT_TRACK_ID, trackById, projectOnTrack, surfaceFromDistance, trackDelta } from './track.js';
 import { createLaps, updateLaps } from './laps.js';
@@ -112,7 +113,8 @@ export function tick(game, input = NO_INPUT) {
   game.prev.y = car.y;
   game.prev.heading = car.heading;
 
-  if (game.state === 'ready' && (input.up || input.down)) {
+  const commands = drivingCommands(input);
+  if (game.state === 'ready' && (commands.accelerator > 0 || commands.brake > 0)) {
     game.state = 'racing';
     if (game.ghost) beginGhostRecording(game.ghost, car.x, car.y, car.heading);
   }

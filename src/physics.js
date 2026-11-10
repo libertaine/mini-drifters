@@ -3,6 +3,7 @@
 // animated. Screen convention: y points down, so a positive heading change
 // turns the car clockwise (to the driver's right).
 import { TUNING } from './tuning.js';
+import { drivingCommands } from './controls.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const approach = (v, target, maxDelta) =>
@@ -70,8 +71,7 @@ export function surfaceFactors(surface, T = TUNING) {
   return { traction: 1, engine: 1, drag: 0 };
 }
 
-// Advance the car by one fixed step. `input` holds booleans:
-// { up, down, left, right, handbrake }.
+// Advance the same car model with Boolean keyboard or proportional commands.
 export function stepCar(car, input, surface, dt, T = TUNING) {
   const surf = surfaceFactors(surface, T);
   car.surface = surface;
@@ -87,21 +87,24 @@ export function stepCar(car, input, surface, dt, T = TUNING) {
   const speedRatio = clamp(speed / T.topSpeed, 0, 1);
 
   // --- Driver inputs, smoothed so the on/off keyboard still feels progressive.
-  const steerTarget = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  const commands = drivingCommands(input);
+  const steerTarget = commands.steer;
   const steerRate = T.steerResponse + (T.steerResponseHighSpeed - T.steerResponse) * speedRatio;
   const returning = steerTarget === 0 || steerTarget * car.steer < 0;
   car.steer = approach(car.steer, steerTarget, steerRate * (returning ? T.steerReturnBoost : 1) * dt);
 
   // Down brakes while rolling forward and reverses once nearly stopped; Up does
   // the mirror image, so the car never needs a separate gear change.
-  const wantsReverse = input.down && vf < T.reverseEngageSpeed && !input.up;
-  const braking = (input.down && vf >= T.reverseEngageSpeed) || (input.up && !input.down && vf < -T.reverseEngageSpeed);
-  const throttling = input.up && !input.down && vf >= -T.reverseEngageSpeed;
+  const up = commands.accelerator;
+  const down = commands.brake;
+  const wantsReverse = down > 0 && vf < T.reverseEngageSpeed && !up;
+  const braking = (down > 0 && vf >= T.reverseEngageSpeed) || (up > 0 && !down && vf < -T.reverseEngageSpeed);
+  const throttling = up > 0 && !down && vf >= -T.reverseEngageSpeed;
   car.reversing = wantsReverse;
 
-  const pedal = throttling || wantsReverse ? 1 : 0;
+  const pedal = throttling ? up : wantsReverse ? down : 0;
   car.throttle = approach(car.throttle, pedal, (pedal ? T.throttleRiseRate : T.throttleFallRate) * dt);
-  car.brake = approach(car.brake, braking ? 1 : 0, (braking ? T.brakeRiseRate : T.brakeFallRate) * dt);
+  car.brake = approach(car.brake, braking ? (down || up) : 0, (braking ? T.brakeRiseRate : T.brakeFallRate) * dt);
 
   car.handbrake = !!input.handbrake;
   const gripTarget = car.handbrake ? T.handbrakeLateralGrip : 1;

@@ -244,6 +244,11 @@ button {
   cursor: pointer;
 }
 button:hover { background: #ff6a40; }
+.controller-focus { outline: 3px solid var(--amber); outline-offset: 3px; }
+input.controller-focus + span { outline: 3px solid var(--amber); outline-offset: 3px; }
+.controller-note { margin: 14px 0 0 0.6vw; font-size: 12px; color: var(--muted); max-width: 32ch; }
+.pad-key { color: var(--amber); font-size: 12px; white-space: nowrap; }
+.controller-help { margin: 8px 0 0; font-size: 12px; color: var(--amber); }
 button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; background: rgba(0, 0, 0, 0.28); letter-spacing: 0; }
 

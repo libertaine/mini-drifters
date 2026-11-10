@@ -65,6 +65,7 @@
         <button id="how-to-play" class="quiet" type="button">How to play</button>
         <button class="options-open quiet" type="button">Options <span>O</span></button>
       </nav>
+      <p id="controller-note" class="controller-note" role="status">Controller: press a button to connect.</p>
     </div>
   </section>
 
@@ -75,9 +76,9 @@
         <section>
           <h3>Driving</h3>
           <table class="keys">
-            <tr><td><kbd>&uarr;</kbd></td><td>Accelerate</td></tr>
-            <tr><td><kbd>&darr;</kbd></td><td>Brake, then reverse</td></tr>
-            <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Steer</td></tr>
+            <tr><td><kbd>&uarr;</kbd></td><td>Accelerate <span class="pad-key">RT</span></td></tr>
+            <tr><td><kbd>&darr;</kbd></td><td>Brake, then reverse <span class="pad-key">LT</span></td></tr>
+            <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Steer <span class="pad-key">Left stick</span></td></tr>
           </table>
         </section>
         <section>
@@ -92,7 +93,7 @@
         <section>
           <h3>Drifting</h3>
           <ol class="howto">
-            <li><kbd>Space</kbd> is the handbrake. Steer into a corner and pull it for about a quarter of a second. Hold it too long and the car spins.</li>
+            <li><kbd>Space</kbd> / <b>A</b> is the handbrake. Steer into a corner and pull it for about a quarter of a second. Hold it too long and the car spins.</li>
             <li>When the tail steps out, stay on the throttle and countersteer to hold the slide.</li>
             <li>To recover, lift off the throttle and the car straightens up.</li>
           </ol>
@@ -106,6 +107,7 @@
             <tr><td><kbd>O</kbd></td><td>Options, from a menu</td></tr>
             <tr><td><kbd>D</kbd></td><td>Debug display</td></tr>
           </table>
+          <p class="controller-help">Controller: D-pad move &middot; A select &middot; B back<br>Menu pause &middot; X ghost &middot; Y radio</p>
         </section>
       </div>
       <div class="actions">
@@ -123,6 +125,8 @@
         <button class="options-open quiet" type="button">Options <span>O</span></button>
         <button id="tutorial-skip" class="quiet" type="button" hidden>Skip this step</button>
         <button class="return-title quiet" type="button">Return to title</button>
+        <button id="resume" class="quiet" type="button">Resume</button>
+        <button id="restart" class="quiet" type="button">Restart <span>R</span></button>
       </div>
     </div>
   </section>
