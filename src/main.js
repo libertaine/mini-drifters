@@ -592,13 +592,24 @@ function startTabAt(section) {
 }
 
 // Condensed poster fonts are not installed everywhere. Keep the existing size
-// unless the fallback word actually overflows; measure only on menu/resize.
+// unless fallback text overflows the available width/height; measure on menu/resize.
 function fitTitle() {
   const title = document.querySelector('.title');
   if (!title.clientWidth) return;
   title.style.fontSize = '';
   const ratio = title.clientWidth / title.scrollWidth;
   if (ratio < 1) title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * ratio * 0.98}px`;
+  // Wrapped fallback text and a storage-failure note also need vertical room.
+  // Reduce only the title, keeping every record, instruction and action visible.
+  const panel = title.closest('.title-panel');
+  const padding = getComputedStyle(panel);
+  const available = Math.min(innerHeight, panel.clientHeight) - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
+  const heading = title.getBoundingClientRect();
+  const used = $('controller-note').getBoundingClientRect().bottom - heading.top;
+  if (used > available) {
+    const scale = Math.max(0.25, (heading.height - (used - available) - 4) / heading.height);
+    title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * scale}px`;
+  }
 }
 
 function syncScreens() {
