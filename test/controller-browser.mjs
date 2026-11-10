@@ -198,6 +198,17 @@ async function check(name, engine) {
     assert.ok(await visible('paused'));
     await value(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')); window.__frames(); });
     assert.ok(await visible('paused'));
+    await value(() => {
+      Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => false });
+      window.__pads[0].buttons[9] = { value: 1, pressed: true };
+      window.__frames();
+    });
+    assert.ok(await visible('paused'), 'visible background window cannot resume from controller input');
+    await value(() => {
+      delete document.hasFocus;
+      window.__pads[0] = window.__newPad();
+      window.__frames();
+    });
     ok('immediate disconnect event while coasting and hidden-tab pause never resume automatically');
 
     // Complete a real three-lap run through the adapter and the actual frame loop.

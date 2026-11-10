@@ -532,7 +532,7 @@ function controllerMenu(pressed, sheet) {
 }
 
 function pollController() {
-  if (!pageActive || document.hidden) return NEUTRAL_DRIVE;
+  if (!pageActive || document.hidden || !document.hasFocus()) return NEUTRAL_DRIVE;
   const pad = controller.poll();
   if (pad.lost) controllerLost();
   setText('controller-note', pad.unavailable ? 'Controller API unavailable. Keyboard ready.'
