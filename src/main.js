@@ -768,7 +768,7 @@ function updateDebug() {
     ['drift', scoring.qualification],
     ['angle score', angleScore(Math.abs(car.slipAngle)).toFixed(2)],
     ['progress', `${game.progressRate.toFixed(1)} m/s`],
-    ['new ground', `${game.furthest.toFixed(0)} m`],
+    ['new ground', `${game.credited.toFixed(0)} m`],
     ['track', `s=${trackInfo.s.toFixed(0)} off=${trackInfo.offset.toFixed(1)}`],
     ['checkpoint', `${laps.next}/${track.gates.length}${laps.valid ? '' : ' VOID'}`],
     ['step', `${(T.simStep * 1000).toFixed(1)} ms`],

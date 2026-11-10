@@ -38,6 +38,9 @@ function resetRun(game) {
   game.trackInfo = at;
   game.progress = 0;       // unwrapped distance along the circuit
   game.furthest = 0;       // the "new ground" high-water mark
+  game.startS = at.s;
+  game.reached = 0;        // the same mark, placed by the checkpoints rather than counted
+  game.credited = 0;       // all the new ground the scoring has been given this run
   game.progressRate = 0;   // smoothed along-track speed
   game.lastImpact = 0;
   game.ghost = createGhost(track);
@@ -103,6 +106,31 @@ function resolveBarrier(game) {
   return impact;
 }
 
+// The counted progress above can drift from where the car really is, because a jump across
+// the infield is left out of it. After a cut back across the infield it runs ahead of the
+// car, and would pay for road the car has already driven. The checkpoints can't drift:
+// between the last gate the car crossed and the next one, its place on the circuit is known.
+// So counted new ground is only paid out where the checkpoints agree the car is, close to
+// the furthest place it has really been, and never more in total than it has really gone.
+const SECTOR_TOLERANCE = 12; // clean driving strays under a metre past its sector, wild driving about 7 m
+const REACHED_SLACK = 4;     // the nearest centreline point hops a metre or two inside a hairpin
+
+function checkedNewGround(game, s, counted) {
+  const { track, laps } = game;
+  const sector = track.length / (track.gates.length + 1);
+  const centre = (laps.next + 0.5) * sector;
+  const offset = trackDelta(track, centre, s);
+  if (Math.abs(offset) > sector / 2 + SECTOR_TOLERANCE) return 0;
+  const placed = (laps.completed + laps.voided) * track.length + centre + offset - game.startS;
+  const nearFront = placed >= game.reached - REACHED_SLACK;
+  if (placed > game.reached) game.reached = placed;
+  if (!nearFront || counted <= 0) return 0;
+  const paid = Math.min(counted, game.reached + REACHED_SLACK - game.credited);
+  if (paid <= 0) return 0;
+  game.credited += paid;
+  return paid;
+}
+
 // One fixed simulation step.
 export function tick(game, input = NO_INPUT) {
   const T = TUNING;
@@ -136,8 +164,9 @@ export function tick(game, input = NO_INPUT) {
   const plausible = Math.abs(ds) <= car.speed * dt * 2 + 0.5;
   const moved = plausible ? ds : 0;
   game.progress += moved;
-  const newGround = Math.max(0, game.progress - game.furthest);
-  if (newGround > 0) game.furthest = game.progress;
+  const counted = Math.max(0, game.progress - game.furthest);
+  if (counted > 0) game.furthest = game.progress;
+  const newGround = checkedNewGround(game, at.s, counted);
   const instantRate = moved / dt;
   game.progressRate += (instantRate - game.progressRate) * Math.min(1, T.progressRateSmoothing * dt);
 
