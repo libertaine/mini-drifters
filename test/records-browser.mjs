@@ -104,16 +104,24 @@ async function check(name, engine) {
     return { state: g.state, completed: g.laps.completed, results: g.results, bestLap: g.laps.bestLap, score: g.scoring.score, combo: g.scoring.bestCombo };
   }, { device, boundary });
   const layout = async (label) => {
-    for (const [width, height] of [[1024, 600], [1366, 768], [1920, 1080]]) {
-      await page.setViewportSize({ width, height }); await frames();
-      const issues = await page.locator('#menu').evaluate((menu) => [...menu.querySelectorAll('.title, .tagline, .track-select, .personal-bests h2, .personal-bests dt, .personal-bests dd, .records-note, .title-menu button, #controller-note')]
-        .filter((el) => el.getClientRects().length).flatMap((el) => {
-          const r = el.getBoundingClientRect();
-          return r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth || el.scrollWidth > el.clientWidth + 1 ? [el.textContent] : [];
-        }));
-      assert.deepEqual(issues, [], `records and controls fit ${width}x${height} (${label})`);
-      await page.screenshot({ path: new URL(`artifacts/records-${name}-${label}-${width}x${height}.png`, root).pathname.replace(/^\/(\w:)/, '$1') });
+    for (const fallback of [false, true]) {
+      await page.evaluate((fallback) => {
+        if (fallback) document.documentElement.style.setProperty('--poster', 'Arial, sans-serif');
+        else document.documentElement.style.removeProperty('--poster');
+        window.dispatchEvent(new Event('resize'));
+      }, fallback);
+      for (const [width, height] of [[1024, 600], [1366, 768], [1920, 1080]]) {
+        await page.setViewportSize({ width, height }); await frames();
+        const issues = await page.locator('#menu').evaluate((menu) => [...menu.querySelectorAll('.title, .tagline, .track-select, .personal-bests h2, .personal-bests dt, .personal-bests dd, .records-note, .title-menu button, #controller-note')]
+          .filter((el) => el.getClientRects().length).flatMap((el) => {
+            const r = el.getBoundingClientRect();
+            return r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth || el.scrollWidth > el.clientWidth + 1 ? [el.textContent] : [];
+          }));
+        assert.deepEqual(issues, [], `records and controls fit ${width}x${height} (${label}, ${fallback ? 'fallback' : 'native'})`);
+        await page.screenshot({ path: new URL(`artifacts/records-${name}-${label}-${fallback ? 'fallback' : 'native'}-${width}x${height}.png`, root).pathname.replace(/^\/(\w:)/, '$1') });
+      }
     }
+    await page.evaluate(() => { document.documentElement.style.removeProperty('--poster'); window.dispatchEvent(new Event('resize')); });
     await page.setViewportSize({ width: 1366, height: 768 });
   };
   try {

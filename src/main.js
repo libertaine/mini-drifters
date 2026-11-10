@@ -409,7 +409,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => audio.dispose());
 
-window.addEventListener('resize', () => resize(renderer));
+window.addEventListener('resize', () => { resize(renderer); fitTitle(); });
 $('resume').addEventListener('click', pauseOrResume);
 $('restart').addEventListener('click', restart);
 $('start').addEventListener('click', beginRun);
@@ -591,6 +591,16 @@ function startTabAt(section) {
   section.blur();
 }
 
+// Condensed poster fonts are not installed everywhere. Keep the existing size
+// unless the fallback word actually overflows; measure only on menu/resize.
+function fitTitle() {
+  const title = document.querySelector('.title');
+  if (!title.clientWidth) return;
+  title.style.fontSize = '';
+  const ratio = title.clientWidth / title.scrollWidth;
+  if (ratio < 1) title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * ratio * 0.98}px`;
+}
+
 function syncScreens() {
   const { state, paused } = game;
   const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done'
@@ -601,6 +611,7 @@ function syncScreens() {
   }
   document.body.dataset.screen = state === 'menu' ? 'title' : 'game';
   $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen;
+  if (!$('menu').hidden) fitTitle();
   $('help').hidden = !helpOpen;
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
