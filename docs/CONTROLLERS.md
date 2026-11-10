@@ -1,7 +1,11 @@
-# Desktop controllers (Phase 1 candidate)
+# Desktop controllers
 
-Controller support is awaiting physical-controller review. The version remains 0.1.0;
-this work does not publish a release. Local records belong in a separate follow-up PR.
+Controller support merged in PR #16 after the owner reported satisfactory physical
+driving and drifting on Original and Switchback, with no controller issues reported.
+Analog throttle made little gameplay difference, which the owner accepted. That review
+did not explicitly verify every disconnect/reconnect scenario. Automated mocked tests
+remain separate evidence from physical hardware coverage. The version remains 0.1.0;
+local records are a separate draft candidate, and no new release is declared.
 
 ## Mapping
 
@@ -84,7 +88,7 @@ and a complete lesson. The existing browser suites continue testing keyboard/mou
 navigation and layout. CI needs no physical controller. Mocked checks do not qualify
 device detection, latency, real mappings or subjective analog feel.
 
-## Physical-controller review (keep the PR draft until complete)
+## Physical-controller regression checklist
 
 1. Run `npm start` in the controller worktree and open `http://127.0.0.1:4190` in a
    desktop Chromium browser, then Firefox. Record OS, browser version, controller,
@@ -115,5 +119,5 @@ device detection, latency, real mappings or subjective analog feel.
     countersteer and bank. Confirm controller instructions, no skipped steps and
     the qualified ending. Repeat to test Pause → Skip / Restart / Return to Title.
 12. Note detection problems, accidental motion, stuck controls, focus/layout issues,
-    latency and whether partial steering/pedals feel useful. Leave the PR in draft
-    until these findings have been reviewed. No merge, tag, release or deployment.
+    latency and whether partial steering/pedals feel useful. Review any new findings
+    before further controller changes. Release planning remains a separate decision.

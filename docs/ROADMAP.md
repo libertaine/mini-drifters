@@ -20,17 +20,19 @@ Also built during Prototype 0.1:
 - A redesigned title screen and menus.
 - An optional interactive driving lesson.
 
-## Current candidate: Desktop controllers
+## Current candidate: Local records
 
 **Switchback is complete** and available alongside Original on the title screen:
 see [the Switchback notes](SWITCHBACK.md).
 
-Controller support is the current candidate: proportional steering/pedals, menu
-navigation and controller tutorial instructions. It remains a draft pending physical
-controller testing; see [the controller notes](CONTROLLERS.md).
+Controller support merged in PR #16 after satisfactory owner driving/drifting review
+on both tracks. Physical disconnect/reconnect coverage was not exhaustive; see
+[the controller notes](CONTROLLERS.md).
 
-Local best scores and records are a separate Phase 2 follow-up PR. Neither feature
-implies a version bump: whether they justify v0.2.0 will be decided after implementation
+**Local best scores and records are implemented on this candidate branch:** independent
+score, fastest valid lap and best banked combo for Original and Switchback, stored
+locally in the browser. See [the records notes](RECORDS.md). Human acceptance is pending.
+Neither feature implies a version bump: whether they justify v0.2.0 will be decided after implementation
 and human testing. There is no new release or publication in this phase.
 
 ## Possible track variety work
@@ -50,5 +52,5 @@ Procedural generation is still only a possibility. A v0.2.0 release would be a f
 Candidate work:
 
 - Improved scoring balance.
-- Local best scores.
+- Local best scores (implemented on the current candidate branch; see above).
 - Better player feedback.

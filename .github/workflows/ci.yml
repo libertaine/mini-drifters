@@ -12,7 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     # The image already holds the browsers and their system packages, so the job
     # never downloads from the Ubuntu mirrors. Its version must match the
     # Playwright version installed below. Running as the runner's user lets
@@ -53,6 +53,8 @@ jobs:
         run: npm run test:scoring:browser
       - name: Mocked controller in Chromium and Firefox
         run: npm run test:controller:browser
+      - name: Local personal records in Chromium and Firefox
+        run: npm run test:records:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7

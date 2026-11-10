@@ -161,7 +161,15 @@ async function check(name, engine) {
     assert.equal(await page.locator('.tagline').textContent(), 'ONE OVERPOWERED CAR. ZERO GOOD IDEAS.');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
     assert.deepEqual(words, ['START DRIVING', 'HOW TO PLAY', 'OPTIONS']);
-    const shown = await page.locator('#menu').innerText();
+    // Personal bests add lap/combo names, not driving instructions. Verify that
+    // panel explicitly, then retain the original instruction checks everywhere else.
+    assert.deepEqual(await page.locator('.personal-bests dt').allTextContents(), ['Best score', 'Fastest lap', 'Best combo']);
+    assert.doesNotMatch(await page.locator('.personal-bests').innerText(), /handbrake|accelerate/i);
+    const shown = await page.locator('#menu').evaluate((menu) => {
+      const title = menu.cloneNode(true);
+      title.querySelector('.personal-bests').remove();
+      return title.textContent;
+    });
     assert.doesNotMatch(shown, /\blaps?\b/i, 'the title does not promise a number of laps');
     assert.doesNotMatch(shown, /handbrake|accelerate|combo/i, 'the instructions have moved to How to Play');
     step('the title shows the approved name, tagline and three actions, and no instructions');

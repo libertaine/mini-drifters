@@ -60,6 +60,15 @@
         <span id="track-label" class="track-label">Track <span>&larr; &rarr;</span></span>
         <div id="tracks" class="tracks" role="radiogroup" aria-labelledby="track-label"></div>
       </div>
+      <section class="personal-bests" aria-labelledby="records-heading" aria-live="polite">
+        <h2 id="records-heading">Original — Personal bests</h2>
+        <dl>
+          <div><dt>Best score</dt><dd id="pb-score">--</dd></div>
+          <div><dt>Fastest lap</dt><dd id="pb-lap">--</dd></div>
+          <div><dt>Best combo</dt><dd id="pb-combo">--</dd></div>
+        </dl>
+        <p id="records-note" class="records-note"></p>
+      </section>
       <nav class="title-menu" aria-label="Main menu">
         <button id="start" type="button">Start driving <span>Enter</span></button>
         <button id="how-to-play" class="quiet" type="button">How to play</button>
@@ -137,13 +146,14 @@
       <h2 class="sheet-title">Run complete</h2>
       <p id="remark" class="pitch"></p>
       <dl class="stats">
-        <div class="big"><dt>Drift score</dt><dd id="r-score"></dd></div>
-        <div><dt>Best lap</dt><dd id="r-best"></dd></div>
+        <div class="big"><dt>Drift score <span id="new-score" class="new-best" hidden>NEW BEST</span></dt><dd id="r-score"></dd></div>
+        <div><dt>Best lap <span id="new-lap" class="new-best" hidden>NEW BEST</span></dt><dd id="r-best"></dd></div>
         <div><dt>Total time</dt><dd id="r-time"></dd></div>
-        <div><dt>Highest combo</dt><dd id="r-combo"></dd></div>
+        <div><dt>Highest combo <span id="new-combo" class="new-best" hidden>NEW BEST</span></dt><dd id="r-combo"></dd></div>
         <div><dt>Spinouts</dt><dd id="r-spins"></dd></div>
       </dl>
       <p id="r-void" class="stats-note" hidden></p>
+      <p id="results-records-note" class="records-note" role="status"></p>
       <div class="actions">
         <button id="again" type="button">Drive again <span>R</span></button>
         <button class="options-open quiet" type="button">Options <span>O</span></button>

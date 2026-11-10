@@ -4,7 +4,7 @@ A tiny top-down arcade drifting game for the browser. Race a small muscle car ar
 
 ## [▶ Play Mini Drifters](https://libertaine.github.io/mini-drifters/)
 
-It runs in a desktop browser with a keyboard or a standard-mapped controller (controller support is awaiting physical testing). There's nothing to install and no account to create.
+It runs in a desktop browser with a keyboard or a standard-mapped controller (controller driving has passed owner review). There's nothing to install and no account to create.
 
 ![Mini Drifters title screen](docs/media/title-screen.png)
 
@@ -35,7 +35,7 @@ Enter also starts a run from the title and results screens.
 
 On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. **How to Play** has the controls and scoring, and Esc goes back.
 
-### Controller (candidate)
+### Controller
 
 Standard-mapped Xbox-style controllers are the initial target; PlayStation controllers
 can work through the browser's standard mapping. Press a button with the page focused,
@@ -107,6 +107,22 @@ While you're in the lesson, Esc leaves it, R goes back to the grid and keeps you
 
 **Lap timing.** A lap counts only if you pass every checkpoint in order. Cutting across the grass voids that lap, and timing restarts at the finish line so you never have to turn back. Your best valid lap is kept for the run. Running wide on the outside of a corner costs time but doesn't void the lap. A voided lap scores nothing: the points you banked on it come off your score at the line, and a combo still running there is lost. You're warned as soon as the missed checkpoint is detected, at the next one you cross. The run still ends after three counted laps, and the results show any laps that weren't counted.
 
+### Personal bests
+
+Original and Switchback each keep three local records: highest final score and best
+banked combo from a completed three-lap run, plus the fastest valid lap. A valid lap
+is saved as it finishes even if you later restart or leave the run; voided and
+incomplete laps never count. Abandoned runs do not set score or combo records,
+and Try It lessons never set any records.
+
+The title shows the selected track's saved bests (`--` until set). Results mark
+saved improvements with `NEW BEST`. Records use this browser/device's localStorage;
+they persist across reloads and browser restarts. Clearing browser storage removes
+them. They are not an online leaderboard and do not sync between browsers or devices.
+If storage is unavailable or full, driving continues and a note explains that new
+improvements cannot be saved; the displayed records remain the last saved values.
+See [the records schema and acceptance steps](docs/RECORDS.md).
+
 ## Development
 
 The game is plain HTML, CSS and JavaScript on a Canvas, with no build step and no runtime dependencies. You need [Node.js](https://nodejs.org/) 22 or newer to run the local server and tests. CI uses Node 24.
@@ -139,7 +155,7 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, track, session, ghost, tutorial, controller, audio, radio and publishing tests.
+This runs the physics, scoring, lap, track, session, ghost, tutorial, controller, local records, audio, radio and publishing tests.
 
 `npm run test:controller:browser` checks mocked Gamepad snapshots and controller menus in Chromium and Firefox; physical hardware is not required by CI.
 
@@ -157,6 +173,8 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 
 `npm run test:tracks:browser` checks the track choice and drives a lap of Switchback with real key presses. It also takes a few minutes.
 
+`npm run test:records:browser` checks per-track saving, reloads, qualification, storage failures and controller navigation in Chromium and Firefox.
+
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
 Changes reach `main` through a pull request, and the `test` check must pass before it can merge.
@@ -169,6 +187,7 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/physics.js` | The car |
 | `src/track.js`, `src/laps.js` | The two circuits and lap validation |
 | `src/scoring.js` | Drift detection and combos |
+| `src/records.js` | Versioned local personal bests and run qualification |
 | `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
 | `src/tutorial.js` | The driving lesson. It watches a session and never writes to it |
@@ -211,7 +230,8 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 - Fishtailing down a straight still scores. It costs speed, but it isn't prevented.
 - A careful driver can occasionally slide by accident and score, and a bad drifting run can score less than a good reckless one.
 - Drifting is slower than grip driving in the scripted test runs, so points and lap time pull in different directions.
-- It's keyboard and desktop only, and scores and the track choice aren't saved.
+- Desktop keyboard and standard-mapped controllers are supported. The track choice is not saved; personal records stay local to this browser/device.
+- Owner review covered controller driving and drifting on both tracks; every physical disconnect/reconnect scenario was not explicitly verified.
 
 ## License
 
