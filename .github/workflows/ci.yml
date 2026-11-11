@@ -49,6 +49,8 @@ jobs:
         run: npm run test:tutorial:browser
       - name: Track choice and Switchback in Chromium and Firefox
         run: npm run test:tracks:browser
+      - name: Voided-lap warnings and results in Chromium and Firefox
+        run: npm run test:scoring:browser
       - name: Mocked controller in Chromium and Firefox
         run: npm run test:controller:browser
       - name: Keep screenshots from a failed run

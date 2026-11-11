@@ -5,7 +5,7 @@ import { drivingCommands } from './controls.js';
 import { createCar, stepCar, updateDerived } from './physics.js';
 import { DEFAULT_TRACK_ID, trackById, projectOnTrack, surfaceFromDistance, trackDelta } from './track.js';
 import { createLaps, updateLaps } from './laps.js';
-import { createScoring, updateScoring, bankCombo } from './scoring.js';
+import { createScoring, updateScoring, bankCombo, loseCombo, currentMultiplier } from './scoring.js';
 import { createGhost, beginGhostRecording, recordGhostTick } from './ghost.js';
 
 export const NO_INPUT = Object.freeze({ up: false, down: false, left: false, right: false, handbrake: false });
@@ -32,6 +32,16 @@ function resetRun(game) {
   game.lapEventSerial = 0;
   game.wrongWayTime = 0;
   game.results = null;
+  // Points only count from laps that count. Everything scored on a lap is held against
+  // that lap, and handed back if the lap is voided at the line. Kept outside the scoring
+  // and lap state, which stay exactly as they were.
+  game.lapScoreStart = 0;   // the score when this lap began
+  game.lapBestCombo = 0;    // the best combo banked on this lap
+  game.lapBestMultiplier = 1;
+  game.countedBestCombo = 0;
+  game.countedBestMultiplier = 1;
+  game.forfeited = 0;       // points from voided laps, which the run doesn't keep
+  game.lastForfeit = 0;     // what the most recent voided lap cost, for the HUD
 
   const at = projectOnTrack(track, game.car.x, game.car.y);
   game.trackS = at.s;
@@ -178,6 +188,7 @@ export function tick(game, input = NO_INPUT) {
   if (!racing) return;
 
   game.runTime += dt;
+  const scoreBefore = game.scoring.score;
   updateScoring(game.scoring, {
     speed: car.speed,
     forwardSpeed: car.forwardSpeed,
@@ -188,9 +199,11 @@ export function tick(game, input = NO_INPUT) {
     handbrake: car.handbrake,
     impact,
   }, dt, T);
+  noteLapScoring(game, game.scoring.score - scoreBefore);
 
   const lapResult = updateLaps(game.laps, track, ax, ay, car.x, car.y, dt);
   if (lapResult) {
+    settleLap(game, lapResult);
     game.lapEvent = lapResult;
     game.lapEventSerial += 1;
   }
@@ -199,14 +212,50 @@ export function tick(game, input = NO_INPUT) {
   if (game.laps.completed >= T.runLaps) finishRun(game);
 }
 
-function remarkFor(scoring) {
-  if (scoring.score === 0) return 'Very tidy. Now try the space bar.';
-  if (scoring.spinouts >= 6) return 'Plenty of angle. Some of it on purpose.';
-  if (scoring.score < 2000) return 'A few good slides in there. Link them up next time.';
-  if (scoring.score < 8000) return scoring.spinouts > 2
+// Called after every scoring step: `banked` is what a combo banked on this step, if any. A
+// step banks at most one combo, so it is that combo's points exactly.
+function noteLapScoring(game, banked) {
+  if (banked > game.lapBestCombo) game.lapBestCombo = banked;
+  const { combo } = game.scoring;
+  if (combo && currentMultiplier(combo) > game.lapBestMultiplier) game.lapBestMultiplier = currentMultiplier(combo);
+}
+
+// At the line, a counted lap keeps what it scored. A voided lap gives back the points it
+// banked, and a combo still running is lost with it, so missing a checkpoint can never
+// be worth anything. A combo running across a counted line carries on into the next lap,
+// as it always has, and belongs to the lap it is banked on.
+function settleLap(game, result) {
+  const { scoring } = game;
+  if (result === 'void') {
+    const { combo } = scoring;
+    const unbanked = combo ? Math.round(combo.points * currentMultiplier(combo)) : 0;
+    if (combo) loseCombo(scoring, 'lap not counted');
+    const banked = scoring.score - game.lapScoreStart;
+    game.forfeited += banked;
+    game.lastForfeit = banked + unbanked;
+  } else {
+    game.countedBestCombo = Math.max(game.countedBestCombo, game.lapBestCombo);
+    game.countedBestMultiplier = Math.max(game.countedBestMultiplier, game.lapBestMultiplier);
+  }
+  game.lapScoreStart = scoring.score;
+  game.lapBestCombo = 0;
+  game.lapBestMultiplier = 1;
+}
+
+// The score the run keeps: everything banked, less the voided laps. During a lap it
+// includes what this lap has banked so far, which a void at the line would take back.
+export function countedScore(game) {
+  return game.scoring.score - game.forfeited;
+}
+
+function remarkFor(score, spinouts) {
+  if (score === 0) return 'Very tidy. Now try the space bar.';
+  if (spinouts >= 6) return 'Plenty of angle. Some of it on purpose.';
+  if (score < 2000) return 'A few good slides in there. Link them up next time.';
+  if (score < 8000) return spinouts > 2
     ? 'Real commitment. Catch the spins and that score climbs fast.'
     : 'Clean and sideways. Hold those combos through the transition.';
-  if (scoring.score < 20000) return scoring.spinouts > 2
+  if (score < 20000) return spinouts > 2
     ? 'Big scores, big moments. Calm the spins and it gets scary.'
     : 'Now that is proper car control.';
   return 'The tyre company sends its thanks.';
@@ -214,16 +263,22 @@ function remarkFor(scoring) {
 
 function finishRun(game) {
   const { scoring, laps } = game;
+  // The run finishes on a counted lap, so a combo banked at the line counts too.
+  const before = scoring.score;
   bankCombo(scoring, 'finished');
+  const bestCombo = Math.max(game.countedBestCombo, scoring.score - before);
   game.state = 'finished';
+  const score = countedScore(game);
   game.results = {
-    score: scoring.score,
+    score,
     bestLap: laps.bestLap,
     runTime: game.runTime,
-    bestCombo: scoring.bestCombo,
-    bestMultiplier: scoring.bestMultiplier,
+    bestCombo,
+    bestMultiplier: game.countedBestMultiplier,
     spinouts: scoring.spinouts,
-    remark: remarkFor(scoring),
+    voidedLaps: laps.voided,
+    forfeited: game.forfeited,
+    remark: remarkFor(score, scoring.spinouts),
   };
 }
 

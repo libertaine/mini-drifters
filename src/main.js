@@ -2,7 +2,7 @@
 import { TUNING } from './tuning.js';
 import { Controller, NEUTRAL_DRIVE } from './controller.js';
 import { InputArbiter } from './controls.js';
-import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance } from './game.js';
+import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance, countedScore } from './game.js';
 import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
 import { DEFAULT_TRACK_ID, TRACKS, projectOnTrack, trackById } from './track.js';
@@ -626,6 +626,12 @@ function showResults() {
   setText('r-combo', r.bestCombo ? `${formatNumber(r.bestCombo)} (×${r.bestMultiplier})` : 'None');
   setText('r-spins', String(r.spinouts));
   setText('remark', r.remark);
+  const voided = r.voidedLaps > 0;
+  $('r-void').hidden = !voided;
+  if (voided) {
+    const laps = r.voidedLaps === 1 ? '1 lap' : `${r.voidedLaps} laps`;
+    setText('r-void', `${laps} not counted: ${formatNumber(r.forfeited)} points left out of the score.`);
+  }
 }
 
 const banner = { until: 0, serialCombo: 0, serialLap: 0 };
@@ -659,7 +665,8 @@ function updateBanners(now) {
       const best = laps.lastLap === laps.bestLap && laps.completed > 1;
       showBanner('lap', `LAP ${formatTime(laps.lastLap)}${best ? ' — BEST' : ''}`, now);
     } else {
-      showBanner('void', 'LAP NOT COUNTED — CHECKPOINT MISSED', now);
+      const lost = game.lastForfeit;
+      showBanner('void', lost > 0 ? `LAP NOT COUNTED — ${formatNumber(lost)} POINTS LOST` : 'LAP NOT COUNTED — CHECKPOINT MISSED', now);
     }
   }
   if (now >= banner.until) $('banner').hidden = true;
@@ -708,7 +715,7 @@ function updatePrompt() {
       text = 'WRONG WAY';
       kind = 'warn';
     } else if (!game.laps.valid) {
-      text = 'Checkpoint missed. This lap will not count.';
+      text = 'Checkpoint missed. This lap and its points will not count.';
       kind = 'warn';
     }
   }
@@ -725,7 +732,7 @@ function updateHud(now) {
   setText('lap', `${Math.min(laps.completed + 1, T.runLaps)}/${T.runLaps}`);
   setText('lap-time', formatTime(laps.lapTime));
   setText('best-lap', formatTime(laps.bestLap));
-  setText('score', formatNumber(scoring.score));
+  setText('score', formatNumber(countedScore(game)));
   setText('speed', String(Math.round(car.speed * MPH_PER_MS)));
 
   const shownSlip = car.speed > 3 && car.forwardSpeed > 0 ? Math.abs(car.slipAngle) * DEG : 0;
