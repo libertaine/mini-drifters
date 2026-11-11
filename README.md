@@ -14,7 +14,7 @@ It runs in a desktop browser with a keyboard or a standard-mapped controller (co
 
 ## Status
 
-**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, and handling and scoring may change. Prototype 0.1 was released as [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) with one track. Switchback is now available alongside Original, offering a more technical circuit with linked corners and tighter drifting opportunities. See the [roadmap](docs/ROADMAP.md) for what might come next.
+**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, and handling and scoring may change. The current release is [v0.2.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.2.0). It adds Switchback, a more technical circuit with linked corners and tighter drifting opportunities, alongside Original, as well as analog controller support and per-track personal bests saved in your browser. It also stops shortcuts and voided laps from adding to your score. Prototype 0.1 was released as [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) with one track. See the [roadmap](docs/ROADMAP.md) for what might come next.
 
 ## Controls
 
