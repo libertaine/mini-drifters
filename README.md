@@ -97,7 +97,7 @@ While you're in the lesson, Esc leaves it, R goes back to the grid and keeps you
 
 **Sessions.** A run is three counted laps. The clock starts when you first press a pedal, and the end screen shows your score, best lap, total time, highest combo and spinouts.
 
-**Drift scoring.** Sliding at speed on the road builds unbanked points. Bigger angles and higher speeds earn more, up to a point: the best angles are 25° to 50°, and hanging on to the handbrake earns much less than sliding under power. Only ground you haven't covered yet pays, so donuts and repeat passes earn nothing.
+**Drift scoring.** Sliding at speed on the road builds unbanked points. Bigger angles and higher speeds earn more, up to a point: the best angles are 25° to 50°, and hanging on to the handbrake earns much less than sliding under power. Only ground you haven't covered yet pays, so donuts, repeat passes and cutting back across the infield earn nothing.
 
 **Combos.** Keep drifting, link drifts within two seconds, or flick from one side to the other to climb the multiplier from ×1 through ×1.5 and ×2 to ×3. The multiplier applies to the whole combo when it's banked.
 
