@@ -110,7 +110,8 @@ While you're in the lesson, Esc leaves it, R goes back to the grid and keeps you
 ### Personal bests
 
 Original and Switchback each keep three local records: highest final score and best
-banked combo from a completed three-lap run, plus the fastest valid lap. A valid lap
+banked combo from a completed three-lap run, counting only the laps that counted, plus
+the fastest valid lap. A valid lap
 is saved as it finishes even if you later restart or leave the run; voided and
 incomplete laps never count. Abandoned runs do not set score or combo records,
 and Try It lessons never set any records.

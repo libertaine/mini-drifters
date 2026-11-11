@@ -6,11 +6,13 @@ storage is cleared. There are no accounts, online leaderboard, telemetry or sync
 
 ## Qualification
 
-- Highest score: the existing final score after three valid laps finish a normal run.
+- Highest score: the run's qualifying score after three valid laps finish a normal
+  run. Points banked on voided laps are left out of it, as on the results screen.
 - Fastest lap: existing valid lap time in seconds, saved at lap completion, even if
   the run is later restarted or abandoned. Voided and incomplete laps do not count.
-- Best combo: the existing banked best-combo value after a normal three-lap finish.
-  Lost/unbanked points and abandoned runs do not establish combo records.
+- Best combo: the best combo banked on a counted lap, as shown on the results, after a
+  normal three-lap finish. Combos banked on voided laps, lost/unbanked points and
+  abandoned runs do not establish combo records.
 - Try It sessions and their restarts never establish any records.
 - Ties do not improve a record. Zero is a valid score/combo; null means no record.
 

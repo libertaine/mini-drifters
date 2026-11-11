@@ -114,19 +114,30 @@ async function check(name, engine) {
     assert.ok(await page.locator('#r-void').isVisible());
     const laps = r.voidedLaps === 1 ? '1 lap' : `${r.voidedLaps} laps`;
     assert.equal((await page.locator('#r-void').textContent()).trim().replace(/,/g, ''), `${laps} not counted: ${r.forfeited} points left out of the score.`);
+    // Records take the qualifying result, not the raw score: a fresh profile saves this run's
+    // corrected values and marks all three as NEW BEST.
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('mini-drifters-records')).tracks.original);
+    assert.deepEqual(saved, { score: r.score, fastestLap: r.bestLap, bestCombo: r.bestCombo });
+    const raw = await page.evaluate(() => window.__miniDrifters.game.scoring.score);
+    assert.equal(saved.score, raw - r.forfeited);
+    for (const id of ['new-score', 'new-lap', 'new-combo']) assert.ok(await page.locator(`#${id}`).isVisible(), id);
+    step(`the record saved is the qualifying score ${r.score}, not the raw ${raw}, with NEW BEST marks`);
     for (const [width, height] of SIZES) {
       await page.setViewportSize({ width, height });
       await frames(page);
       const fit = await page.evaluate(() => {
         const overlay = document.getElementById('results');
-        const note = document.getElementById('r-void').getBoundingClientRect();
         const sheet = overlay.querySelector('.sheet').getBoundingClientRect();
-        return { scrolls: overlay.scrollHeight > overlay.clientHeight, inside: note.bottom <= sheet.bottom && note.right <= sheet.right && note.left >= sheet.left };
+        const within = (id) => {
+          const box = document.getElementById(id).getBoundingClientRect();
+          return box.bottom <= sheet.bottom && box.right <= sheet.right && box.left >= sheet.left && box.top >= sheet.top;
+        };
+        return { scrolls: overlay.scrollHeight > overlay.clientHeight, inside: ['r-void', 'new-score', 'new-lap', 'new-combo', 'again'].every(within) };
       });
       assert.deepEqual(fit, { scrolls: false, inside: true }, `${width}x${height}`);
       await page.screenshot({ path: artifact(`${name}-results-${width}x${height}.png`) });
     }
-    step('the results screen notes the laps left out, and fits every size');
+    step('the results screen notes the laps left out beside the NEW BEST marks, and fits every size');
 
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.locator('#again').click();
