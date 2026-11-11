@@ -4,8 +4,8 @@ Controller support merged in PR #16 after the owner reported satisfactory physic
 driving and drifting on Original and Switchback, with no controller issues reported.
 Analog throttle made little gameplay difference, which the owner accepted. That review
 did not explicitly verify every disconnect/reconnect scenario. Automated mocked tests
-remain separate evidence from physical hardware coverage. The version remains 0.1.0;
-local records are a separate draft candidate, and no new release is declared.
+remain separate evidence from physical hardware coverage. Controller support was
+released in v0.2.0.
 
 ## Mapping
 

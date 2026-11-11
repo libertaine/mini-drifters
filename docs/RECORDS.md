@@ -56,7 +56,7 @@ Existing sound and radio preference keys are untouched.
 
 ## Human acceptance
 
-Run `npm start` in the records worktree and open http://127.0.0.1:4190 in desktop
+Run `npm start` and open http://127.0.0.1:4190 in desktop
 Chromium, then Firefox. Use a fresh browser profile for empty-store checks.
 
 1. On Original, confirm all three bests show --. Press Right to Switchback, check
@@ -92,5 +92,5 @@ Chromium, then Firefox. Use a fresh browser profile for empty-store checks.
     during keyboard driving. The prior owner review did not explicitly cover every
     physical disconnect/reconnect scenario; mocked browser tests are separate evidence.
 
-The records PR stays draft for acceptance. Version remains 0.1.0; no v0.2.0 decision,
-tag or GitHub Release is made here.
+Local records were released in v0.2.0 (PR #17), taking their score and best combo from
+the corrected results after the shortcut and voided-lap fixes (#18 and #19).
