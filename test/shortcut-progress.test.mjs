@@ -67,11 +67,14 @@ for (const [trackId, base, cut, loops] of STRESS) {
     while (game.ticks < steps(loops * 60) && !(driver.cuts() === loops && !driver.cutting())) {
       tick(game, driver(game));
       worstLead = Math.max(worstLead, game.credited - game.reached);
-      if (atEarly === null && driver.cuts() === early) atEarly = { credited: game.credited, score: game.scoring.score, reached: game.reached };
+      if (atEarly === null && driver.cuts() === early) {
+        atEarly = { credited: game.credited, score: game.scoring.score, bestCombo: game.scoring.bestCombo, reached: game.reached };
+      }
     }
     assert.equal(driver.cuts(), loops, 'the driver made every cut');
     assert.equal(game.state, 'racing');
-    assert.equal(game.laps.completed + game.laps.voided, 0, 'the loop never reaches the line');
+    assert.equal(game.laps.completed, 0, 'the loop never completes a valid lap');
+    assert.equal(game.laps.voided, 0, 'the loop never voids a lap either: it never reaches the line');
     assert.ok(worstLead <= 4 + 1e-9, `paid ${worstLead.toFixed(2)} m beyond the furthest real position`);
     // The car turns off a few centimetres later on some passes. That road is genuinely new,
     // and it is all that may be paid for once the allowance is spent.
@@ -80,6 +83,7 @@ for (const [trackId, base, cut, loops] of STRESS) {
     assert.ok(realGain < 5, `the car really got ${realGain.toFixed(2)} m further`);
     assert.ok(paid <= realGain + 1e-6, `paid ${paid.toFixed(2)} m for ${realGain.toFixed(2)} m of real progress between cut ${early} and cut ${loops}`);
     assert.equal(game.scoring.score, atEarly.score, `scored ${game.scoring.score - atEarly.score} between cut ${early} and cut ${loops}`);
+    assert.equal(game.scoring.bestCombo, atEarly.bestCombo, `best combo moved from ${atEarly.bestCombo} to ${game.scoring.bestCombo}`);
   });
 }
 
