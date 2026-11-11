@@ -1,5 +1,6 @@
 // Browser glue: keyboard/controller input, the animation loop and the HUD.
 import { TUNING } from './tuning.js';
+import { createRecords } from './records.js';
 import { Controller, NEUTRAL_DRIVE } from './controller.js';
 import { InputArbiter } from './controls.js';
 import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance, countedScore } from './game.js';
@@ -19,7 +20,11 @@ const ANGLE_GAUGE_MAX = 90;
 // The lesson's prompts and checks were written for Original, so it always drives there.
 const LESSON_TRACK_ID = 'original';
 
-const game = createGame();
+const records = createRecords();
+const game = createGame(undefined, { onRunEvent: (event) => {
+  records.handle(event);
+  showPersonalBests();
+} });
 // The title's poster is Original's hairpin, whichever circuit is chosen for driving.
 const renderer = createRenderer($('view'), game.track, trackById('original'));
 
@@ -45,6 +50,7 @@ const trackInputs = TRACKS.map((track) => {
 function selectTrack(id) {
   selectedTrackId = id;
   for (const input of trackInputs) input.checked = input.value === id;
+  showPersonalBests();
 }
 
 // Left and Right, wrapping. Focus follows only if it was already on the choice.
@@ -143,7 +149,7 @@ function beginRun() {
 
 function restart() {
   clearInput();
-  restartRun(game, { ghost: !tutorial }); // a lesson leaves no ghost behind
+  restartRun(game, { ghost: !tutorial, mode: tutorial ? 'tutorial' : 'normal' }); // a lesson leaves no ghost behind
   resetEffects(renderer, game.car);
   syncScreens();
   audio.newRun(game);
@@ -159,7 +165,7 @@ const DONE_KEY_GUARD_MS = 500; // the player was just driving, and may still be 
 function startTutorial() {
   doneOpen = false;
   tutorial = createTutorial();
-  startRun(game, { ghost: false, track: trackById(LESSON_TRACK_ID) });
+  startRun(game, { ghost: false, track: trackById(LESSON_TRACK_ID), mode: 'tutorial' });
   resetEffects(renderer, game.car);
   clearInput();
   syncScreens();
@@ -403,7 +409,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => audio.dispose());
 
-window.addEventListener('resize', () => resize(renderer));
+window.addEventListener('resize', () => { resize(renderer); fitTitle(); });
 $('resume').addEventListener('click', pauseOrResume);
 $('restart').addEventListener('click', restart);
 $('start').addEventListener('click', beginRun);
@@ -585,6 +591,27 @@ function startTabAt(section) {
   section.blur();
 }
 
+// Condensed poster fonts are not installed everywhere. Keep the existing size
+// unless fallback text overflows the available width/height; measure on menu/resize.
+function fitTitle() {
+  const title = document.querySelector('.title');
+  if (!title.clientWidth) return;
+  title.style.fontSize = '';
+  const ratio = title.clientWidth / title.scrollWidth;
+  if (ratio < 1) title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * ratio * 0.98}px`;
+  // Wrapped fallback text and a storage-failure note also need vertical room.
+  // Reduce only the title, keeping every record, instruction and action visible.
+  const panel = title.closest('.title-panel');
+  const padding = getComputedStyle(panel);
+  const available = Math.min(innerHeight, panel.clientHeight) - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
+  const heading = title.getBoundingClientRect();
+  const used = $('controller-note').getBoundingClientRect().bottom - heading.top;
+  if (used > available) {
+    const scale = Math.max(0.25, (heading.height - (used - available) - 4) / heading.height);
+    title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * scale}px`;
+  }
+}
+
 function syncScreens() {
   const { state, paused } = game;
   const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done'
@@ -595,6 +622,7 @@ function syncScreens() {
   }
   document.body.dataset.screen = state === 'menu' ? 'title' : 'game';
   $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen;
+  if (!$('menu').hidden) fitTitle();
   $('help').hidden = !helpOpen;
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
@@ -618,6 +646,17 @@ function syncScreens() {
   startTabAt(optionsOpen ? null : paused ? $('paused') : finished ? $('results') : null);
 }
 
+function showPersonalBests() {
+  const best = records.forTrack(selectedTrackId);
+  setText('records-heading', `${trackById(selectedTrackId).name} — Personal bests`);
+  setText('pb-score', best.score === null ? '--' : formatNumber(best.score));
+  setText('pb-lap', formatTime(best.fastestLap));
+  setText('pb-combo', best.bestCombo === null ? '--' : formatNumber(best.bestCombo));
+  const note = records.available ? '' : 'Record storage unavailable. New improvements cannot be saved.';
+  setText('records-note', note);
+  setText('results-records-note', note);
+}
+
 function showResults() {
   const r = game.results;
   setText('r-score', formatNumber(r.score));
@@ -632,6 +671,10 @@ function showResults() {
     const laps = r.voidedLaps === 1 ? '1 lap' : `${r.voidedLaps} laps`;
     setText('r-void', `${laps} not counted: ${formatNumber(r.forfeited)} points left out of the score.`);
   }
+  const best = records.newBests;
+  $('new-score').hidden = !best.score;
+  $('new-lap').hidden = !best.fastestLap;
+  $('new-combo').hidden = !best.bestCombo;
 }
 
 const banner = { until: 0, serialCombo: 0, serialLap: 0 };

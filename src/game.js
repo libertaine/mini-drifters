@@ -10,8 +10,8 @@ import { createGhost, beginGhostRecording, recordGhostTick } from './ghost.js';
 
 export const NO_INPUT = Object.freeze({ up: false, down: false, left: false, right: false, handbrake: false });
 
-export function createGame(track = trackById(DEFAULT_TRACK_ID)) {
-  const game = { track, state: 'menu', paused: false, ghostVisible: true };
+export function createGame(track = trackById(DEFAULT_TRACK_ID), { onRunEvent = null } = {}) {
+  const game = { onRunEvent, track, state: 'menu', paused: false, ghostVisible: true };
   resetRun(game);
   game.state = 'menu';
   return game;
@@ -59,13 +59,15 @@ function resetRun(game) {
 
 // Start (or restart) a run. The clock waits on the grid for the first pedal press.
 // A run that shouldn't leave a ghost behind passes { ghost: false }, and a run on another
-// circuit passes { track }. Everything about the session is rebuilt either way, so nothing
+// circuit passes { track }. Lessons explicitly pass { mode: 'tutorial' } for observers.
+// Everything about the session is rebuilt either way, so nothing
 // from the last circuit's run carries over. Without { track }, the run stays where it was.
-export function startRun(game, { ghost = true, track = game.track } = {}) {
+export function startRun(game, { ghost = true, track = game.track, mode = 'normal' } = {}) {
   game.track = track;
   resetRun(game);
   if (!ghost) game.ghost = null;
   game.state = 'ready';
+  game.onRunEvent?.({ type: 'start', trackId: track.id, runId: game.runId, mode });
 }
 
 export const restartRun = startRun;
@@ -73,6 +75,7 @@ export const restartRun = startRun;
 // Abandon the session and go back to the state the game opens in. Nothing runs from here
 // until the next startRun: advance() does nothing on the menu.
 export function returnToMenu(game) {
+  game.onRunEvent?.({ type: 'abandon' });
   resetRun(game);
   game.state = 'menu';
 }
@@ -206,6 +209,7 @@ export function tick(game, input = NO_INPUT) {
     settleLap(game, lapResult);
     game.lapEvent = lapResult;
     game.lapEventSerial += 1;
+    game.onRunEvent?.({ type: 'lap', trackId: track.id, runId: game.runId, valid: lapResult === 'lap', time: game.laps.lastLap });
   }
   // The ghost gets copies of these numbers and hands nothing back to the simulation.
   if (game.ghost) recordGhostTick(game.ghost, car.x, car.y, car.heading, lapResult);
@@ -280,6 +284,7 @@ function finishRun(game) {
     forfeited: game.forfeited,
     remark: remarkFor(score, scoring.spinouts),
   };
+  game.onRunEvent?.({ type: 'finish', trackId: game.track.id, runId: game.runId, completed: laps.completed, score: game.results.score, bestCombo: game.results.bestCombo });
 }
 
 // Consume real frame time in fixed steps. Rendering speed never changes the
