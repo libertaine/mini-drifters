@@ -60,7 +60,7 @@ The code is in `src/ghost.js`, with small hooks in `src/game.js`, `src/render.js
 {
   format: 1,            // this layout
   track: 'ab12cd34',    // fingerprint of the circuit's geometry
-  rules: '56ef78ab',    // fingerprint of the values in tuning.js
+  rules: '56ef78ab',    // fingerprint of the tuning the lap was driven with (its handling mode)
   tickRate: 120,
   sampleEvery: 4,       // ticks between samples
   durationTicks: 5768,  // the lap's length
@@ -69,6 +69,12 @@ The code is in `src/ghost.js`, with small hooks in `src/game.js`, `src/render.js
 ```
 
 A ghost whose format, track, rules or tick rate doesn't match the running game isn't shown.
+
+From v0.3.0, `rules` is the fingerprint of the handling mode's tuning (`src/handling.js`),
+which holds every rule as well as the car's physics. Classic's tuning is the shipped
+`tuning.js` object, so a Classic ghost is byte-for-byte what v0.2.0 recorded, and a lap
+driven in one handling mode is never shown in another. A new run, including a mode
+change, always starts with no ghost. The practice pad never has one.
 
 **This is a picture of a lap, not proof of one.** It holds where the car went, not the inputs that took it there. It can't reproduce a lap, and it can't show that a lap was driven legitimately. The `rules` fingerprint covers the tuning values only, so changes to the physics code don't alter it. Anything competitive, such as shared ghosts or leaderboards, would need separate input replay and validation.
 

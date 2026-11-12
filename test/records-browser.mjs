@@ -7,7 +7,10 @@ import { extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
 const root = new URL('../', import.meta.url);
-const KEY = 'mini-drifters-records';
+// v0.3.0 keeps records per track and handling mode in a new key; v0.2.0's key is only read.
+// Every run here is driven in the default mode, Classic, so its records are tracks.<id>.classic.
+const KEY = 'mini-drifters-records-v2';
+const LEGACY_KEY = 'mini-drifters-records';
 const reports = [];
 await mkdir(new URL('artifacts/', root), { recursive: true });
 const server = http.createServer(async (req, res) => {
@@ -44,8 +47,9 @@ async function check(name, engine) {
     const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
     const p = await context.newPage();
     p.on('pageerror', (error) => errors.push(error.message));
-    await p.addInitScript(({ key, denied }) => {
+    await p.addInitScript(({ key, legacyKey, denied }) => {
       window.__recordWrites = 0;
+      window.__legacyWrites = 0;
       window.__failRecordsWrite = false;
       if (denied) Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Denied', 'SecurityError'); } });
       else {
@@ -55,6 +59,7 @@ async function check(name, engine) {
             if (window.__failRecordsWrite) throw new DOMException('Full', 'QuotaExceededError');
             window.__recordWrites++;
           }
+          if (k === legacyKey) window.__legacyWrites++;
           return set.call(this, k, v);
         };
         localStorage.setItem('mini-drifters-sound', 'off');
@@ -67,7 +72,7 @@ async function check(name, engine) {
         now ??= performance.now();
         for (let i = 0; i < count; i++) { now += dt; window.__nextFrame(now); }
       };
-    }, { key: KEY, denied });
+    }, { key: KEY, legacyKey: LEGACY_KEY, denied });
     await p.goto(base);
     await p.waitForFunction(() => window.__miniDrifters, null, { polling: 100 });
     return p;
@@ -113,8 +118,11 @@ async function check(name, engine) {
         window.dispatchEvent(new Event('resize'));
       }, fallback);
       for (const [width, height] of [[1024, 600], [1366, 768], [1920, 1080]]) {
-        await page.setViewportSize({ width, height }); await frames();
-        const issues = await page.locator('#menu').evaluate((menu) => [...menu.querySelectorAll('.title, .tagline, .track-select, .personal-bests h2, .personal-bests dt, .personal-bests dd, .records-note, .title-menu button, #controller-note')]
+        await page.setViewportSize({ width, height });
+        // The title refits on the window's resize event, which can arrive after this call
+        // returns. Deliver it now, so what is measured is the settled layout a player sees.
+        await page.evaluate(() => window.dispatchEvent(new Event('resize'))); await frames();
+        const issues = await page.locator('#menu').evaluate((menu) => [...menu.querySelectorAll('.title, .tagline, .track-select, .handling-select, .handling-summary, .personal-bests h2, .personal-bests dt, .personal-bests dd, .records-note, .title-menu button, #controller-note')]
           .filter((el) => el.getClientRects().length).flatMap((el) => {
             const r = el.getBoundingClientRect();
             return r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth || el.scrollWidth > el.clientWidth + 1 ? [{ text: el.textContent, box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom }, scroll: el.scrollWidth, client: el.clientWidth, font: getComputedStyle(el).font }] : [];
@@ -135,7 +143,7 @@ async function check(name, engine) {
     const first = await drive();
     assert.equal(first.completed, 3); assert.equal(first.state, 'finished');
     assert.ok(first.results.score > 0 && first.results.bestCombo > 0);
-    const original = (await saved()).tracks.original;
+    const original = (await saved()).tracks.original.classic;
     assert.deepEqual(original, { score: first.results.score, fastestLap: first.results.bestLap, bestCombo: first.results.bestCombo });
     assert.deepEqual(await badges(), [true, true, true]);
     assert.equal(await page.locator('#remark').textContent(), first.results.remark);
@@ -158,8 +166,8 @@ async function check(name, engine) {
     assert.ok(second.results.score > 0);
     assert.deepEqual(await badges(), [true, true, true]);
     const both = await saved();
-    assert.deepEqual(both.tracks.original, original);
-    assert.deepEqual(both.tracks.switchback, { score: second.results.score, fastestLap: second.results.bestLap, bestCombo: second.results.bestCombo });
+    assert.deepEqual(both.tracks.original.classic, original);
+    assert.deepEqual(both.tracks.switchback.classic, { score: second.results.score, fastestLap: second.results.bestLap, bestCombo: second.results.bestCombo });
     await press(1); const switchShown = await values();
     await press(14); assert.deepEqual(await values(), shown);
     await press(15); assert.deepEqual(await values(), switchShown);
@@ -168,7 +176,7 @@ async function check(name, engine) {
     // Fixed seeded targets exercise the explicit no-improvement UI branch.
     await page.evaluate((key) => {
       const v = JSON.parse(localStorage.getItem(key));
-      v.tracks.original = { score: 900000000, fastestLap: 0.001, bestCombo: 900000000 };
+      v.tracks.original.classic = { score: 900000000, fastestLap: 0.001, bestCombo: 900000000 };
       localStorage.setItem(key, JSON.stringify(v));
     }, KEY);
     await page.reload(); await page.waitForFunction(() => window.__miniDrifters, null, { polling: 100 }); await frames();
@@ -184,11 +192,11 @@ async function check(name, engine) {
     await page.keyboard.press('Enter'); await frames();
     const partial = await drive('keyboard', 'lap');
     assert.equal(partial.completed, 1); assert.ok(partial.score > 0 && partial.combo > 0);
-    assert.deepEqual((await saved()).tracks.original, { score: null, fastestLap: partial.bestLap, bestCombo: null });
+    assert.deepEqual((await saved()).tracks.original.classic, { score: null, fastestLap: partial.bestLap, bestCombo: null });
     await page.keyboard.press('KeyR'); await frames();
     await page.keyboard.press('KeyP'); await frames();
     await click('#paused .return-title');
-    assert.deepEqual((await saved()).tracks.original, { score: null, fastestLap: partial.bestLap, bestCombo: null });
+    assert.deepEqual((await saved()).tracks.original.classic, { score: null, fastestLap: partial.bestLap, bestCombo: null });
     const beforeLesson = await saved();
     await click('#how-to-play'); await click('#help-try');
     await page.keyboard.press('KeyR'); await frames();
@@ -196,6 +204,7 @@ async function check(name, engine) {
     assert.ok(await page.locator('#tutorial-done').isVisible());
     assert.match(await page.locator('#done-title').textContent(), /QUALIFIED/);
     assert.deepEqual(await saved(), beforeLesson);
+    assert.equal(await page.evaluate(() => window.__legacyWrites), 0, 'the v0.2.0 key is never written');
     ok('a valid lap survives restart/abandon without score/combo; a real completed lesson and restart set no records');
 
     await page.context().close(); page = await setup(); await frames();

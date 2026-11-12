@@ -159,13 +159,39 @@ export function stepCar(car, input, surface, dt, T = TUNING) {
 
   // Throttle spends some of the rear tyres' grip: this is the "power" in power oversteer.
   const thrustShare = clamp(Math.abs(thrust) / Math.max(rearCapacityFull, 0.001), 0, 0.95) * T.powerOversteer;
-  const rearCapacity = rearCapacityFull * car.rearGrip * Math.sqrt(1 - thrustShare * thrustShare);
+  let rearCapacity = rearCapacityFull * car.rearGrip * Math.sqrt(1 - thrustShare * thrustShare);
 
   const frontForce = -frontCapacity * tyreCurve(frontSlip, T.frontPeakSlip, T.frontSlideGrip, T.slideFalloff);
   // Once the rear has broken loose, throttle keeps it loose and lifting lets it
   // hook back up. Throttle sets the angle of a drift; steering sets its direction.
   const rearSlideGrip = T.rearSlideGrip + (T.rearPowerSlideGrip - T.rearSlideGrip) * car.throttle;
-  const rearForce = -rearCapacity * tyreCurve(rearSlip, T.rearPeakSlip, rearSlideGrip, T.slideFalloff);
+  const rearCurve = tyreCurve(rearSlip, T.rearPeakSlip, rearSlideGrip, T.slideFalloff);
+
+  // The Revised handling mode (src/handling.js). Never reached by Classic, whose tuning has no
+  // tractionModel, so Classic is v0.2.0 exactly. The rear tyres get one grip budget to share
+  // between driving and cornering (a friction ellipse), and a wheelspin state that moves toward that budget over time:
+  //   - what the tyres can still transmit shrinks as cornering uses them up;
+  //   - asking the engine for more than that spins the wheels up, gradually;
+  //   - spinning wheels corner less well, and pass on less of the engine's thrust;
+  //   - asking for less lets them hook up again, gradually.
+  // With the wheels not spinning, every force here is exactly what the code above produced.
+  if (T.tractionModel === 'budget') {
+    const spin = car.wheelspin ?? 0;
+    const driveCapacity = Math.max(rearCapacityFull * T.driveGripRatio, 0.001);
+    const lateralUse = Math.min(1, T.driveCorneringCost * Math.abs(rearCurve) * rearCapacity
+      * (1 - T.wheelspinGripLoss * spin) / Math.max(rearCapacityFull, 0.001));
+    const driveGrip = driveCapacity * Math.sqrt(1 - lateralUse * lateralUse);
+    const demand = Math.abs(thrust);
+    const excess = (demand - driveGrip) / driveCapacity;
+    // Only the low gears multiply the engine's torque enough to spin the tyres. The car has no
+    // gearbox, so this is a speed range: wheelspin builds fully below wheelspinFadeFrom and not
+    // at all above wheelspinFadeTo. Thrust itself is unchanged.
+    const gear = clamp((T.wheelspinFadeTo - speed) / Math.max(T.wheelspinFadeTo - T.wheelspinFadeFrom, 0.001), 0, 1);
+    car.wheelspin = clamp(spin + (excess > 0 ? excess * gear * T.wheelspinRise : -T.wheelspinFall) * dt, 0, 1);
+    rearCapacity *= 1 - T.wheelspinGripLoss * car.wheelspin;
+    thrust = Math.sign(thrust) * (demand - T.wheelspinThrustLoss * car.wheelspin * Math.max(0, demand - driveGrip));
+  }
+  const rearForce = -rearCapacity * rearCurve;
 
   // --- Combine into body-frame accelerations.
   const af = thrust + frictionForce - frontForce * wheelSin;

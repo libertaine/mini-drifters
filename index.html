@@ -46,6 +46,7 @@
 
     <div id="ghost-status" data-state="on" title="Press G to show or hide the ghost of your last valid lap">Ghost On</div>
     <div id="radio-status" data-state="off" title="Press N to change the radio station">Radio Off</div>
+    <div id="handling-status">Classic</div>
 
     <pre id="debug" hidden></pre>
   </div>
@@ -60,6 +61,11 @@
         <span id="track-label" class="track-label">Track <span>&larr; &rarr;</span></span>
         <div id="tracks" class="tracks" role="radiogroup" aria-labelledby="track-label"></div>
       </div>
+      <div class="handling-select">
+        <span id="handling-label" class="track-label">Handling <span>H</span></span>
+        <div id="handlings" class="tracks" role="radiogroup" aria-labelledby="handling-label"></div>
+      </div>
+      <p id="handling-summary" class="handling-summary"></p>
       <section class="personal-bests" aria-labelledby="records-heading" aria-live="polite">
         <h2 id="records-heading">Original — Personal bests</h2>
         <dl>
@@ -71,6 +77,7 @@
       </section>
       <nav class="title-menu" aria-label="Main menu">
         <button id="start" type="button">Start driving <span>Enter</span></button>
+        <button id="practice" class="quiet" type="button">Practice pad</button>
         <button id="how-to-play" class="quiet" type="button">How to play</button>
         <button class="options-open quiet" type="button">Options <span>O</span></button>
       </nav>
@@ -106,6 +113,7 @@
             <li>When the tail steps out, stay on the throttle and countersteer to hold the slide.</li>
             <li>To recover, lift off the throttle and the car straightens up.</li>
           </ol>
+          <p class="help-note">With <b>Power</b> handling, the throttle can also break the rear loose, and the pedal sets the angle.</p>
         </section>
         <section>
           <h3>Other keys</h3>
@@ -114,6 +122,7 @@
             <tr><td><kbd>R</kbd> / <kbd>P</kbd></td><td>Restart / Pause</td></tr>
             <tr><td><kbd>G</kbd> / <kbd>N</kbd></td><td>Ghost / Next radio station</td></tr>
             <tr><td><kbd>O</kbd></td><td>Options, from a menu</td></tr>
+            <tr><td><kbd>H</kbd></td><td>Handling, on the title</td></tr>
             <tr><td><kbd>D</kbd></td><td>Debug display</td></tr>
           </table>
           <p class="controller-help">Controller: D-pad move &middot; A select &middot; B back<br>Menu pause &middot; X ghost &middot; Y radio</p>
@@ -122,6 +131,7 @@
       <div class="actions">
         <button id="help-back" class="quiet" type="button">Back <span>Esc</span></button>
         <button id="help-try" type="button">Try it</button>
+        <p id="lesson-handling" class="help-note">The driving lesson uses Classic handling.</p>
       </div>
     </div>
   </section>
@@ -152,6 +162,7 @@
         <div><dt>Highest combo <span id="new-combo" class="new-best" hidden>NEW BEST</span></dt><dd id="r-combo"></dd></div>
         <div><dt>Spinouts</dt><dd id="r-spins"></dd></div>
       </dl>
+      <p id="r-mode" class="stats-note"></p>
       <p id="r-void" class="stats-note" hidden></p>
       <p id="results-records-note" class="records-note" role="status"></p>
       <div class="actions">

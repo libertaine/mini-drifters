@@ -197,7 +197,7 @@ async function check(name, engine) {
     assert.equal(g.track, 'original');
     assert.equal(await focused(page), 'start', 'Start keeps the focus');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['START DRIVING', 'HOW TO PLAY', 'OPTIONS'], 'the menu is unchanged');
+    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'HOW TO PLAY', 'OPTIONS'], 'the menu is v0.2.0\'s, with v0.3.0\'s Practice pad');
     const poster = await stamp(page, POSTER);
     for (const [width, height] of SIZES) {
       await page.setViewportSize({ width, height });
@@ -232,12 +232,14 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowLeft');
     assert.equal(await checked(page), 'original switchback*', 'Left wraps');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'how-to-play', 'Up and Down still walk the menu');
+    assert.equal(await focused(page), 'practice', 'Up and Down still walk the menu');
     await page.keyboard.press('ArrowUp');
     g = await game(page);
     assert.equal(g.state, 'menu');
     assert.equal(g.ticks, 0);
     assert.deepEqual(g.input, NO_KEYS, 'Left and Right on the title are not steering');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await focused(page), 'classic', 'the handling choice sits between Start and the circuits');
     await page.keyboard.press('Shift+Tab');
     assert.equal(await focused(page), 'switchback', 'Tab reaches the chosen circuit');
     await page.keyboard.press('ArrowLeft');

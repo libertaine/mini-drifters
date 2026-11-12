@@ -342,6 +342,30 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 .track:hover span { background: rgba(246, 241, 228, 0.12); }
 .track input:checked + span { background: var(--amber); box-shadow: none; color: var(--charcoal); }
 .track input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 3px; }
+/* Handling: the mode for the next run, styled as the track choice. Its label
+   column matches Track's so the two rows line up. */
+.track-select .track-label, .handling-select .track-label { min-width: 6.4em; }
+.handling-select { display: flex; align-items: center; gap: 14px; margin: 0 0 4px 0.6vw; }
+/* With a wide fallback font the three modes may not fit one line: they wrap rather than spill
+   out of the title column (fitTitle then shrinks the logo to keep everything on screen). */
+.handling-select #handlings { flex-wrap: wrap; row-gap: 6px; min-width: 0; }
+.track-select:has(+ .handling-select) { margin-bottom: clamp(6px, 1.1vh, 12px); }
+.mode { position: relative; display: block; cursor: pointer; transform: skewX(-10deg); }
+.mode input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.mode span {
+  display: block;
+  padding: clamp(4px, 0.7vh, 7px) 11px;
+  box-shadow: inset 0 0 0 2px #6a6b72;
+  font: 400 clamp(14px, 2vh, 21px)/1 var(--poster);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.mode:hover span { background: rgba(246, 241, 228, 0.12); }
+.mode input:checked + span { background: var(--amber); box-shadow: none; color: var(--charcoal); }
+.mode input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 3px; }
+.handling-summary { margin: 0 0 clamp(8px, 1.6vh, 16px) 0.6vw; max-width: 44ch; min-height: 2.8em; font: 400 12px/1.4 var(--body); color: var(--muted); }
 .personal-bests { margin: 0 0 clamp(10px, 1.8vh, 18px) 0.6vw; max-width: 320px; }
 .personal-bests h2 { margin: 0 0 5px; font: 700 12px/1.3 var(--body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
 .personal-bests dl { margin: 0; font-size: 13px; line-height: 1.5; }
@@ -378,6 +402,8 @@ body[data-screen="title"] .overlay:not(.title-screen) {
 .help-grid > section:nth-child(n+3) { border-top: 1px solid var(--rule); padding-top: 10px; }
 .help-grid .keys { font-size: 14px; }
 .help .actions button { margin-top: 12px; }
+.help-note { margin: 6px 0 0; font-size: 13px; line-height: 1.38; color: var(--muted); }
+.help .actions .help-note { margin-top: 12px; }
 
 #sound {
   position: fixed;
@@ -425,6 +451,25 @@ body[data-screen="title"] .overlay:not(.title-screen) {
 #radio-status[data-state="off"], #radio-status[data-state="muted"] { color: var(--muted); }
 #radio-status[data-state="unavailable"] { color: var(--red); }
 
+/* Under the radio note: which mode this run is driving. */
+#handling-status {
+  position: absolute;
+  top: 192px;
+  right: 16px;
+  padding: 4px 12px;
+  border-radius: 5px;
+  background: var(--panel);
+  font: 700 11px var(--body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+/* The practice pad has no laps, score, combo or ghost to show. Speed and drift angle stay. */
+body[data-session="practice"] #hud .laps, body[data-session="practice"] #hud .score,
+body[data-session="practice"] #combo, body[data-session="practice"] #banner,
+body[data-session="practice"] #ghost-status { visibility: hidden; }
+body[data-session="practice"] #handling-status { top: 136px; color: var(--amber); }
+
 /* ---- Options ---- */
 .stations { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .station { position: relative; display: block; cursor: pointer; }
@@ -461,6 +506,14 @@ body[data-screen="title"] .overlay:not(.title-screen) {
   .title { font-size: min(10.2vw, 16vh); }
   .tagline { margin-bottom: 2vh; }
   .controller-note { margin-top: 8px; }
+  /* v0.3.0's handling row and Practice pad need this room with a fallback font and a
+     storage note at 1024x600. Only spacing tightens; every control keeps its size. */
+  .title-menu { gap: 6px; }
+  .track-select:has(+ .handling-select) { margin-bottom: 4px; }
+  .handling-select #handlings { row-gap: 4px; }
+  .handling-summary { margin-bottom: 6px; }
+  .personal-bests { margin-bottom: 6px; }
+  .records-note { margin-top: 4px; }
 }
 
 @media (max-width: 720px), (max-height: 620px) {

@@ -10,6 +10,9 @@ import { DEFAULT_TRACK_ID, TRACKS, projectOnTrack, trackById } from './track.js'
 import { GameAudio } from './audio.js';
 import { RADIO_OFF, STATIONS, hasProvisionalMusic, stationById } from './radio-stations.js';
 import { createTutorial, updateTutorial, skipStep, tutorialView, tutorialEnding } from './tutorial.js';
+import { HANDLING_MODES, handlingById } from './handling.js';
+import { readHandlingPreference, writeHandlingPreference } from './handling-preferences.js';
+import { padTrack } from './practice-pad.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -19,7 +22,10 @@ const ANGLE_GAUGE_MAX = 90;
 
 // The lesson's prompts and checks were written for Original, so it always drives there.
 const LESSON_TRACK_ID = 'original';
+// They were also written for Classic's handbrake technique, so it always drives Classic.
+const LESSON_HANDLING = handlingById('classic');
 
+// Records are kept per track and handling mode (records.js).
 const records = createRecords();
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
@@ -59,6 +65,52 @@ function stepTrack(direction) {
   selectTrack(TRACKS[(i + direction + TRACKS.length) % TRACKS.length].id);
   if (trackInputs.includes(document.activeElement)) trackInputs.find((input) => input.checked).focus();
 }
+
+// --- Handling ----------------------------------------------------------------
+// The mode for the next run, chosen only on the title. Unlike the track it is remembered: a
+// first visit starts on Classic, and later visits on the mode last chosen (handling-preferences.js).
+// A run takes its mode when it starts and keeps it through restarts and Drive again.
+function browserStorage() {
+  try { return window.localStorage; } catch { return null; }
+}
+const preferenceStorage = browserStorage();
+const MENU_MODES = HANDLING_MODES;
+let selectedHandlingId = readHandlingPreference(preferenceStorage);
+
+const handlingInputs = MENU_MODES.map((mode) => {
+  const label = document.createElement('label');
+  label.className = 'mode';
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'handling';
+  input.value = mode.id;
+  input.setAttribute('aria-describedby', 'handling-summary');
+  const name = document.createElement('span');
+  name.textContent = mode.name;
+  label.append(input, name);
+  $('handlings').append(label);
+  input.addEventListener('change', () => selectHandling(mode.id));
+  return input;
+});
+
+function selectHandling(id, { remember = true } = {}) {
+  // A session's mode is fixed: the choice can only change where no session is running.
+  if (game.state !== 'menu' || !handlingById(id)) return;
+  selectedHandlingId = id;
+  // Saved only when the player chooses, never just for loading the page.
+  if (remember) writeHandlingPreference(preferenceStorage, id);
+  for (const input of handlingInputs) input.checked = input.value === id;
+  setText('handling-summary', handlingById(id).summary);
+  showPersonalBests();
+}
+
+function stepHandling(direction) {
+  const i = MENU_MODES.findIndex((m) => m.id === selectedHandlingId);
+  selectHandling(MENU_MODES[(i + direction + MENU_MODES.length) % MENU_MODES.length].id);
+  if (handlingInputs.includes(document.activeElement)) handlingInputs.find((input) => input.checked).focus();
+}
+
+const selectedHandling = () => handlingById(selectedHandlingId);
 
 // --- Sound -----------------------------------------------------------------
 const soundButton = $('sound');
@@ -137,19 +189,36 @@ function clearInput() {
   arbiter.reset();
 }
 
+// The kind of session is the run's own `game.mode`: 'normal' (a scored circuit run),
+// 'tutorial', or 'practice' (the pad: free driving, never scored, timed or saved). The records
+// keeper only listens to 'normal'.
+
 function beginRun() {
   doneOpen = false;
   tutorial = null;
-  startRun(game, { track: trackById(selectedTrackId) });
+  startRun(game, { track: trackById(selectedTrackId), handling: selectedHandling() });
   resetEffects(renderer, game.car);
   clearInput();
   syncScreens();
   audio.newRun(game);
 }
 
+// The practice pad: the selected mode on open asphalt. No ghost, no laps, no records.
+function beginPractice() {
+  doneOpen = false;
+  tutorial = null;
+  startRun(game, { track: padTrack(), mode: 'practice', ghost: false, handling: selectedHandling() });
+  resetEffects(renderer, game.car);
+  clearInput();
+  syncScreens();
+  audio.newRun(game);
+}
+
+// Same track, same mode, same kind of session: only the car and the run start over.
 function restart() {
   clearInput();
-  restartRun(game, { ghost: !tutorial, mode: tutorial ? 'tutorial' : 'normal' }); // a lesson leaves no ghost behind
+  const kind = tutorial ? 'tutorial' : game.mode;
+  restartRun(game, { ghost: kind === 'normal', mode: kind }); // a lesson or the pad leaves no ghost behind
   resetEffects(renderer, game.car);
   syncScreens();
   audio.newRun(game);
@@ -165,7 +234,8 @@ const DONE_KEY_GUARD_MS = 500; // the player was just driving, and may still be 
 function startTutorial() {
   doneOpen = false;
   tutorial = createTutorial();
-  startRun(game, { ghost: false, track: trackById(LESSON_TRACK_ID), mode: 'tutorial' });
+  // Always Classic, whichever mode is selected on the title; the selection itself is left alone.
+  startRun(game, { ghost: false, track: trackById(LESSON_TRACK_ID), mode: 'tutorial', handling: LESSON_HANDLING });
   resetEffects(renderer, game.car);
   clearInput();
   syncScreens();
@@ -265,20 +335,26 @@ function closeHelp({ restoreFocus = true } = {}) {
   helpOpener = null;
 }
 
+// The title's Up/Down stops: the chosen handling mode, then the menu buttons.
+function titleStops() {
+  const mode = handlingInputs.find((input) => input.checked);
+  return [mode, ...document.querySelectorAll('.title-menu button')].filter((el) => el && el.getClientRects().length);
+}
+
 // Up and Down walk the title's menu, wrapping at the ends.
 function moveMenuFocus(direction) {
-  const buttons = [...document.querySelectorAll('.title-menu button')];
+  const buttons = titleStops();
   const current = buttons.indexOf(document.activeElement);
   const next = current < 0 ? (direction > 0 ? 0 : buttons.length - 1) : (current + direction + buttons.length) % buttons.length;
   buttons[next].focus();
 }
 
 // These keep Enter, and Space when the car isn't being driven, for their own use.
-const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #again, #resume, #restart, .return-title, #tutorial-skip');
+const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #practice, #again, #resume, #restart, .return-title, #tutorial-skip');
 
 // While driving, Space is always the handbrake, even with the Sound button focused.
 function buttonOwnsSpace(e) {
-  if (game.state === 'menu') return e.target instanceof HTMLButtonElement || trackInputs.includes(e.target);
+  if (game.state === 'menu') return e.target instanceof HTMLButtonElement || trackInputs.includes(e.target) || handlingInputs.includes(e.target);
   return keepsKeys(e.target) && (game.paused || game.state === 'finished');
 }
 
@@ -322,7 +398,8 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
-  if (tutorial && !game.paused && e.code === 'Escape' && !e.repeat) {
+  // The lesson and the practice pad have nothing to finish, so Esc leaves them directly.
+  if ((tutorial || game.mode === 'practice') && game.state !== 'menu' && !game.paused && e.code === 'Escape' && !e.repeat) {
     e.preventDefault();
     returnToTitle();
     return;
@@ -334,7 +411,16 @@ window.addEventListener('keydown', (e) => {
   }
   if (game.state === 'menu' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
     e.preventDefault();
-    if (!e.repeat) stepTrack(e.code === 'ArrowRight' ? 1 : -1);
+    // Left and Right change the track, unless the handling choice has the focus.
+    const direction = e.code === 'ArrowRight' ? 1 : -1;
+    if (!e.repeat) {
+      if (handlingInputs.includes(document.activeElement)) stepHandling(direction);
+      else stepTrack(direction);
+    }
+    return;
+  }
+  if (game.state === 'menu' && e.code === 'KeyH' && !e.repeat && !(e.ctrlKey || e.metaKey || e.altKey)) {
+    stepHandling(e.shiftKey ? -1 : 1);
     return;
   }
   const held = CODE_TO_KEY[e.code];
@@ -413,6 +499,7 @@ window.addEventListener('resize', () => { resize(renderer); fitTitle(); });
 $('resume').addEventListener('click', pauseOrResume);
 $('restart').addEventListener('click', restart);
 $('start').addEventListener('click', beginRun);
+$('practice').addEventListener('click', beginPractice);
 $('again').addEventListener('click', beginRun);
 soundButton.addEventListener('click', (e) => {
   audio.setMuted(!audio.muted && !audio.failure, game);
@@ -484,8 +571,8 @@ function controllerSheet() {
 }
 
 function menuControls(sheet) {
-  const selector = sheet === $('menu') ? '.title-menu button' : 'button, input';
-  return [...sheet.querySelectorAll(selector), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
+  if (sheet === $('menu')) return [...titleStops(), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
+  return [...sheet.querySelectorAll('button, input'), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
 }
 
 function controllerMenu(pressed, sheet) {
@@ -505,7 +592,14 @@ function controllerMenu(pressed, sheet) {
   const controls = menuControls(sheet);
   const current = controls.indexOf(document.activeElement);
   const horizontal = pressed.right ? 1 : pressed.left ? -1 : 0;
-  if (horizontal && sheet === $('menu')) { stepTrack(horizontal); return; }
+  if (horizontal && sheet === $('menu')) {
+    // As on the keyboard: the track, unless the handling choice has the focus.
+    if (handlingInputs.includes(document.activeElement)) {
+      stepHandling(horizontal);
+      controllerFocus(handlingInputs.find((input) => input.checked));
+    } else stepTrack(horizontal);
+    return;
+  }
   if (horizontal && document.activeElement instanceof HTMLInputElement) {
     const el = document.activeElement;
     if (el.type === 'range') {
@@ -621,15 +715,22 @@ function syncScreens() {
     clearInput();
   }
   document.body.dataset.screen = state === 'menu' ? 'title' : 'game';
+  // The HUD hides laps, score and combo on the pad, and names the mode.
+  const practice = state !== 'menu' && !tutorial && game.mode === 'practice';
+  document.body.dataset.session = state === 'menu' ? 'none' : tutorial ? 'tutorial' : game.mode;
+  setText('handling-status', practice ? `Practice · ${game.handling.name}` : game.handling.name);
+  $('handling-status').title = `Handling: ${game.handling.name}. Change it on the title screen.`;
   $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen;
   if (!$('menu').hidden) fitTitle();
   $('help').hidden = !helpOpen;
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
   $('ghost-status').hidden = !!tutorial;
-  setText('paused-note', instructionDevice === 'controller'
-    ? tutorial ? 'Menu to carry on, or Restart at the grid. You keep your place in the lesson.' : 'Menu to carry on, or Restart to start over.'
-    : tutorial ? 'Press P to carry on, or R to go back to the grid. You keep your place in the lesson.' : 'Press P to carry on, or R to start over.');
+  setText('paused-note', practice
+    ? (instructionDevice === 'controller' ? 'Practice pad. Menu to carry on, or Restart to put the car back.' : 'Practice pad. Press P to carry on, or R to put the car back.')
+    : instructionDevice === 'controller'
+      ? tutorial ? 'Menu to carry on, or Restart at the grid. You keep your place in the lesson.' : 'Menu to carry on, or Restart to start over.'
+      : tutorial ? 'Press P to carry on, or R to go back to the grid. You keep your place in the lesson.' : 'Press P to carry on, or R to start over.');
   // The HUD stops updating on the menu, so nothing of it may be left showing.
   if (state === 'menu') {
     $('prompt').hidden = true;
@@ -646,13 +747,15 @@ function syncScreens() {
   startTabAt(optionsOpen ? null : paused ? $('paused') : finished ? $('results') : null);
 }
 
+// The title shows one partition: the selected track with the selected mode.
 function showPersonalBests() {
-  const best = records.forTrack(selectedTrackId);
-  setText('records-heading', `${trackById(selectedTrackId).name} — Personal bests`);
+  const best = records.forTrack(selectedTrackId, selectedHandlingId);
+  setText('records-heading', `${trackById(selectedTrackId).name} · ${selectedHandling().name} — Personal bests`);
   setText('pb-score', best.score === null ? '--' : formatNumber(best.score));
   setText('pb-lap', formatTime(best.fastestLap));
   setText('pb-combo', best.bestCombo === null ? '--' : formatNumber(best.bestCombo));
-  const note = records.available ? '' : 'Record storage unavailable. New improvements cannot be saved.';
+  const note = !records.available ? 'Record storage unavailable. New improvements cannot be saved.'
+    : records.readOnly ? 'Records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.' : '';
   setText('records-note', note);
   setText('results-records-note', note);
 }
@@ -665,6 +768,7 @@ function showResults() {
   setText('r-combo', r.bestCombo ? `${formatNumber(r.bestCombo)} (×${r.bestMultiplier})` : 'None');
   setText('r-spins', String(r.spinouts));
   setText('remark', r.remark);
+  setText('r-mode', `${game.track.name} · ${game.handling.name} handling`);
   const voided = r.voidedLaps > 0;
   $('r-void').hidden = !voided;
   if (voided) {
@@ -751,6 +855,17 @@ function updatePrompt() {
   }
   let text = '';
   let kind = '';
+  // The pad has no direction, laps or clock, so it has no warnings either: only a hint at the start.
+  if (game.mode === 'practice') {
+    if (game.state === 'ready') {
+      text = instructionDevice === 'controller'
+        ? `Practice pad · ${game.handling.name}. Free driving: nothing is timed or saved. Menu to pause or leave.`
+        : `Practice pad · ${game.handling.name}. Free driving: nothing is timed or saved. R puts the car back · P pause · Esc title`;
+    }
+    el.hidden = !text;
+    if (text) { setText('prompt', text); el.dataset.kind = ''; }
+    return;
+  }
   if (game.state === 'ready') {
     text = instructionDevice === 'controller' ? 'Press RT to go. The clock starts when you move.' : 'Press ↑ to go. The clock starts when you move.';
   } else if (game.state === 'racing') {
@@ -813,6 +928,8 @@ function updateDebug() {
     ['brake', car.brake.toFixed(2)],
     ['handbrake', car.handbrake ? 'ON' : 'off'],
     ['rear grip', car.rearGrip.toFixed(2)],
+    ['handling', `${game.handling.id} (${game.mode})`],
+    ['wheelspin', car.wheelspin === undefined ? 'n/a' : car.wheelspin.toFixed(2)],
     ['traction', car.traction.toFixed(2)],
     ['surface', car.surface],
     ['drift', scoring.qualification],
@@ -854,10 +971,12 @@ function frame(now) {
 }
 
 selectTrack(selectedTrackId);
+selectHandling(selectedHandlingId, { remember: false });
 syncScreens();
 showGhostStatus();
 showSound(audio.snapshot());
 $('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
-window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId, drawnTrack: () => renderer.track.id, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
+window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
+  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode, drawnTrack: () => renderer.track.id, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
 requestAnimationFrame(frame);

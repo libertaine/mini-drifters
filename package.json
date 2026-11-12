@@ -18,6 +18,7 @@
     "test:radio:browser": "node test/radio-browser.mjs",
     "test:tutorial:browser": "node test/tutorial-browser.mjs",
     "test:tracks:browser": "node test/tracks-browser.mjs",
-    "test:scoring:browser": "node test/scoring-browser.mjs"
+    "test:scoring:browser": "node test/scoring-browser.mjs",
+    "test:handling:browser": "node test/handling-browser.mjs"
   }
 }

@@ -2,6 +2,7 @@
 // minimap. Nothing here feeds back into the simulation.
 import { TUNING } from './tuning.js';
 import { ghostDisplay } from './ghost.js';
+import { drawPad } from './practice-pad.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -654,7 +655,7 @@ function drawMinimap(r, car, ghost) {
   ctx.strokeStyle = 'rgba(246,241,228,0.85)';
   ctx.lineWidth = 3.4 / scale;
   ctx.lineJoin = 'round';
-  ctx.stroke(r.course.road);
+  if (!track.pad) ctx.stroke(r.course.road);
   if (ghost) {
     ctx.fillStyle = GHOST_COLORS.body;
     ctx.beginPath();
@@ -863,7 +864,8 @@ export function drawFrame(r, game, alpha, dt, debug) {
   ctx.scale(r.cam.zoom, r.cam.zoom);
   ctx.translate(-r.cam.x, -r.cam.y);
   drawGrass(r);
-  drawRoad(ctx, r.course);
+  if (r.track.pad) drawPad(ctx, r.track);
+  else drawRoad(ctx, r.course);
   drawSkids(r);
   drawWall(r);
   if (ghost) drawGhost(r, ghost);

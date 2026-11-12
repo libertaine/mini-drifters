@@ -7,7 +7,7 @@ import { TUNING as T } from '../src/tuning.js';
 import { trackById } from '../src/track.js';
 import { createGame, startRun, returnToMenu, tick, countedScore } from '../src/game.js';
 import { bankCombo } from '../src/scoring.js';
-import { createRecords, RECORDS_KEY } from '../src/records.js';
+import { createRecords, RECORDS_KEY, LEGACY_RECORDS_KEY } from '../src/records.js';
 import { driftDriver } from './support/drivers.mjs';
 import { cutterDriver } from './support/exploit-drivers.mjs';
 
@@ -19,7 +19,8 @@ const BACK_CUTS = { original: { from: 740, to: 662 }, switchback: { from: 920, t
 
 function store(raw = null) {
   return { raw, writes: 0,
-    getItem(key) { assert.equal(key, RECORDS_KEY); return this.raw; },
+    // The v0.2.0 key is read (empty here) and never written.
+    getItem(key) { assert.ok(key === RECORDS_KEY || key === LEGACY_RECORDS_KEY, key); return key === RECORDS_KEY ? this.raw : null; },
     setItem(key, value) { assert.equal(key, RECORDS_KEY); this.raw = value; this.writes += 1; },
   };
 }
@@ -72,7 +73,7 @@ for (const trackId of ['original', 'switchback']) {
     assert.equal(game.results.forfeited, voided.points);
     assert.equal(game.results.score, game.scoring.score - voided.points);
     assert.equal(game.results.score, counted.reduce((sum, l) => sum + l.points, 0));
-    const best = records.forTrack(trackId);
+    const best = records.forTrack(trackId, 'classic');
     assert.equal(best.score, game.results.score);
     assert.ok(best.score < game.scoring.score, 'the record is below the raw score');
 
@@ -99,10 +100,10 @@ for (const trackId of ['original', 'switchback']) {
     assert.equal(game.laps.completed, T.runLaps);
     const forfeited = laps.filter((l) => l.result === 'void').reduce((sum, l) => sum + l.points, 0);
     assert.ok(forfeited > 0);
-    assert.equal(records.forTrack(trackId).score, game.scoring.score - forfeited);
-    assert.equal(records.forTrack(trackId).score, game.results.score);
-    assert.ok(records.forTrack(trackId).score <= 2 * clean.records.forTrack(trackId).score,
-      `record ${records.forTrack(trackId).score} after farming; a clean run records ${clean.records.forTrack(trackId).score}`);
+    assert.equal(records.forTrack(trackId, 'classic').score, game.scoring.score - forfeited);
+    assert.equal(records.forTrack(trackId, 'classic').score, game.results.score);
+    assert.ok(records.forTrack(trackId, 'classic').score <= 2 * clean.records.forTrack(trackId, 'classic').score,
+      `record ${records.forTrack(trackId, 'classic').score} after farming; a clean run records ${clean.records.forTrack(trackId, 'classic').score}`);
   });
 
   test(`${trackId}: cutting back across the infield, then finishing normally, records what the checkpoints allow`, () => {
@@ -121,7 +122,7 @@ for (const trackId of ['original', 'switchback']) {
     assert.equal(game.laps.voided, 0);
     assert.deepEqual(laps.map((l) => l.result), ['lap', 'lap', 'lap']);
     assert.equal(game.results.score, game.scoring.score, 'no lap was voided, so nothing is handed back');
-    assert.deepEqual(records.forTrack(trackId),
+    assert.deepEqual(records.forTrack(trackId, 'classic'),
       { score: game.results.score, fastestLap: game.results.bestLap, bestCombo: game.results.bestCombo });
   });
 }
@@ -138,7 +139,7 @@ test('original: a huge combo banked on a voided lap never reaches the combo or s
   const laps = play(game, driver);
   assert.equal(laps[0].result, 'void');
   assert.ok(game.results.forfeited >= 60000);
-  const best = records.forTrack('original');
+  const best = records.forTrack('original', 'classic');
   assert.ok(best.bestCombo < 60000, `recorded a ${best.bestCombo} combo`);
   assert.equal(best.bestCombo, game.results.bestCombo);
   assert.equal(best.score, game.results.score);
@@ -152,8 +153,8 @@ test('switchback: leaving after a voided lap and a counted one keeps the counted
   assert.deepEqual(laps.map((l) => l.result), ['void', 'lap']);
   assert.ok(countedScore(game) > 0);
   returnToMenu(game);
-  assert.deepEqual(records.forTrack('switchback'), { score: null, fastestLap: laps[1].time, bestCombo: null });
-  assert.deepEqual(records.forTrack('original'), { score: null, fastestLap: null, bestCombo: null });
+  assert.deepEqual(records.forTrack('switchback', 'classic'), { score: null, fastestLap: laps[1].time, bestCombo: null });
+  assert.deepEqual(records.forTrack('original', 'classic'), { score: null, fastestLap: null, bestCombo: null });
   assert.equal(storage.writes, 1, 'only the counted lap time was written');
 });
 
@@ -174,16 +175,17 @@ test('a failed write after a voided-lap run claims no NEW BEST, and records surv
   play(first.game, skipOnce('original'));
   const saved = storage.raw;
   const reloaded = createRecords(() => storage);
-  assert.deepEqual(reloaded.forTrack('original'),
+  assert.deepEqual(reloaded.forTrack('original', 'classic'),
     { score: first.game.results.score, fastestLap: first.game.results.bestLap, bestCombo: first.game.results.bestCombo });
 
   assert.equal(storage.raw, saved, 'reading does not write');
 
   // A full store holding weak bests: the voided-lap run beats all three, but nothing can be
-  // saved, so nothing is claimed and the saved bests stand.
+  // saved, so nothing is claimed and the saved bests stand. The weak bests are a v0.2.0 save,
+  // so this also covers a failed first write after the migration.
   const weak = { score: 1, fastestLap: 999, bestCombo: 1 };
   const weakRaw = JSON.stringify({ version: 1, tracks: { original: weak, switchback: { score: null, fastestLap: null, bestCombo: null } } });
-  const full = { getItem: () => weakRaw, setItem: () => { throw new Error('quota'); } };
+  const full = { getItem: (key) => (key === LEGACY_RECORDS_KEY ? weakRaw : null), setItem: () => { throw new Error('quota'); } };
   const second = rig('original', full);
   startRun(second.game);
   play(second.game, skipOnce('original'));
@@ -191,5 +193,5 @@ test('a failed write after a voided-lap run claims no NEW BEST, and records surv
   assert.ok(second.game.results.score > weak.score && second.game.results.bestLap < weak.fastestLap && second.game.results.bestCombo > weak.bestCombo);
   assert.equal(second.records.available, false);
   assert.deepEqual(second.records.newBests, { score: false, fastestLap: false, bestCombo: false });
-  assert.deepEqual(second.records.forTrack('original'), weak);
+  assert.deepEqual(second.records.forTrack('original', 'classic'), weak);
 });

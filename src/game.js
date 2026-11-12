@@ -7,11 +7,15 @@ import { DEFAULT_TRACK_ID, trackById, projectOnTrack, surfaceFromDistance, track
 import { createLaps, updateLaps } from './laps.js';
 import { createScoring, updateScoring, bankCombo, loseCombo, currentMultiplier } from './scoring.js';
 import { createGhost, beginGhostRecording, recordGhostTick } from './ghost.js';
+import { DEFAULT_HANDLING } from './handling.js';
 
 export const NO_INPUT = Object.freeze({ up: false, down: false, left: false, right: false, handbrake: false });
 
-export function createGame(track = trackById(DEFAULT_TRACK_ID), { onRunEvent = null } = {}) {
-  const game = { onRunEvent, track, state: 'menu', paused: false, ghostVisible: true };
+// `handling` is the mode the car is driven with (handling.js). A run takes it when it starts and
+// keeps it until the next start: the car's tuning is fixed from it in resetRun, so nothing can
+// change it mid-run. The rules (scoring, barriers, session length) always read TUNING.
+export function createGame(track = trackById(DEFAULT_TRACK_ID), { onRunEvent = null, handling = DEFAULT_HANDLING } = {}) {
+  const game = { onRunEvent, track, handling, mode: 'normal', state: 'menu', paused: false, ghostVisible: true };
   resetRun(game);
   game.state = 'menu';
   return game;
@@ -19,6 +23,8 @@ export function createGame(track = trackById(DEFAULT_TRACK_ID), { onRunEvent = n
 
 function resetRun(game) {
   const { track } = game;
+  // The only place the car's tuning is set: a fresh car, driven by the session's mode.
+  game.tuning = game.handling.tuning;
   game.car = createCar(track.start);
   updateDerived(game.car);
   game.prev = { x: game.car.x, y: game.car.y, heading: game.car.heading };
@@ -53,21 +59,25 @@ function resetRun(game) {
   game.credited = 0;       // all the new ground the scoring has been given this run
   game.progressRate = 0;   // smoothed along-track speed
   game.lastImpact = 0;
-  game.ghost = createGhost(track);
+  game.ghost = createGhost(track, game.tuning);
   game.runId = (game.runId ?? 0) + 1;
 }
 
 // Start (or restart) a run. The clock waits on the grid for the first pedal press.
 // A run that shouldn't leave a ghost behind passes { ghost: false }, and a run on another
-// circuit passes { track }. Lessons explicitly pass { mode: 'tutorial' } for observers.
+// circuit passes { track }. Lessons explicitly pass { mode: 'tutorial' } for observers, and
+// the practice pad passes { mode: 'practice' }, which is never scored, timed or lapped (tick).
+// { handling } chooses the car's mode; without it the run keeps the mode it had.
 // Everything about the session is rebuilt either way, so nothing
 // from the last circuit's run carries over. Without { track }, the run stays where it was.
-export function startRun(game, { ghost = true, track = game.track, mode = 'normal' } = {}) {
+export function startRun(game, { ghost = true, track = game.track, mode = 'normal', handling = game.handling } = {}) {
   game.track = track;
+  game.handling = handling;
+  game.mode = mode;
   resetRun(game);
-  if (!ghost) game.ghost = null;
+  if (!ghost || mode === 'practice') game.ghost = null;
   game.state = 'ready';
-  game.onRunEvent?.({ type: 'start', trackId: track.id, runId: game.runId, mode });
+  game.onRunEvent?.({ type: 'start', trackId: track.id, runId: game.runId, mode, handling: handling.id });
 }
 
 export const restartRun = startRun;
@@ -163,7 +173,7 @@ export function tick(game, input = NO_INPUT) {
 
   const ax = car.x;
   const ay = car.y;
-  stepCar(car, input, surfaceFromDistance(track, game.trackInfo.distance), dt, T);
+  stepCar(car, input, surfaceFromDistance(track, game.trackInfo.distance), dt, game.tuning);
   const impact = resolveBarrier(game);
   if (impact > 0) updateDerived(car);
   game.lastImpact = impact;
@@ -191,6 +201,8 @@ export function tick(game, input = NO_INPUT) {
   if (!racing) return;
 
   game.runTime += dt;
+  // Practice is free driving: no score, combo, lap, ghost or finish is ever kept for it.
+  if (game.mode === 'practice') return;
   const scoreBefore = game.scoring.score;
   updateScoring(game.scoring, {
     speed: car.speed,
@@ -209,7 +221,7 @@ export function tick(game, input = NO_INPUT) {
     settleLap(game, lapResult);
     game.lapEvent = lapResult;
     game.lapEventSerial += 1;
-    game.onRunEvent?.({ type: 'lap', trackId: track.id, runId: game.runId, valid: lapResult === 'lap', time: game.laps.lastLap });
+    game.onRunEvent?.({ type: 'lap', trackId: track.id, runId: game.runId, handling: game.handling.id, valid: lapResult === 'lap', time: game.laps.lastLap });
   }
   // The ghost gets copies of these numbers and hands nothing back to the simulation.
   if (game.ghost) recordGhostTick(game.ghost, car.x, car.y, car.heading, lapResult);
@@ -284,7 +296,7 @@ function finishRun(game) {
     forfeited: game.forfeited,
     remark: remarkFor(score, scoring.spinouts),
   };
-  game.onRunEvent?.({ type: 'finish', trackId: game.track.id, runId: game.runId, completed: laps.completed, score: game.results.score, bestCombo: game.results.bestCombo });
+  game.onRunEvent?.({ type: 'finish', trackId: game.track.id, runId: game.runId, handling: game.handling.id, completed: laps.completed, score: game.results.score, bestCombo: game.results.bestCombo });
 }
 
 // Consume real frame time in fixed steps. Rendering speed never changes the

@@ -31,8 +31,11 @@ function fingerprint(text) {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-// Identifies the circuit by its geometry and the rules by their tuning values. Both
-// change on their own when those do. Neither covers changes to the physics code.
+// Identifies the circuit by its geometry and the rules by the tuning values the lap was
+// driven with: the handling mode's tuning (handling.js), which holds every rule as well as the
+// car's physics. Both change on their own when those do, so a lap driven in one handling mode
+// is never shown in another, and Classic's identity is v0.2.0's. Neither covers changes to the
+// physics code.
 const trackIds = new WeakMap();
 function trackIdentity(track) {
   if (!trackIds.has(track)) {
@@ -40,7 +43,11 @@ function trackIdentity(track) {
   }
   return trackIds.get(track);
 }
-const RULES_IDENTITY = fingerprint(JSON.stringify(TUNING));
+const rulesIds = new WeakMap();
+function rulesIdentity(tuning) {
+  if (!rulesIds.has(tuning)) rulesIds.set(tuning, fingerprint(JSON.stringify(tuning)));
+  return rulesIds.get(tuning);
+}
 
 function newRecording(ghost, x, y, heading) {
   const recording = {
@@ -66,10 +73,10 @@ function addSample(recording, tick, x, y, heading) {
   recording.heading.push(heading);
 }
 
-export function createGhost(track) {
+export function createGhost(track, tuning = TUNING) {
   return {
     track: trackIdentity(track),
-    rules: RULES_IDENTITY,
+    rules: rulesIdentity(tuning),
     recording: null,   // the lap being driven now
     replay: null,      // the last valid lap, shown as the ghost
     lapTick: 0,        // ticks since this lap's timer started

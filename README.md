@@ -29,11 +29,12 @@ It runs in a desktop browser with a keyboard or a standard-mapped controller (co
 | G | Show or hide the ghost |
 | N | Next radio station |
 | O | Options, from the title, pause or results screen |
+| H | Next handling mode, on the title (Shift+H goes back) |
 | D | Debug display |
 
 Enter also starts a run from the title and results screens.
 
-On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. **How to Play** has the controls and scoring, and Esc goes back.
+On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. Up from **Start driving** reaches the handling choice. **How to Play** has the controls and scoring, and Esc goes back.
 
 ### Controller
 
@@ -48,7 +49,7 @@ then release all controls before using it. Compatibility depends on browser and 
 | A | Handbrake while driving; Confirm in menus |
 | B | Back / Close; Resume from Pause; Title from Results |
 | Menu / Start | Pause / Resume |
-| D-pad | Menu navigation; Left/Right selects track or adjusts Options |
+| D-pad | Menu navigation; Left/Right selects track (or handling, when it's focused) or adjusts Options |
 | X / Y | Toggle ghost / Next radio station while driving |
 
 Use the pause menu for Restart, Return to Title and tutorial Skip. Keyboard driving
@@ -73,6 +74,27 @@ The title screen has a **Track** choice under the tagline: **Original** or **Swi
 
 Switchback trades Original's long bends and hairpin for a staircase of linked medium corners and one tight right. See [the Switchback notes](docs/SWITCHBACK.md).
 
+### Choosing handling
+
+Under the track is a **Handling** choice, with a one-line description of each:
+
+- **Classic**: familiar, handbrake-focused drifting with forgiving handling. This is the handling of v0.2.0 and earlier, unchanged.
+- **Power**: break rear traction with throttle. More control, more consequences. At lower speeds the throttle can spin the rear wheels and start a slide, and the pedal sets the angle; the handbrake still works too.
+
+Neither is the "right" one: they are two ways to drive the same car.
+
+Press **H** (Shift+H goes back), click one, or press Up from **Start driving** and then Left or Right. On a controller, D-pad Up from Start driving reaches it.
+
+- A first visit starts on Classic. After that the game remembers the handling you chose last, in this browser.
+- A run keeps its handling through Restart and Drive Again. Use **Return to Title** to change it.
+- The HUD names the handling, and the results say which track and handling the run used.
+- The Try It lesson always uses Classic, because it teaches the handbrake technique. How to Play says so, and the lesson doesn't change your chosen handling.
+- Each track and handling pair keeps its own personal bests (below). Scores from different handling modes aren't comparable.
+
+### Practice pad
+
+**Practice pad** on the title opens a square of open asphalt with a few cones: a ring to circle, a figure-eight, a gate to turn back through and a slalom. It uses the chosen handling. There are no laps, score, ghost or records, and nothing is timed or saved. R puts the car back, P pauses, and Esc goes back to the title.
+
 **Return to Title** is on the pause and results screens, so leaving a run no longer takes a reload.
 
 The **Sound** button under the score is the master switch for all sound, and remembers your choice. It works with the mouse, or with Tab and Enter.
@@ -89,7 +111,7 @@ The longer you pull, the bigger the slide. A very short tap only unsettles the c
 
 ### Try It
 
-**Try It** on the How to Play screen starts an optional five-step lesson: accelerate, steer, start a slide, countersteer and bank the points. It's the real car, track and scoring, there's no time limit, and each step waits until you've really done it.
+**Try It** on the How to Play screen starts an optional five-step lesson: accelerate, steer, start a slide, countersteer and bank the points. It's the real car, track and scoring, there's no time limit, and each step waits until you've really done it. The lesson always drives Original with Classic handling, whatever you've chosen on the title, and leaves your choice as it was.
 
 While you're in the lesson, Esc leaves it, R goes back to the grid and keeps your place, and P pauses. The pause screen can also skip a step. A lesson records no ghost, and nothing from it carries into your next run.
 
@@ -109,14 +131,15 @@ While you're in the lesson, Esc leaves it, R goes back to the grid and keeps you
 
 ### Personal bests
 
-Original and Switchback each keep three local records: highest final score and best
+Each track and handling pair (for example Original with Power) keeps three local records: highest final score and best
 banked combo from a completed three-lap run, counting only the laps that counted, plus
 the fastest valid lap. A valid lap
 is saved as it finishes even if you later restart or leave the run; voided and
 incomplete laps never count. Abandoned runs do not set score or combo records,
-and Try It lessons never set any records.
+and Try It lessons and the practice pad never set any records.
 
-The title shows the selected track's saved bests (`--` until set). Results mark
+The title shows the saved bests for the selected track and handling (`--` until set).
+Records saved by v0.2.0 appear under Classic. Results mark
 saved improvements with `NEW BEST`. Records use this browser/device's localStorage;
 they persist across reloads and browser restarts. Clearing browser storage removes
 them. They are not an online leaderboard and do not sync between browsers or devices.
@@ -176,6 +199,8 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 
 `npm run test:records:browser` checks per-track saving, reloads, qualification, storage failures and controller navigation in Chromium and Firefox.
 
+`npm run test:handling:browser` checks choosing handling by keyboard, mouse and controller, remembering the choice, the practice pad, the lesson staying on Classic, records kept apart by handling, and the migration of v0.2.0 records, in Chromium and Firefox.
+
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
 Changes reach `main` through a pull request, and the `test` check must pass before it can merge.
@@ -186,9 +211,12 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 |---|---|
 | `src/tuning.js` | Every handling and scoring number, with comments |
 | `src/physics.js` | The car |
+| `src/handling.js` | The handling modes: each one a named, fixed set of car tuning |
+| `src/handling-preferences.js` | Remembers the last chosen handling mode |
+| `src/practice-pad.js` | The practice pad's surface and markers |
 | `src/track.js`, `src/laps.js` | The two circuits and lap validation |
 | `src/scoring.js` | Drift detection and combos |
-| `src/records.js` | Versioned local personal bests and run qualification |
+| `src/records.js` | Local personal bests by track and handling, run qualification, and reading v0.2.0's records |
 | `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
 | `src/tutorial.js` | The driving lesson. It watches a session and never writes to it |
@@ -209,10 +237,11 @@ The car is a lightweight two-axle model. Heading and velocity are separate, and 
 - **Throttle in a slide:** once the rear has broken loose, throttle keeps it loose and lifting lets it hook back up. Throttle sets the angle, and steering sets the direction.
 - **Countersteer:** steering toward a slide earns extra wheel angle, which lets the rear catch up.
 - **Arcade help:** the front wheels trail the slide slightly, and a mild pull straightens the nose past 48° of slip unless the handbrake is held.
+- **Power handling** (internal id `revised`) adds one thing: the rear tyres share a grip budget between driving and cornering, and asking for more throttle than they can take, below about 29 m/s, spins the wheels up gradually. Spinning wheels corner less well. Classic never enters this code.
 
 ### Tuning
 
-These values in `src/tuning.js` have the most effect on feel:
+These values in `src/tuning.js` have the most effect on feel. They are Classic's, and the other handling modes in `src/handling.js` start from them:
 
 | Constant | Effect |
 |---|---|
@@ -222,7 +251,7 @@ These values in `src/tuning.js` have the most effect on feel:
 | `yawDamping`, `yawInertia` | How eagerly the car rotates, and how quickly rotation settles |
 | `counterSteerAuthority`, `casterAssist` | How forgiving catching a slide is |
 
-Several tests check that drifts stay holdable and that controlled driving out-scores handbrake abuse, so run them after changing these.
+Several tests check that drifts stay holdable and that controlled driving out-scores handbrake abuse, so run them after changing these. `test/handling.test.mjs` pins every handling mode's numbers, because records are only comparable while they hold: a change big enough to matter should get a new mode id, not new numbers under the old one.
 
 ## Known limitations
 
@@ -231,7 +260,10 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 - Fishtailing down a straight still scores. It costs speed, but it isn't prevented.
 - A careful driver can occasionally slide by accident and score, and a bad drifting run can score less than a good reckless one.
 - Drifting is slower than grip driving in the scripted test runs, so points and lap time pull in different directions.
-- Desktop keyboard and standard-mapped controllers are supported. The track choice is not saved; personal records stay local to this browser/device.
+- Desktop keyboard and standard-mapped controllers are supported. The track choice is not saved; the handling choice and personal records stay local to this browser/device.
+- Records are saved to a new storage key from v0.3.0. If an older version is opened, it shows only the records it saved itself. Nothing is lost, and the newer version shows both.
+- Scoring was tuned for Classic. Power uses the same scoring rules, so its scores aren't comparable with Classic's, and each keeps its own records.
+- The Try It lesson teaches Classic only. A lesson for Power's throttle technique may come later.
 - Owner review covered controller driving and drifting on both tracks; every physical disconnect/reconnect scenario was not explicitly verified.
 
 ## License

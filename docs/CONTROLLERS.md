@@ -25,7 +25,7 @@ Unmapped devices, wheels and unusual adapters are not supported.
 | Y (top face button) | Next radio station | — |
 | Menu / Start | Pause | Resume from Pause |
 | D-pad Up / Down | — | Move focus (one step per press) |
-| D-pad Left / Right | — | Choose track on title; change station or volume in Options; move between other actions |
+| D-pad Left / Right | — | Choose track on title (or handling, Classic or Power, when it has the focus: D-pad Up from Start driving); change station or volume in Options; move between other actions |
 
 Restart, Return to Title, lesson Skip, Resume and Sound are reachable through menu
 focus. The five tutorial concepts still require real movement, slides, countersteering
