@@ -36,7 +36,7 @@ const ORIGIN = new URL(BASE).origin;
 
 const SIZES = [[1920, 1080], [1366, 768], [1024, 600]];
 const NO_KEYS = { up: false, down: false, left: false, right: false, handbrake: false };
-const TITLE_CONTROLS = ['#start', '#how-to-play', '#menu .options-open'];
+const TITLE_CONTROLS = ['#start', '#practice', '#how-to-play', '#menu .options-open'];
 
 const visible = (page, id) => page.locator(`#${id}`).isVisible();
 const game = (page) => page.evaluate(() => {
@@ -44,10 +44,14 @@ const game = (page) => page.evaluate(() => {
   return { state: g.state, paused: g.paused, ticks: g.ticks, speed: g.car.speed, runTime: g.runTime, input: { ...input } };
 });
 const focused = (page) => page.evaluate(() => document.activeElement.id || document.activeElement.className || document.activeElement.tagName);
-// What the player actually sees of the focus: the browser's own rule and a real outline.
+// The title's handling choice is a radio group: the focused stop is the checked mode.
+const focusedHandling = (page) => page.evaluate(() => (document.activeElement.name === 'handling' ? document.activeElement.value : null));
+// What the player actually sees of the focus: the browser's own rule and a real outline. A
+// title choice (track or handling) is a hidden radio whose label text draws the outline.
 const focusRing = (page) => page.evaluate(() => {
   const el = document.activeElement;
-  const { outlineStyle, outlineWidth } = getComputedStyle(el);
+  const drawn = el.type === 'radio' ? el.nextElementSibling : el;
+  const { outlineStyle, outlineWidth } = getComputedStyle(drawn);
   return el.matches(':focus-visible') && outlineStyle !== 'none' && parseFloat(outlineWidth) >= 2;
 });
 const station = (page) => page.evaluate(() => window.__miniDrifters.audio().station);
@@ -160,19 +164,26 @@ async function check(name, engine) {
     assert.equal((await page.locator('.title').textContent()).replace(/\s+/g, ' '), 'MINI DRIFTERS');
     assert.equal(await page.locator('.tagline').textContent(), 'ONE OVERPOWERED CAR. ZERO GOOD IDEAS.');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['START DRIVING', 'HOW TO PLAY', 'OPTIONS']);
+    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'HOW TO PLAY', 'OPTIONS']);
     // Personal bests add lap/combo names, not driving instructions. Verify that
     // panel explicitly, then retain the original instruction checks everywhere else.
     assert.deepEqual(await page.locator('.personal-bests dt').allTextContents(), ['Best score', 'Fastest lap', 'Best combo']);
     assert.doesNotMatch(await page.locator('.personal-bests').innerText(), /handbrake|accelerate/i);
+    // v0.3.0: the handling choice adds one line describing the selected mode's car. It is a
+    // description of a choice, like the personal bests, and is checked on its own: one short
+    // line, no lap count. Everything else on the title still carries no instructions.
+    const summary = await page.locator('#handling-summary').textContent();
+    assert.ok(summary.length > 20 && summary.length < 120, summary);
+    assert.doesNotMatch(summary, /\blaps?\b/i);
     const shown = await page.locator('#menu').evaluate((menu) => {
       const title = menu.cloneNode(true);
       title.querySelector('.personal-bests').remove();
+      title.querySelector('#handling-summary').remove();
       return title.textContent;
     });
     assert.doesNotMatch(shown, /\blaps?\b/i, 'the title does not promise a number of laps');
     assert.doesNotMatch(shown, /handbrake|accelerate|combo/i, 'the instructions have moved to How to Play');
-    step('the title shows the approved name, tagline and three actions, and no instructions');
+    step('the title shows the approved name, tagline and four actions, and no instructions');
 
     // --- The layout, at each supported size -----------------------------------------
     for (const [width, height] of SIZES) {
@@ -205,19 +216,30 @@ async function check(name, engine) {
     assert.equal(await focused(page), 'start', 'Start is selected from the first frame');
     assert.ok(await focusRing(page), 'and shows it');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'how-to-play');
+    assert.equal(await focused(page), 'practice');
     assert.ok(await focusRing(page), 'the selection shows while walking the menu');
     await page.keyboard.press('ArrowDown');
-    assert.match(await focused(page), /options-open/);
+    assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'start', 'Down wraps');
+    assert.match(await focused(page), /options-open/);
+    // The handling choice sits above Start, so it is the first stop: Down wraps to it.
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await focusedHandling(page), 'classic', 'Down wraps to the top: the handling choice');
+    assert.ok(await focusRing(page), 'with a visible focus');
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await focused(page), 'start');
+    await page.keyboard.press('ArrowUp');
+    assert.equal(await focusedHandling(page), 'classic', 'Up from Start reaches the handling choice');
     await page.keyboard.press('ArrowUp');
     assert.match(await focused(page), /options-open/, 'Up wraps');
+    await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     assert.equal(await focused(page), 'start');
     assert.deepEqual((await game(page)).input, NO_KEYS, 'menu arrows are not pedals');
 
+    await page.keyboard.press('Tab');
+    assert.equal(await focused(page), 'practice');
     await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('Tab');
@@ -228,6 +250,11 @@ async function check(name, engine) {
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await focused(page), 'start');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await focusedHandling(page), 'classic', 'Shift+Tab from Start reaches the handling choice');
+    await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'start');
     for (const key of ['KeyR', 'KeyP', 'KeyG', 'KeyD', 'ArrowLeft', 'ArrowRight']) await page.keyboard.press(key);
     const idle = await game(page);
@@ -239,6 +266,7 @@ async function check(name, engine) {
 
     // --- How to Play --------------------------------------------------------------------
     await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     assert.ok(await visible(page, 'help'));
     assert.equal(await visible(page, 'menu'), false);
@@ -247,7 +275,7 @@ async function check(name, engine) {
     const help = await page.locator('#help').innerText();
     for (const heading of ['DRIVING', 'DRIFTING', 'SCORING', 'OTHER KEYS']) assert.ok(help.toUpperCase().includes(heading), heading);
     for (const fact of [/Accelerate/, /Brake, then reverse/, /Steer/, /handbrake/, /countersteer/i, /lift off the throttle/, /25°/, /within two seconds/, /×3/, /bank/]) assert.match(help, fact);
-    for (const key of ['R', 'P', 'G', 'N', 'O', 'D']) assert.equal(await page.locator('#help-keys kbd', { hasText: new RegExp(`^${key}$`) }).count(), 1, key);
+    for (const key of ['R', 'P', 'G', 'N', 'O', 'H', 'D']) assert.equal(await page.locator('#help-keys kbd', { hasText: new RegExp(`^${key}$`) }).count(), 1, key);
     assert.doesNotMatch(help, /three laps/i);
     await shoot(page, 'how-to-play');
     for (const [width, height] of SIZES) {
@@ -332,6 +360,8 @@ async function check(name, engine) {
     assert.ok(await visible(page, 'options'), 'Enter presses Options');
     await page.keyboard.press('Escape');
     assert.match(await focused(page), /options-open/);
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await focusedHandling(page), 'classic');
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'start');
     step('Options opens from the title and closes back to the button it came from');

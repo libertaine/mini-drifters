@@ -84,6 +84,9 @@ async function check(name, engine) {
     await press(15);
     assert.equal(await value(() => window.__miniDrifters.selectedTrack()), 'switchback');
     await press(13);
+    assert.equal(await focus(), 'practice', 'v0.3.0: Practice pad sits under Start');
+    assert.ok(await page.locator('#practice').evaluate((el) => getComputedStyle(el).outlineStyle !== 'none'));
+    await press(13);
     assert.equal(await focus(), 'how-to-play');
     assert.ok(await page.locator('#how-to-play').evaluate((el) => getComputedStyle(el).outlineStyle !== 'none'));
     await value(() => { window.__pads[0].buttons[0] = { value: 1, pressed: true }; window.__frames(30); });

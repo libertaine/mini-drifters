@@ -437,7 +437,8 @@ test('G is free: no other control uses it', () => {
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.equal(main.match(/KeyG/g).length, 1);
   const codes = [...main.matchAll(/\b(Key[A-Z]|Arrow[A-Za-z]+|Space|Enter)\b/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(codes)].sort(), ['ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'Enter', 'KeyD', 'KeyG', 'KeyN', 'KeyO', 'KeyP', 'KeyR', 'Space']);
+  // v0.3.0 added H (handling, on the title only); the inventory is otherwise v0.2.0's.
+  assert.deepEqual([...new Set(codes)].sort(), ['ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'Enter', 'KeyD', 'KeyG', 'KeyH', 'KeyN', 'KeyO', 'KeyP', 'KeyR', 'Space']);
 });
 
 // --- 9. Compatibility with the active track ----------------------------------

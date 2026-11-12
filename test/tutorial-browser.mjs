@@ -193,6 +193,8 @@ async function check(name, engine) {
   };
   const openTutorial = async (page) => {
     await page.keyboard.press('ArrowDown');
+    assert.equal(await focused(page), 'practice', 'v0.3.0: Practice pad sits between Start and How to Play');
+    await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('Enter');
     assert.ok(await visible(page, 'help'));
@@ -262,6 +264,7 @@ async function check(name, engine) {
     // --- Getting in -------------------------------------------------------------------
     page = await open();
     await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     assert.equal(await focused(page), 'help-back', 'Back keeps the focus it had');
     await page.keyboard.press('Escape');
@@ -325,11 +328,14 @@ async function check(name, engine) {
       assert.equal(await page.evaluate(() => document.body.dataset.screen), 'title');
       // How to Play now has a second button, and has to hold it at every size.
       await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowDown');
       await page.keyboard.press('Enter');
       await assertSheetFits(page, 'help', `How to Play at ${width}x${height}`);
       await page.screenshot({ path: artifact(`${name}-how-to-play-${width}x${height}.png`) });
       await page.keyboard.press('Escape');
       await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('ArrowUp');
+      assert.equal(await focused(page), 'start');
       await openTutorial(page);
       const seen = [];
       const release = await playLesson(page, {

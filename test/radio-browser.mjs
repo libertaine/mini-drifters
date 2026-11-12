@@ -517,6 +517,7 @@ async function run(browser, browserName) {
     const t = await open(browser);
     const { page } = t;
     await page.locator('#start').focus();
+    await page.keyboard.press('Tab'); // Practice pad
     await page.keyboard.press('Tab'); // How to Play
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
