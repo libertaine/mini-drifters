@@ -29,8 +29,13 @@ const server = http.createServer(async (req, res) => {
 });
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}/`;
-const KEY = 'mini-drifters-records-v2';
+// Records are written to schema 3 only: score and combo by scoring version, a shared lap. The
+// older keys (schema 2 and v0.2.0's) are only read; their scores and combos are legacy scoring.
+const KEY = 'mini-drifters-records-v3';
+const V2_KEY = 'mini-drifters-records-v2';
 const LEGACY_KEY = 'mini-drifters-records';
+const entry3 = (fastestLap = null, current = [null, null], legacy = [null, null]) => ({ fastestLap, scoring: {
+  'scoring-1': { score: legacy[0], bestCombo: legacy[1] }, 'scoring-2': { score: current[0], bestCombo: current[1] } } });
 const PREF_KEY = 'mini-drifters-handling';
 // A v0.2.0 save as v0.2.0 writes it: one real zero, and records missing on purpose.
 const V020 = JSON.stringify({ version: 1, tracks: {
@@ -366,13 +371,14 @@ async function check(name, engine) {
       await frames();
     }
     const saved = await records();
-    assert.equal(saved.version, 2);
+    assert.equal(saved.version, 3);
     assert.ok(saved.tracks.original.revised.fastestLap > 0);
     assert.ok(saved.tracks.original.classic.fastestLap > 0);
     assert.notEqual(saved.tracks.original.revised.fastestLap, saved.tracks.original.classic.fastestLap, 'two different runs, two records');
     assert.deepEqual(Object.keys(saved.tracks.original), ['classic', 'revised'], 'no entry is made for a retired mode');
-    assert.deepEqual(saved.tracks.switchback.revised, { score: null, fastestLap: null, bestCombo: null });
+    assert.deepEqual(saved.tracks.switchback.revised, entry3());
     assert.ok(!(await writes()).includes(LEGACY_KEY), 'the v0.2.0 key was never written');
+    assert.ok(!(await writes()).includes(V2_KEY), 'nor the schema 2 key');
     assert.deepEqual(await writes(), [KEY]);
     // The title shows each pair's own values.
     const pb = async () => value(() => [document.getElementById('records-heading').textContent, document.getElementById('pb-lap').textContent]);
@@ -479,16 +485,17 @@ async function check(name, engine) {
     // --- 8. A v0.2.0 save is migrated ----------------------------------------------------
     // This origin is a throwaway one: replace its saves with exactly what v0.2.0 leaves.
     // v0.2.0 had no remembered handling mode either.
-    await value(([key, legacyKey, raw, prefKey]) => { localStorage.removeItem(key); localStorage.removeItem(prefKey); localStorage.setItem(legacyKey, raw); }, [KEY, LEGACY_KEY, V020, PREF_KEY]);
+    await value(([key, v2Key, legacyKey, raw, prefKey]) => { localStorage.removeItem(key); localStorage.removeItem(v2Key); localStorage.removeItem(prefKey); localStorage.setItem(legacyKey, raw); }, [KEY, V2_KEY, LEGACY_KEY, V020, PREF_KEY]);
     await open();
-    const pbAll = () => value(() => ['records-heading', 'pb-score', 'pb-lap', 'pb-combo'].map((id) => document.getElementById(id).textContent));
-    assert.deepEqual(await pbAll(), ['Original · Classic — Personal bests', '15,420', '0:47.31', '0'], 'a real zero is shown as 0');
+    // Its score and combo were earned under the earlier scoring: a legacy line, not current bests.
+    const pbAll = () => value(() => ['records-heading', 'pb-score', 'pb-lap', 'pb-combo', 'pb-legacy'].map((id) => document.getElementById(id).textContent));
+    assert.deepEqual(await pbAll(), ['Original · Classic — Personal bests', '--', '0:47.31', '--', 'Legacy scoring: score 15,420 · combo 0'], 'a real zero is shown as 0');
     assert.equal(await prefWrites(), 0);
     await page.keyboard.press('KeyH');
-    assert.deepEqual(await pbAll(), ['Original · Power — Personal bests', '--', '--', '--'], 'v0.2.0 records are Classic only');
+    assert.deepEqual(await pbAll(), ['Original · Power — Personal bests', '--', '--', '--', ''], 'v0.2.0 records are Classic only');
     await page.keyboard.press('KeyH');
     await page.keyboard.press('ArrowRight');
-    assert.deepEqual(await pbAll(), ['Switchback · Classic — Personal bests', '--', '0:52.08', '--'], 'missing records stay missing');
+    assert.deepEqual(await pbAll(), ['Switchback · Classic — Personal bests', '--', '0:52.08', '--', ''], 'missing records stay missing');
     assert.equal(await records(), null, 'loading wrote nothing');
     assert.deepEqual(await writes(), [], 'nothing at all');
     await page.screenshot({ path: shot(`${name}-migrated-v020`) });
@@ -503,23 +510,23 @@ async function check(name, engine) {
     const runLap = await value(() => window.__miniDrifters.game.results.bestLap);
     assert.ok(runLap < 52.08);
     assert.equal(migrated.tracks.switchback.classic.fastestLap, runLap);
-    assert.deepEqual(migrated.tracks.original.classic, { score: 15420, fastestLap: 47.31, bestCombo: 0 }, 'the v0.2.0 Original records were copied forward exactly');
-    assert.deepEqual(migrated.tracks.switchback.revised, { score: null, fastestLap: null, bestCombo: null });
+    assert.deepEqual(migrated.tracks.original.classic, entry3(47.31, [null, null], [15420, 0]), 'the v0.2.0 Original records were copied forward exactly, as legacy scoring');
+    assert.deepEqual(migrated.tracks.switchback.revised, entry3());
     assert.equal(await value((k) => localStorage.getItem(k), LEGACY_KEY), V020, 'the v0.2.0 key is byte-for-byte untouched');
     assert.deepEqual(await writes(), [KEY]);
     await page.locator('#results .return-title').click();
     await frames();
-    ok('v0.2.0 save: values under Classic only, zero shown as 0, missing as --, copied forward on a new best, old key untouched');
+    ok('v0.2.0 save: legacy scoring under Classic only, zero shown as 0, missing as --, lap shared, copied forward on a new best, old key untouched');
 
     // --- 9. A later schema is left alone ------------------------------------------------
-    const later = JSON.stringify({ version: 3, tracks: { original: { classic: { score: 1 } } } });
+    const later = JSON.stringify({ version: 4, tracks: { original: { classic: { score: 1 } } } });
     await value(([key, raw]) => localStorage.setItem(key, raw), [KEY, later]);
     await open();
     assert.match(await page.locator('#records-note').textContent(), /newer version/);
-    assert.deepEqual(await pbAll(), ['Original · Classic — Personal bests', '15,420', '0:47.31', '0'], 'shows the v0.2.0 records it can still read');
+    assert.deepEqual(await pbAll(), ['Original · Classic — Personal bests', '--', '0:47.31', '--', 'Legacy scoring: score 15,420 · combo 0'], 'shows the v0.2.0 records it can still read');
     // The same Switchback run that just beat 52.08 s would be a new best again; it must not be.
     await page.keyboard.press('ArrowRight');
-    assert.deepEqual(await pbAll(), ['Switchback · Classic — Personal bests', '--', '0:52.08', '--']);
+    assert.deepEqual(await pbAll(), ['Switchback · Classic — Personal bests', '--', '0:52.08', '--', '']);
     await page.locator('#start').click();
     await frames();
     assert.equal(await value((d) => window.__drive(d, 'finished', 400), 'gripDriver'), 'finished');

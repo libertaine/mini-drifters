@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mini Drifters</title>
+  <title>Mini Drifters v0.3.0</title>
   <link rel="stylesheet" href="style.css">
   <meta name="mini-drifters-engine" content="coyote-local">
 </head>
@@ -54,6 +54,7 @@
   <div id="prompt" class="prompt" aria-live="polite" hidden></div>
 
   <section id="menu" class="overlay title-screen">
+    <span class="release-version">v0.3.0</span>
     <div class="title-panel">
       <h1 class="title"><span>MINI</span> <span>DRIFTERS</span></h1>
       <p class="tagline">ONE OVERPOWERED CAR. ZERO GOOD IDEAS.</p>
@@ -73,6 +74,7 @@
           <div><dt>Fastest lap</dt><dd id="pb-lap">--</dd></div>
           <div><dt>Best combo</dt><dd id="pb-combo">--</dd></div>
         </dl>
+        <p id="pb-legacy" class="records-legacy" title="Set under the earlier scoring rules. Kept for reference; not comparable with current scores."></p>
         <p id="records-note" class="records-note"></p>
       </section>
       <nav class="title-menu" aria-label="Main menu">
@@ -100,7 +102,7 @@
         <section>
           <h3>Scoring</h3>
           <ul class="howto">
-            <li>Angle and speed on the road build unbanked points. 25&deg; to 50&deg; pays best.</li>
+            <li>Angle and speed on the road build unbanked points. 25&deg; to 50&deg; pays best. Carry speed through the drift: slow slides pay little.</li>
             <li>Link drifts within two seconds to climb from &times;1 to &times;3.</li>
             <li>Straighten up and the points <b>bank</b>. Banked points are safe.</li>
             <li>Spin out, hit the wall, stop making progress or stay on the grass, and you <b>lose</b> the unbanked points. The grass isn't part of the racing line.</li>

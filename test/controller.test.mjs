@@ -8,6 +8,7 @@ import { createCar, stepCar } from '../src/physics.js';
 import { createGame, startRun, tick } from '../src/game.js';
 import { trackById } from '../src/track.js';
 import { TUNING as T } from '../src/tuning.js';
+import { SCORING_VERSION } from '../src/scoring.js';
 import { createTutorial, updateTutorial, TUTORIAL_STEPS, tutorialView } from '../src/tutorial.js';
 import { gripDriver, driftDriver, recklessDriver, lessonDriver } from './support/drivers.mjs';
 
@@ -163,21 +164,32 @@ test('simultaneous triggers preserve the keyboard both-pedals brake/neutral poli
   }
 });
 
+// Two layers per run (docs/CONTROLLERS.md). `driveHash` (every tick's car, laps and clock, plus
+// the final ghost) is main 0239cc1's own drive, which no scoring revision may change. `hash`
+// adds the scoring state and, with `score`, is pinned to the current scoring rules (`scoring`);
+// `v020` keeps 0239cc1's own full hash and score for reference.
 const baseline = JSON.parse(readFileSync(new URL('support/keyboard-baseline.json', import.meta.url)));
+test('the keyboard baseline\'s score pins are for the current scoring rules', () => {
+  assert.equal(baseline.scoring, SCORING_VERSION);
+});
 for (const expected of baseline.results) {
   test(`keyboard and full-travel controller match main ${baseline.baseline}: ${expected.track} / ${expected.driver}`, () => {
     for (const controller of [false, true]) {
       const game = createGame(trackById(expected.track)); startRun(game);
       const driver = { gripDriver, driftDriver, recklessDriver }[expected.driver]();
       const hash = createHash('sha256');
+      const drive = createHash('sha256');
       while (game.ticks < 60000 && game.state !== 'finished') {
         const keys = driver(game);
         tick(game, controller ? readStandardPad(asPad(keys)).drive : keys);
         hash.update(JSON.stringify([game.car, game.scoring, game.laps, game.runTime]));
+        drive.update(JSON.stringify([game.car, game.laps, game.runTime]));
       }
       hash.update(JSON.stringify(game.ghost));
-      assert.equal(hash.digest('hex'), expected.hash);
+      drive.update(JSON.stringify(game.ghost));
+      assert.equal(drive.digest('hex'), expected.driveHash, 'the drive is 0239cc1\'s, tick for tick');
       assert.equal(game.ticks, expected.ticks);
+      assert.equal(hash.digest('hex'), expected.hash);
       assert.equal(game.scoring.score, expected.score);
     }
   });

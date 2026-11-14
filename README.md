@@ -14,7 +14,7 @@ It runs in a desktop browser with a keyboard or a standard-mapped controller (co
 
 ## Status
 
-**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, and handling and scoring may change. The current release is [v0.2.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.2.0). It adds Switchback, a more technical circuit with linked corners and tighter drifting opportunities, alongside Original, as well as analog controller support and per-track personal bests saved in your browser. It also stops shortcuts and voided laps from adding to your score. Prototype 0.1 was released as [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) with one track. See the [roadmap](docs/ROADMAP.md) for what might come next.
+**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, and handling and scoring may change. The current release is [v0.3.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.3.0). It adds Classic and Power handling, remembers your handling choice, and includes an unscored practice pad. Slow slides keep their combos but pay less, and personal bests are separated by track, handling and scoring version. Earlier scores remain visible as legacy records, with fastest laps carried forward. [v0.2.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.2.0) added Switchback alongside Original, analog controller support, per-track personal bests and scoring fixes for shortcuts and voided laps. Prototype 0.1 was released as [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) with one track. See the [roadmap](docs/ROADMAP.md) for what might come next.
 
 ## Controls
 
@@ -119,7 +119,7 @@ While you're in the lesson, Esc leaves it, R goes back to the grid and keeps you
 
 **Sessions.** A run is three counted laps. The clock starts when you first press a pedal, and the end screen shows your score, best lap, total time, highest combo and spinouts.
 
-**Drift scoring.** Sliding at speed on the road builds unbanked points. Bigger angles and higher speeds earn more, up to a point: the best angles are 25° to 50°, and hanging on to the handbrake earns much less than sliding under power. Only ground you haven't covered yet pays, so donuts, repeat passes and cutting back across the infield earn nothing.
+**Drift scoring.** Sliding at speed on the road builds unbanked points. Bigger angles and higher speeds earn more, up to a point: the best angles are 25° to 50°, and hanging on to the handbrake earns much less than sliding under power. Carry speed through the drift: a slide at the slowest drifting speed (about 23 mph) still counts and keeps your combo going, but pays almost nothing, and the pay rises to normal by about 34 mph. Only ground you haven't covered yet pays, so donuts, repeat passes and cutting back across the infield earn nothing.
 
 **Combos.** Keep drifting, link drifts within two seconds, or flick from one side to the other to climb the multiplier from ×1 through ×1.5 and ×2 to ×3. The multiplier applies to the whole combo when it's banked.
 
@@ -140,7 +140,14 @@ and Try It lessons and the practice pad never set any records.
 
 The title shows the saved bests for the selected track and handling (`--` until set).
 Records saved by v0.2.0 appear under Classic. Results mark
-saved improvements with `NEW BEST`. Records use this browser/device's localStorage;
+saved improvements with `NEW BEST`.
+
+Scores and combos are kept per scoring version too, because the scoring rules changed
+when slow slides started paying less. Scores and combos set before that change are kept
+as **legacy scoring** records, shown in one small line under the current bests. They're
+history: they aren't comparable with current scores, and no run competes with them.
+Fastest laps aren't affected by scoring, so each track and handling pair keeps one
+fastest lap, old or new. Records use this browser/device's localStorage;
 they persist across reloads and browser restarts. Clearing browser storage removes
 them. They are not an online leaderboard and do not sync between browsers or devices.
 If storage is unavailable or full, driving continues and a note explains that new
@@ -215,8 +222,8 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/handling-preferences.js` | Remembers the last chosen handling mode |
 | `src/practice-pad.js` | The practice pad's surface and markers |
 | `src/track.js`, `src/laps.js` | The two circuits and lap validation |
-| `src/scoring.js` | Drift detection and combos |
-| `src/records.js` | Local personal bests by track and handling, run qualification, and reading v0.2.0's records |
+| `src/scoring.js` | Drift detection, the low-speed fade, combos and the scoring version |
+| `src/records.js` | Local personal bests by track, handling and scoring version, run qualification, and reading the older records keys |
 | `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
 | `src/tutorial.js` | The driving lesson. It watches a session and never writes to it |

@@ -1,0 +1,55 @@
+{
+  "baseline": "6ffe6bf",
+  "handling": "revised",
+  "scoring": "scoring-2",
+  "results": [
+    {
+      "track": "original",
+      "driver": "gripDriver",
+      "ticks": 18958,
+      "driveHash": "318269a85048f62d50a8caeda2419b66c3c5a2d30071616197562b532d7224c3",
+      "score": 1929,
+      "legacyScore": 1929
+    },
+    {
+      "track": "original",
+      "driver": "driftDriver",
+      "ticks": 24589,
+      "driveHash": "9ca6344955e88f90576a545e50d1090c197666aff8d581db796548d8a4428c10",
+      "score": 11270,
+      "legacyScore": 11555
+    },
+    {
+      "track": "original",
+      "driver": "recklessDriver",
+      "ticks": 31716,
+      "driveHash": "1ca1e74b0ee23035f41447d294afe98f9626825570b1954ead721ee3a9a495f1",
+      "score": 1458,
+      "legacyScore": 4191
+    },
+    {
+      "track": "switchback",
+      "driver": "gripDriver",
+      "ticks": 18244,
+      "driveHash": "25ad7edf95d1db73ab4728f8ba459b1fc3e88fe833943d221cd000a92c82f914",
+      "score": 76,
+      "legacyScore": 76
+    },
+    {
+      "track": "switchback",
+      "driver": "driftDriver",
+      "ticks": 24617,
+      "driveHash": "72ad6ca107b3a83599ef940083d7197261c8dcf0b89e89f51fb9d51bf11e2cf2",
+      "score": 10649,
+      "legacyScore": 11016
+    },
+    {
+      "track": "switchback",
+      "driver": "recklessDriver",
+      "ticks": 33206,
+      "driveHash": "8418f28130bdcd909663716dfdf5f64ddf874216ee70d8ee398a18903a885508",
+      "score": 2347,
+      "legacyScore": 7110
+    }
+  ]
+}

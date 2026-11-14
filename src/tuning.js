@@ -109,3 +109,12 @@ export const TUNING = Object.freeze({
   // --- Session ------------------------------------------------------------
   runLaps: 3,
 });
+
+// Low-speed scoring fade (scoring.js speedScore). A drift's speed score is scaled by a share that
+// is 0 at the minimum drift speed (driftMinSpeedRatio, 10.5 m/s), rises linearly, and is 1 from
+// this fraction of topSpeed up (15 m/s). 42 x (15/42) is exactly 15 in binary, so above 15 m/s the
+// speed score is bit-for-bit the one it replaced. It changes only what a drift pays, never what
+// counts as a drift, so it is kept beside TUNING rather than in it: TUNING is also Classic's
+// complete physics configuration (handling.js), whose fingerprint names its record partition and
+// its lap replays, and those must not move for a change that leaves the driving alone.
+export const SCORE_LOW_SPEED_FADE_END_RATIO = 15 / 42;

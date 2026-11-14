@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { DEFAULT_HANDLING_ID, HANDLING_IDS, RETIRED_HANDLING_IDS } from '../src/handling.js';
 import { HANDLING_PREFERENCE_KEY, readHandlingPreference, writeHandlingPreference } from '../src/handling-preferences.js';
 import { readAudioPreferences } from '../src/audio-preferences.js';
-import { createRecords, RECORDS_KEY, LEGACY_RECORDS_KEY } from '../src/records.js';
+import { createRecords, RECORDS_KEY, V2_RECORDS_KEY, LEGACY_RECORDS_KEY } from '../src/records.js';
 
 function storage(initial = {}) {
   const map = new Map(Object.entries(initial));
@@ -21,7 +21,7 @@ function storage(initial = {}) {
 
 test('the preference has a key of its own, apart from records and sound', () => {
   assert.equal(HANDLING_PREFERENCE_KEY, 'mini-drifters-handling');
-  for (const other of [RECORDS_KEY, LEGACY_RECORDS_KEY, 'mini-drifters-sound', 'mini-drifters-audio']) assert.notEqual(HANDLING_PREFERENCE_KEY, other);
+  for (const other of [RECORDS_KEY, V2_RECORDS_KEY, LEGACY_RECORDS_KEY, 'mini-drifters-sound', 'mini-drifters-audio']) assert.notEqual(HANDLING_PREFERENCE_KEY, other);
 });
 
 test('a first visit starts on Classic', () => {
@@ -86,15 +86,19 @@ test('missing or failing storage never stops play: reads give Classic, writes ar
 });
 
 test('a bad preference cannot damage records or sound settings, and the preference cannot change them', () => {
-  const records = JSON.stringify({ version: 2, tracks: { original: { classic: { score: 9000, fastestLap: 48, bestCombo: 0 }, revised: { score: 0, fastestLap: 50, bestCombo: null }, tuned: { score: 5 } } } });
+  const current = JSON.stringify({ version: 3, tracks: { switchback: { revised: { fastestLap: 70, scoring: { 'scoring-2': { score: 4000, bestCombo: 300 } } } } } });
+  const v2 = JSON.stringify({ version: 2, tracks: { original: { classic: { score: 9000, fastestLap: 48, bestCombo: 0 }, revised: { score: 0, fastestLap: 50, bestCombo: null }, tuned: { score: 5 } } } });
   const legacy = JSON.stringify({ version: 1, tracks: { original: { score: 100, fastestLap: 60, bestCombo: 1 } } });
   const audio = JSON.stringify({ station: 'garage-rock', musicVolume: 40, effectsVolume: 90 });
   for (const value of ['tuned', '{bad', '__proto__', 'revised']) {
-    const s = storage({ [RECORDS_KEY]: records, [LEGACY_RECORDS_KEY]: legacy, 'mini-drifters-sound': 'off', 'mini-drifters-audio': audio, [HANDLING_PREFERENCE_KEY]: value });
+    const s = storage({ [RECORDS_KEY]: current, [V2_RECORDS_KEY]: v2, [LEGACY_RECORDS_KEY]: legacy, 'mini-drifters-sound': 'off', 'mini-drifters-audio': audio, [HANDLING_PREFERENCE_KEY]: value });
     const before = new Map(s.map);
     const keeper = createRecords(() => s);
-    assert.deepEqual(keeper.forTrack('original', 'classic'), { score: 9000, fastestLap: 48, bestCombo: 1 });
-    assert.deepEqual(keeper.forTrack('original', 'revised'), { score: 0, fastestLap: 50, bestCombo: null });
+    assert.deepEqual(keeper.forTrack('original', 'classic'), { score: null, fastestLap: 48, bestCombo: null });
+    assert.deepEqual(keeper.legacyForTrack('original', 'classic'), { score: 9000, bestCombo: 1 });
+    assert.deepEqual(keeper.forTrack('original', 'revised'), { score: null, fastestLap: 50, bestCombo: null });
+    assert.deepEqual(keeper.legacyForTrack('original', 'revised'), { score: 0, bestCombo: null });
+    assert.deepEqual(keeper.forTrack('switchback', 'revised'), { score: 4000, fastestLap: 70, bestCombo: 300 });
     assert.deepEqual(readAudioPreferences(s), { muted: true, station: 'garage-rock', musicVolume: 40, effectsVolume: 90 });
     readHandlingPreference(s);
     writeHandlingPreference(s, 'classic');

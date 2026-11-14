@@ -77,8 +77,11 @@ or autoplay settings are bypassed.
 
 `npm test` includes mocked snapshots, bounds/noise, edges, transitions, arbitration,
 proportional physics, brake/reverse, a real five-step lesson and six baseline runs.
-`test/support/keyboard-baseline.json` was captured from unchanged main `0239cc1`:
-each hash covers every tick's car, scoring, laps and clock, plus final ghost data.
+`test/support/keyboard-baseline.json` was captured from unchanged main `0239cc1`.
+Each run has two hashes. `driveHash` covers every tick's car, laps and clock, plus final
+ghost data, and is still 0239cc1's own. `hash` adds the scoring state and, with
+`score`, is pinned to the current scoring rules (`scoring`, since the low-speed fade);
+`v020` keeps 0239cc1's own full hash and score for reference.
 Both keyboard commands and equivalent full-travel controller commands must reproduce
 those hashes on Original and Switchback. These are regression fixtures, not lap records.
 

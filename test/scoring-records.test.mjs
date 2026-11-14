@@ -7,7 +7,7 @@ import { TUNING as T } from '../src/tuning.js';
 import { trackById } from '../src/track.js';
 import { createGame, startRun, returnToMenu, tick, countedScore } from '../src/game.js';
 import { bankCombo } from '../src/scoring.js';
-import { createRecords, RECORDS_KEY, LEGACY_RECORDS_KEY } from '../src/records.js';
+import { createRecords, RECORDS_KEY, V2_RECORDS_KEY, LEGACY_RECORDS_KEY } from '../src/records.js';
 import { driftDriver } from './support/drivers.mjs';
 import { cutterDriver } from './support/exploit-drivers.mjs';
 
@@ -19,8 +19,8 @@ const BACK_CUTS = { original: { from: 740, to: 662 }, switchback: { from: 920, t
 
 function store(raw = null) {
   return { raw, writes: 0,
-    // The v0.2.0 key is read (empty here) and never written.
-    getItem(key) { assert.ok(key === RECORDS_KEY || key === LEGACY_RECORDS_KEY, key); return key === RECORDS_KEY ? this.raw : null; },
+    // The older keys are read (empty here) and never written.
+    getItem(key) { assert.ok(key === RECORDS_KEY || key === V2_RECORDS_KEY || key === LEGACY_RECORDS_KEY, key); return key === RECORDS_KEY ? this.raw : null; },
     setItem(key, value) { assert.equal(key, RECORDS_KEY); this.raw = value; this.writes += 1; },
   };
 }
@@ -182,7 +182,9 @@ test('a failed write after a voided-lap run claims no NEW BEST, and records surv
 
   // A full store holding weak bests: the voided-lap run beats all three, but nothing can be
   // saved, so nothing is claimed and the saved bests stand. The weak bests are a v0.2.0 save,
-  // so this also covers a failed first write after the migration.
+  // so this also covers a failed first write after the migration. Their score and combo are
+  // legacy scoring, so the run would also have been the first current-scoring best: still
+  // nothing is claimed.
   const weak = { score: 1, fastestLap: 999, bestCombo: 1 };
   const weakRaw = JSON.stringify({ version: 1, tracks: { original: weak, switchback: { score: null, fastestLap: null, bestCombo: null } } });
   const full = { getItem: (key) => (key === LEGACY_RECORDS_KEY ? weakRaw : null), setItem: () => { throw new Error('quota'); } };
@@ -193,5 +195,6 @@ test('a failed write after a voided-lap run claims no NEW BEST, and records surv
   assert.ok(second.game.results.score > weak.score && second.game.results.bestLap < weak.fastestLap && second.game.results.bestCombo > weak.bestCombo);
   assert.equal(second.records.available, false);
   assert.deepEqual(second.records.newBests, { score: false, fastestLap: false, bestCombo: false });
-  assert.deepEqual(second.records.forTrack('original', 'classic'), weak);
+  assert.deepEqual(second.records.forTrack('original', 'classic'), { score: null, fastestLap: weak.fastestLap, bestCombo: null });
+  assert.deepEqual(second.records.legacyForTrack('original', 'classic'), { score: weak.score, bestCombo: weak.bestCombo });
 });
