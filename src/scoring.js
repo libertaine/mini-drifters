@@ -4,9 +4,17 @@
 // The anti-exploit rule is "points only on new ground": `newGround` is how far
 // the car has pushed past its furthest-ever position along the circuit. Donuts
 // and repeated passes through a corner earn nothing because they never add any.
-import { TUNING } from './tuning.js';
+import { TUNING, SCORE_LOW_SPEED_FADE_END_RATIO } from './tuning.js';
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+// The scoring rules' stable identity. Score and best-combo records are filed under it
+// (records.js), because a change to what drifts pay makes old scores incomparable. Any change to
+// the points a drive earns needs a new id here, never new numbers under an old one.
+//   scoring-1  v0.2.0's rules (every record saved before the low-speed fade)
+//   scoring-2  the low-speed fade (speedScore below)
+export const SCORING_VERSION = 'scoring-2';
+export const LEGACY_SCORING_VERSION = 'scoring-1';
 
 export function createScoring() {
   return {
@@ -40,10 +48,23 @@ export function angleScore(slipAbs, T = TUNING) {
   return 1 + (T.driftExcessScore - 1) * over;
 }
 
+// Speed contribution: from the floor at the minimum drift speed up to 1 at scoreFullSpeedRatio,
+// scaled by the low-speed fade, so a slow slide still counts as a drift (and keeps its combo) but
+// pays little. Carrying speed through the corner is what pays.
 export function speedScore(speed, T = TUNING) {
   const lo = T.topSpeed * T.driftMinSpeedRatio;
   const hi = T.topSpeed * T.scoreFullSpeedRatio;
-  return T.scoreSpeedFloor + (1 - T.scoreSpeedFloor) * clamp01((speed - lo) / (hi - lo));
+  const score = T.scoreSpeedFloor + (1 - T.scoreSpeedFloor) * clamp01((speed - lo) / (hi - lo));
+  return score * lowSpeedFade(speed, T);
+}
+
+// The low-speed fade: 0 at the minimum drift speed (10.5 m/s), linear to 1 at
+// SCORE_LOW_SPEED_FADE_END_RATIO x topSpeed (15 m/s), 1 above. Pay only: classifyDrift, and so
+// what counts as a drift, combo starts, grace, tiers and links, never read it.
+export function lowSpeedFade(speed, T = TUNING) {
+  const lo = T.topSpeed * T.driftMinSpeedRatio;
+  const end = T.topSpeed * SCORE_LOW_SPEED_FADE_END_RATIO;
+  return end > lo ? clamp01((speed - lo) / (end - lo)) : 1;
 }
 
 // Why a sample does or does not count as a drift. Used for scoring and shown in

@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// The keeper's own rules, against its real storage layout: schema 2 in RECORDS_KEY, with the
-// v0.2.0 key (LEGACY_RECORDS_KEY) only ever read. Records by handling mode and the migration
-// from v0.2.0 are in handling-records.test.mjs; here every run is Classic unless it says so.
-import { createRecords, RECORDS_KEY, LEGACY_RECORDS_KEY } from '../src/records.js';
+// The keeper's own rules, against its real storage layout: schema 3 in RECORDS_KEY, with the
+// schema 2 key (V2_RECORDS_KEY) and the v0.2.0 key (LEGACY_RECORDS_KEY) only ever read. Records by
+// handling mode are in handling-records.test.mjs, and by scoring version, with the migration
+// from both older keys, in scoring-version-records.test.mjs. Here every run is Classic unless it
+// says so, and every score is the current scoring version's.
+import { createRecords, RECORDS_KEY, V2_RECORDS_KEY, LEGACY_RECORDS_KEY } from '../src/records.js';
+import { SCORING_VERSION, LEGACY_SCORING_VERSION } from '../src/scoring.js';
 import { HANDLING_IDS } from '../src/handling.js';
 import { createGame, startRun, restartRun, returnToMenu, tick } from '../src/game.js';
 import { trackById } from '../src/track.js';
@@ -11,19 +14,25 @@ import { createScoring, bankCombo, loseCombo } from '../src/scoring.js';
 import { driftDriver } from './support/drivers.mjs';
 
 const blank = { score: null, fastestLap: null, bestCombo: null };
-// `raw` is the schema 2 key. The v0.2.0 key may be read, and is empty here, but is never written.
-function store(raw = null, legacy = null) {
-  return { raw, legacy, writes: [], reads: 0,
-    getItem(key) { assert.ok(key === RECORDS_KEY || key === LEGACY_RECORDS_KEY, key); this.reads++; return key === RECORDS_KEY ? this.raw : this.legacy; },
-    setItem(key, value) { assert.equal(key, RECORDS_KEY, 'only the schema 2 key is ever written'); this.raw = value; this.writes.push(value); },
+// `raw` is the schema 3 key. The older keys may be read, and are empty here, but are never written.
+function store(raw = null, legacy = null, v2 = null) {
+  return { raw, legacy, v2, writes: [], reads: 0,
+    getItem(key) {
+      assert.ok(key === RECORDS_KEY || key === V2_RECORDS_KEY || key === LEGACY_RECORDS_KEY, key); this.reads++;
+      return key === RECORDS_KEY ? this.raw : key === V2_RECORDS_KEY ? this.v2 : this.legacy;
+    },
+    setItem(key, value) { assert.equal(key, RECORDS_KEY, 'only the schema 3 key is ever written'); this.raw = value; this.writes.push(value); },
   };
 }
 const start = (r, trackId = 'original', runId = 1, mode = 'normal', handling = 'classic') => r.handle({ type: 'start', trackId, runId, mode, handling });
 const lap = (r, time = 50, valid = true, runId = 1, trackId = 'original', handling = 'classic') => r.handle({ type: 'lap', trackId, runId, handling, time, valid });
 const finish = (r, score = 100, bestCombo = 40, runId = 1, trackId = 'original', completed = 3, handling = 'classic') => r.handle({ type: 'finish', trackId, runId, handling, score, bestCombo, completed });
-// The schema 2 save for a set of Classic bests, every other partition empty.
-const savedClassic = (tracks) => ({ version: 2, tracks: Object.fromEntries(['original', 'switchback'].map((t) => [t,
-  Object.fromEntries(HANDLING_IDS.map((h) => [h, h === 'classic' && tracks[t] ? tracks[t] : blank]))])) });
+// One partition as schema 3 saves it: the shared lap, and score and combo by scoring version.
+const entry3 = ({ score, fastestLap, bestCombo }) => ({ fastestLap,
+  scoring: { [LEGACY_SCORING_VERSION]: { score: null, bestCombo: null }, [SCORING_VERSION]: { score, bestCombo } } });
+// The schema 3 save for a set of current Classic bests, every other partition empty.
+const savedClassic = (tracks) => ({ version: 3, tracks: Object.fromEntries(['original', 'switchback'].map((t) => [t,
+  Object.fromEntries(HANDLING_IDS.map((h) => [h, entry3(h === 'classic' && tracks[t] ? tracks[t] : blank)]))])) });
 function rig(trackId = 'original') {
   const storage = store(); const records = createRecords(() => storage);
   const events = [];
@@ -149,21 +158,21 @@ test('records survive a new keeper and expose only copies of saved state', () =>
   assert.deepEqual(loaded.newBests, { score: false, fastestLap: false, bestCombo: false });
 });
 
-// v0.2.0 also replaced a save with an unknown version here. Schema 2 replaces only data that is
-// not a real later schema (a non-integer, missing, or lower version); a later schema is never
-// written (the next test, and handling-records.test.mjs).
+// v0.2.0 also replaced a save with an unknown version here. Schemas 2 and 3 replace only data
+// that is not a real later schema (a non-integer, missing, or lower version); a later schema is
+// never written (the next test, and handling-records.test.mjs).
 test('corrupt, outdated or wrong-shaped saves recover empty without eager writes', () => {
-  for (const raw of ['{', 'null', '[]', 'true', '7', '{"version":2,"tracks":[]}', '{"version":2}', '{"version":1,"tracks":{}}', '{"version":"2","tracks":{}}', '{"tracks":{}}']) {
+  for (const raw of ['{', 'null', '[]', 'true', '7', '{"version":3,"tracks":[]}', '{"version":3}', '{"version":2,"tracks":{}}', '{"version":1,"tracks":{}}', '{"version":"3","tracks":{}}', '{"version":3.5,"tracks":{}}', '{"tracks":{}}']) {
     const s = store(raw); const r = createRecords(() => s);
     assert.deepEqual(r.forTrack('original', 'classic'), blank); assert.equal(s.writes.length, 0);
     assert.equal(r.readOnly, false, raw);
     start(r); finish(r); assert.equal(r.forTrack('original', 'classic').score, 100);
-    assert.equal(JSON.parse(s.raw).version, 2);
+    assert.equal(JSON.parse(s.raw).version, 3);
   }
 });
 
 test('a save from a later schema is never overwritten and never claims a NEW BEST', () => {
-  for (const raw of ['{"version":3,"tracks":{}}', '{"version":99}']) {
+  for (const raw of ['{"version":4,"tracks":{}}', '{"version":99}']) {
     const s = store(raw); const r = createRecords(() => s);
     assert.equal(r.readOnly, true); assert.equal(r.available, true);
     start(r); lap(r); finish(r);
@@ -173,25 +182,29 @@ test('a save from a later schema is never overwritten and never claims a NEW BES
   }
 });
 
-// v0.2.0 dropped unknown tracks at the next write. Schema 2 keeps them, untouched and never
+// v0.2.0 dropped unknown tracks at the next write. Schemas 2 and 3 keep them, untouched and never
 // shown, so that a later version's tracks and modes survive this version's writes.
 test('invalid saved numbers become missing; known valid fields survive and unknown tracks are kept but ignored', () => {
   for (const value of [null, true, '100', -1, 0.5, 1e100]) {
-    const s = store(JSON.stringify({ version: 2, tracks: { original: { classic: { score: value, bestCombo: value, fastestLap: 50 } }, fake: { classic: { score: 999 } } } }));
+    const s = store(JSON.stringify({ version: 3, tracks: { original: { classic: { fastestLap: 50, scoring: { [SCORING_VERSION]: { score: value, bestCombo: value } } } }, fake: { classic: { score: 999 } } } }));
     const r = createRecords(() => s);
     assert.deepEqual(r.forTrack('original', 'classic'), { score: null, bestCombo: null, fastestLap: 50 });
     assert.deepEqual(r.forTrack('fake', 'classic'), blank);
     start(r); finish(r);
     assert.deepEqual(Object.keys(JSON.parse(s.raw).tracks), ['original', 'fake', 'switchback']);
     assert.deepEqual(JSON.parse(s.raw).tracks.fake, { classic: { score: 999 } });
-    assert.deepEqual(JSON.parse(s.raw).tracks.original.classic, { score: 100, bestCombo: 40, fastestLap: 50 });
+    assert.deepEqual(JSON.parse(s.raw).tracks.original.classic, entry3({ score: 100, bestCombo: 40, fastestLap: 50 }));
   }
   for (const value of [null, true, '50', -1, 0, 1e100]) {
-    const r = createRecords(() => store(JSON.stringify({ version: 2, tracks: { original: { classic: { score: 0, bestCombo: 0, fastestLap: value } } } })));
+    const r = createRecords(() => store(JSON.stringify({ version: 3, tracks: { original: { classic: { fastestLap: value, scoring: { [SCORING_VERSION]: { score: 0, bestCombo: 0 } } } } } })));
     assert.deepEqual(r.forTrack('original', 'classic'), { score: 0, bestCombo: 0, fastestLap: null });
-    // The same rules apply to the v0.2.0 key, read through the migration.
+    // The same rules apply to both older keys, read through the migration as legacy scoring.
     const legacy = createRecords(() => store(null, JSON.stringify({ version: 1, tracks: { original: { score: 0, bestCombo: 0, fastestLap: value } } })));
-    assert.deepEqual(legacy.forTrack('original', 'classic'), { score: 0, bestCombo: 0, fastestLap: null });
+    assert.deepEqual(legacy.forTrack('original', 'classic'), blank);
+    assert.deepEqual(legacy.legacyForTrack('original', 'classic'), { score: 0, bestCombo: 0 });
+    const v2 = createRecords(() => store(null, null, JSON.stringify({ version: 2, tracks: { original: { classic: { score: 0, bestCombo: 0, fastestLap: value } } } })));
+    assert.deepEqual(v2.forTrack('original', 'classic'), blank);
+    assert.deepEqual(v2.legacyForTrack('original', 'classic'), { score: 0, bestCombo: 0 });
   }
 });
 

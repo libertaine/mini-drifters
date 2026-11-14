@@ -754,6 +754,14 @@ function showPersonalBests() {
   setText('pb-score', best.score === null ? '--' : formatNumber(best.score));
   setText('pb-lap', formatTime(best.fastestLap));
   setText('pb-combo', best.bestCombo === null ? '--' : formatNumber(best.bestCombo));
+  // Score and combo records from the earlier scoring rules stay visible, apart and quiet. They
+  // are history: no run competes with them. The fastest lap above already includes theirs.
+  const legacy = records.legacyForTrack(selectedTrackId, selectedHandlingId);
+  const legacyParts = [
+    legacy.score === null ? '' : `score ${formatNumber(legacy.score)}`,
+    legacy.bestCombo === null ? '' : `combo ${formatNumber(legacy.bestCombo)}`,
+  ].filter(Boolean);
+  setText('pb-legacy', legacyParts.length ? `Legacy scoring: ${legacyParts.join(' · ')}` : '');
   const note = !records.available ? 'Record storage unavailable. New improvements cannot be saved.'
     : records.readOnly ? 'Records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.' : '';
   setText('records-note', note);

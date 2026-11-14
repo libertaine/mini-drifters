@@ -116,8 +116,12 @@ async function check(name, engine) {
     assert.equal((await page.locator('#r-void').textContent()).trim().replace(/,/g, ''), `${laps} not counted: ${r.forfeited} points left out of the score.`);
     // Records take the qualifying result, not the raw score: a fresh profile saves this run's
     // corrected values and marks all three as NEW BEST.
-    // v0.3.0 keeps records per handling mode; this run is driven in the default, Classic.
-    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('mini-drifters-records-v2')).tracks.original.classic);
+    // Records are kept per handling mode, and score and combo per scoring version (schema 3);
+    // this run is driven in the default, Classic, under the current scoring.
+    const saved = await page.evaluate(() => {
+      const e = JSON.parse(localStorage.getItem('mini-drifters-records-v3')).tracks.original.classic;
+      return { score: e.scoring['scoring-2'].score, fastestLap: e.fastestLap, bestCombo: e.scoring['scoring-2'].bestCombo };
+    });
     assert.deepEqual(saved, { score: r.score, fastestLap: r.bestLap, bestCombo: r.bestCombo });
     const raw = await page.evaluate(() => window.__miniDrifters.game.scoring.score);
     assert.equal(saved.score, raw - r.forfeited);

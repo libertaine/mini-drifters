@@ -93,7 +93,9 @@ test('no physics-lab code ships: no lab module, URL switch or lab-only mode in s
 // the whole ghost, including its identity. test/controller.test.mjs runs it, unchanged, through
 // createGame's default mode. Here Classic is chosen explicitly from the registry, and the
 // controller pass runs on a game that has just driven Revised, so a mode change provably
-// leaves nothing behind. Every hash, tick count and score must match v0.2.0 exactly.
+// leaves nothing behind. The drive (car, laps, clock, ghost) and tick count must match v0.2.0
+// exactly; the scoring hash and score are pinned to the current scoring rules instead, since
+// the low-speed fade changes what a drift pays but nothing about how the car drives.
 const baseline = JSON.parse(readFileSync(new URL('support/keyboard-baseline.json', import.meta.url)));
 // The same mock pad as test/controller.test.mjs.
 function asPad(keys) {
@@ -117,14 +119,18 @@ for (const expected of baseline.results) {
       assert.equal(game.tuning, TUNING);
       const driver = { gripDriver, driftDriver, recklessDriver }[expected.driver]();
       const hash = createHash('sha256');
+      const drive = createHash('sha256');
       while (game.ticks < 60000 && game.state !== 'finished') {
         const keys = driver(game);
         tick(game, controller ? readStandardPad(asPad(keys)).drive : keys);
         hash.update(JSON.stringify([game.car, game.scoring, game.laps, game.runTime]));
+        drive.update(JSON.stringify([game.car, game.laps, game.runTime]));
       }
       hash.update(JSON.stringify(game.ghost));
-      assert.equal(hash.digest('hex'), expected.hash, controller ? 'controller, after Revised' : 'keyboard');
+      drive.update(JSON.stringify(game.ghost));
+      assert.equal(drive.digest('hex'), expected.driveHash, controller ? 'controller, after Revised: the v0.2.0 drive' : 'keyboard: the v0.2.0 drive');
       assert.equal(game.ticks, expected.ticks);
+      assert.equal(hash.digest('hex'), expected.hash, controller ? 'controller, after Revised' : 'keyboard');
       assert.equal(game.scoring.score, expected.score);
     }
   });
