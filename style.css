@@ -532,3 +532,5 @@ body[data-session="practice"] #handling-status { top: 136px; color: var(--amber)
   .sheet::before { margin: -22px -22px 14px; }
   .sheet-title { font-size: 36px; }
 }
+
+.release-version { position: absolute; top: 12px; right: 16px; color: var(--muted); font: 12px var(--body); }

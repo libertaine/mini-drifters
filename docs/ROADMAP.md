@@ -46,9 +46,13 @@ Candidate work:
 
 Procedural generation is still only a possibility.
 
-## Prototype 0.3: Competition and Replayability
+## Prototype 0.3: Competition and Replayability (complete)
 
-Candidate work:
+Released as [v0.3.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.3.0):
 
-- Improved scoring balance.
-- Better player feedback.
+- Classic handling and Power handling, with the last choice remembered.
+- An unscored practice pad for either handling mode.
+- A low-speed scoring fade: slow slides keep their combos but pay less.
+- Personal bests separated by track, handling and scoring version. Earlier scores
+  and combos remain as legacy records, and fastest laps carry forward.
+- Handling-specific ghosts, with the driving lesson kept on Classic.
