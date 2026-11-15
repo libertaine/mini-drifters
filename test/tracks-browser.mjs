@@ -197,7 +197,7 @@ async function check(name, engine) {
     assert.equal(g.track, 'original');
     assert.equal(await focused(page), 'start', 'Start keeps the focus');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'HOW TO PLAY', 'OPTIONS'], 'the menu is v0.2.0\'s, with v0.3.0\'s Practice pad');
+    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'GYMKHANA', 'HOW TO PLAY', 'OPTIONS'], 'the menu is v0.2.0\'s, with v0.3.0\'s Practice pad and Gymkhana');
     const poster = await stamp(page, POSTER);
     for (const [width, height] of SIZES) {
       await page.setViewportSize({ width, height });

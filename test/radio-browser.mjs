@@ -115,7 +115,7 @@ async function open(browser, { saved, muted, before } = {}) {
       return radio.status === 'playing' && radio.station === want && radio.active === 1;
     }, id, { timeout: 15000 }),
     contextIs: (state) => page.waitForFunction((want) => window.__tap.states()[0] === want, state, { timeout: 5000 }),
-    station: (name) => page.locator('.station', { hasText: name }).click(),
+    station: (name) => page.locator('#stations .station', { hasText: name }).click(),
     openOptions: () => page.locator('.options-open:visible').click(),
     closeOptions: () => page.keyboard.press('Escape'),
     setVolume: (id, value) => page.locator(`#${id}`).fill(String(value)),
@@ -157,7 +157,7 @@ async function run(browser, browserName) {
     await page.keyboard.press('KeyO');
     assert.ok(await page.locator('#options').isVisible());
     assert.equal(await page.locator('#menu').isVisible(), false);
-    assert.deepEqual(await page.locator('.station').allTextContents(), STATIONS.map((s) => s.name));
+    assert.deepEqual(await page.locator('#stations .station').allTextContents(), STATIONS.map((s) => s.name));
     assert.equal(await page.locator('input[name=station]:checked').inputValue(), 'off');
     assert.equal(await page.inputValue('#music-volume'), '70');
     assert.equal(await page.inputValue('#effects-volume'), '100');
@@ -518,8 +518,11 @@ async function run(browser, browserName) {
     const { page } = t;
     await page.locator('#start').focus();
     await page.keyboard.press('Tab'); // Practice pad
+    await page.keyboard.press('Tab'); // Gymkhana
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'gymkhana');
     await page.keyboard.press('Tab'); // How to Play
-    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab'); // Options
+    assert.equal(await page.evaluate(() => document.activeElement.classList.contains('options-open')), true);
     await page.keyboard.press('Enter');
     assert.equal((await t.game()).state, 'menu', 'Enter on the Options button does not start a run');
     assert.ok(await page.locator('#options').isVisible());

@@ -195,6 +195,8 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'practice', 'v0.3.0: Practice pad sits between Start and How to Play');
     await page.keyboard.press('ArrowDown');
+    assert.equal(await focused(page), 'gymkhana', 'and Gymkhana after it');
+    await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('Enter');
     assert.ok(await visible(page, 'help'));
@@ -263,6 +265,7 @@ async function check(name, engine) {
 
     // --- Getting in -------------------------------------------------------------------
     page = await open();
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');

@@ -13,6 +13,8 @@ import { createTutorial, updateTutorial, skipStep, tutorialView, tutorialEnding 
 import { HANDLING_MODES, handlingById } from './handling.js';
 import { readHandlingPreference, writeHandlingPreference } from './handling-preferences.js';
 import { padTrack } from './practice-pad.js';
+import { createGymkhanaRecords } from './gymkhana-records.js';
+import { createGymkhanaUi } from './gymkhana-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -25,10 +27,13 @@ const LESSON_TRACK_ID = 'original';
 // They were also written for Classic's handbrake technique, so it always drives Classic.
 const LESSON_HANDLING = handlingById('classic');
 
-// Records are kept per track and handling mode (records.js).
+// Records are kept per track and handling mode (records.js). The gymkhana challenges keep
+// their own, per challenge and handling mode, under their own key (gymkhana-records.js).
 const records = createRecords();
+const gymkhanaRecords = createGymkhanaRecords();
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
+  gymkhanaRecords.handle(event);
   showPersonalBests();
 } });
 // The title's poster is Original's hairpin, whichever circuit is chosen for driving.
@@ -102,6 +107,7 @@ function selectHandling(id, { remember = true } = {}) {
   for (const input of handlingInputs) input.checked = input.value === id;
   setText('handling-summary', handlingById(id).summary);
   showPersonalBests();
+  if (gymkhanaOpen) showGymkhanaMenu();
 }
 
 function stepHandling(direction) {
@@ -190,8 +196,9 @@ function clearInput() {
 }
 
 // The kind of session is the run's own `game.mode`: 'normal' (a scored circuit run),
-// 'tutorial', or 'practice' (the pad: free driving, never scored, timed or saved). The records
-// keeper only listens to 'normal'.
+// 'tutorial', 'practice' (the pad: free driving, never scored, timed or saved) or 'gymkhana'
+// (one challenge on its own pad). The circuit records only listen to 'normal', and the
+// gymkhana records only to 'gymkhana'.
 
 function beginRun() {
   doneOpen = false;
@@ -212,6 +219,68 @@ function beginPractice() {
   clearInput();
   syncScreens();
   audio.newRun(game);
+}
+
+// --- Gymkhana ----------------------------------------------------------------
+// The title's Gymkhana button opens a sheet where one challenge is chosen and started. A
+// gymkhana session is game.mode 'gymkhana': the selected handling mode on the challenge's own
+// pad, with no laps or ghost. Its run ends the session, completed or failed, on a results sheet
+// of its own. The challenge, like the track, is not saved: a new visit starts on the first.
+let gymkhanaOpen = false;
+let gymkhanaOpener = null;
+const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, onChoose: () => showGymkhanaMenu() });
+const inGymkhana = () => game.mode === 'gymkhana' && game.state !== 'menu';
+
+function showGymkhanaMenu() {
+  gymkhana.showMenu(selectedHandling(), instructionDevice);
+}
+
+function openGymkhana(opener = null) {
+  if (gymkhanaOpen || game.state !== 'menu') return;
+  gymkhanaOpen = true;
+  gymkhanaOpener = opener;
+  clearInput();
+  showGymkhanaMenu();
+  syncScreens();
+  $('gymkhana-start').focus();
+}
+
+function closeGymkhana({ restoreFocus = true } = {}) {
+  if (!gymkhanaOpen) return;
+  gymkhanaOpen = false;
+  syncScreens();
+  settleFocus(gymkhanaOpener, restoreFocus);
+  gymkhanaOpener = null;
+}
+
+// Left and Right on the sheet. Focus follows only if it was already on the choice.
+function stepChallenge(direction) {
+  gymkhana.step(direction);
+  showGymkhanaMenu();
+  if (gymkhana.inputs.includes(document.activeElement)) gymkhana.inputs.find((input) => input.checked).focus();
+}
+
+// The sheet's Up/Down stops: the chosen challenge, then its buttons.
+function gymkhanaStops() {
+  return [gymkhana.inputs.find((input) => input.checked), $('gymkhana-start'), $('gymkhana-back')];
+}
+
+function beginGymkhana() {
+  gymkhanaOpen = false;
+  gymkhanaOpener = null;
+  doneOpen = false;
+  tutorial = null;
+  startRun(game, { mode: 'gymkhana', ghost: false, handling: selectedHandling(), challenge: gymkhana.selected() });
+  resetEffects(renderer, game.car);
+  clearInput();
+  syncScreens();
+  audio.newRun(game);
+}
+
+// After a normal run, Enter and Drive again start another. After a challenge they retry it.
+function driveAgain() {
+  if (game.mode === 'gymkhana') restart();
+  else beginRun();
 }
 
 // Same track, same mode, same kind of session: only the car and the run start over.
@@ -246,6 +315,8 @@ function startTutorial() {
 // is back in the state it opens in.
 function leaveSession() {
   tutorial = null;
+  gymkhanaOpen = false;
+  gymkhanaOpener = null;
   optionsOpen = false;
   optionsOpener = null;
   helpOpen = false;
@@ -260,8 +331,16 @@ function leaveSession() {
 }
 
 function returnToTitle() {
+  // Leaving a challenge lands on the button that leads back to the challenges.
+  const button = inGymkhana() ? $('gymkhana') : $('start');
   leaveSession();
-  $('start').focus();
+  button.focus();
+}
+
+// From a challenge's results, straight back to the sheet the challenge was chosen on.
+function changeChallenge() {
+  leaveSession();
+  openGymkhana($('gymkhana'));
 }
 
 function finishTutorial() {
@@ -350,7 +429,7 @@ function moveMenuFocus(direction) {
 }
 
 // These keep Enter, and Space when the car isn't being driven, for their own use.
-const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #practice, #again, #resume, #restart, .return-title, #tutorial-skip');
+const keepsKeys = (target) => target instanceof Element && target.matches('#sound, .options-open, #how-to-play, #practice, #gymkhana, #gymkhana-again, #gymkhana-change, #again, #resume, #restart, .return-title, #tutorial-skip');
 
 // While driving, Space is always the handbrake, even with the Sound button focused.
 function buttonOwnsSpace(e) {
@@ -387,6 +466,33 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
+  // The Gymkhana sheet: Left and Right choose the challenge, Up and Down walk its controls,
+  // H changes the handling mode as on the title, and Enter starts.
+  if (gymkhanaOpen) {
+    const plain = !(e.ctrlKey || e.metaKey || e.altKey);
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+      e.preventDefault(); // the radio group's own arrow keys would move the choice twice
+      if (e.repeat) return;
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') stepChallenge(e.code === 'ArrowRight' ? 1 : -1);
+      else {
+        const stops = gymkhanaStops();
+        const current = stops.indexOf(document.activeElement);
+        const direction = e.code === 'ArrowDown' ? 1 : -1;
+        stops[current < 0 ? (direction > 0 ? 0 : stops.length - 1) : (current + direction + stops.length) % stops.length].focus();
+      }
+    } else if (e.repeat) {
+      e.preventDefault(); // a key held from the button that opened this mustn't press Start
+    } else if (e.code === 'Escape') {
+      e.preventDefault();
+      closeGymkhana();
+    } else if (e.code === 'KeyH' && plain) {
+      stepHandling(e.shiftKey ? -1 : 1);
+    } else if (e.code === 'Enter' && plain && !(e.target instanceof HTMLButtonElement)) {
+      e.preventDefault();
+      beginGymkhana();
+    }
+    return;
+  }
   // The lesson's last sheet. It appears by itself, so a key meant for the car is ignored.
   if (doneOpen) {
     const tooSoon = performance.now() - doneOpenedAt < DONE_KEY_GUARD_MS;
@@ -398,8 +504,9 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
-  // The lesson and the practice pad have nothing to finish, so Esc leaves them directly.
-  if ((tutorial || game.mode === 'practice') && game.state !== 'menu' && !game.paused && e.code === 'Escape' && !e.repeat) {
+  // The lesson and the practice pad have nothing to finish, and a challenge is a few seconds
+  // long, so Esc leaves them directly.
+  if ((tutorial || game.mode === 'practice' || game.mode === 'gymkhana') && game.state !== 'menu' && !game.paused && e.code === 'Escape' && !e.repeat) {
     e.preventDefault();
     returnToTitle();
     return;
@@ -437,7 +544,8 @@ window.addEventListener('keydown', (e) => {
     // Left to the browser, so Enter presses the focused button.
   } else if (e.code === 'Enter' && (game.state === 'menu' || game.state === 'finished')) {
     e.preventDefault();
-    beginRun();
+    if (game.state === 'menu') beginRun();
+    else driveAgain();
   } else if (e.code === 'KeyR' && game.state !== 'menu') {
     restart();
   } else if (e.code === 'KeyP') {
@@ -462,7 +570,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (!held) return;
-  if (optionsOpen || helpOpen || doneOpen) {
+  if (optionsOpen || helpOpen || doneOpen || gymkhanaOpen) {
     input[held] = false; // and Space stays free to press the focused control
     return;
   }
@@ -500,6 +608,11 @@ $('resume').addEventListener('click', pauseOrResume);
 $('restart').addEventListener('click', restart);
 $('start').addEventListener('click', beginRun);
 $('practice').addEventListener('click', beginPractice);
+$('gymkhana').addEventListener('click', (e) => openGymkhana(e.detail > 0 ? null : e.currentTarget));
+$('gymkhana-start').addEventListener('click', beginGymkhana);
+$('gymkhana-back').addEventListener('click', (e) => closeGymkhana({ restoreFocus: e.detail === 0 }));
+$('gymkhana-again').addEventListener('click', restart);
+$('gymkhana-change').addEventListener('click', changeChallenge);
 $('again').addEventListener('click', beginRun);
 soundButton.addEventListener('click', (e) => {
   audio.setMuted(!audio.muted && !audio.failure, game);
@@ -565,9 +678,12 @@ window.addEventListener('gamepaddisconnected', (e) => {
   if (controller.disconnect(e.gamepad.index)) controllerLost();
 });
 
+// A circuit run and a gymkhana challenge each end on a sheet of their own.
+const resultsSheet = () => (game.mode === 'gymkhana' ? $('gymkhana-results') : $('results'));
+
 function controllerSheet() {
-  return optionsOpen ? $('options') : helpOpen ? $('help') : doneOpen ? $('tutorial-done')
-    : game.paused ? $('paused') : game.state === 'finished' ? $('results') : game.state === 'menu' ? $('menu') : null;
+  return optionsOpen ? $('options') : helpOpen ? $('help') : doneOpen ? $('tutorial-done') : gymkhanaOpen ? $('gymkhana-menu')
+    : game.paused ? $('paused') : game.state === 'finished' ? resultsSheet() : game.state === 'menu' ? $('menu') : null;
 }
 
 function menuControls(sheet) {
@@ -579,6 +695,7 @@ function controllerMenu(pressed, sheet) {
   if (pressed.back) {
     if (optionsOpen) closeOptions();
     else if (helpOpen) closeHelp();
+    else if (gymkhanaOpen) closeGymkhana();
     else if (doneOpen || game.state === 'finished') returnToTitle();
     else if (game.paused) pauseOrResume();
     const nextSheet = controllerSheet();
@@ -645,6 +762,8 @@ function pollController() {
     return NEUTRAL_DRIVE;
   }
   if (pad.pressed.pause) { pauseOrResume(); return NEUTRAL_DRIVE; }
+  // A challenge has no ghost to show or hide, so there X is a quick retry.
+  if (pad.pressed.ghost && inGymkhana()) { restart(); return NEUTRAL_DRIVE; }
   if (pad.pressed.ghost && !tutorial) { toggleGhost(game); showGhostStatus(); }
   if (pad.pressed.radio) audio.nextStation(game);
   return pad.drive;
@@ -708,7 +827,7 @@ function fitTitle() {
 
 function syncScreens() {
   const { state, paused } = game;
-  const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done'
+  const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done' : gymkhanaOpen ? 'gymkhana'
     : paused ? 'paused' : state === 'menu' || state === 'finished' ? state : 'driving';
   if (context !== controllerContext) {
     controllerContext = context;
@@ -718,15 +837,22 @@ function syncScreens() {
   // The HUD hides laps, score and combo on the pad, and names the mode.
   const practice = state !== 'menu' && !tutorial && game.mode === 'practice';
   document.body.dataset.session = state === 'menu' ? 'none' : tutorial ? 'tutorial' : game.mode;
+  // A timed challenge shows no score or combo; a scored one keeps them.
+  if (inGymkhana()) document.body.dataset.challenge = game.challengeDef.kind;
+  else delete document.body.dataset.challenge;
+  $('gym-panel').hidden = !inGymkhana();
   setText('handling-status', practice ? `Practice · ${game.handling.name}` : game.handling.name);
   $('handling-status').title = `Handling: ${game.handling.name}. Change it on the title screen.`;
-  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen;
+  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen || gymkhanaOpen;
   if (!$('menu').hidden) fitTitle();
   $('help').hidden = !helpOpen;
+  $('gymkhana-menu').hidden = !gymkhanaOpen;
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
   $('ghost-status').hidden = !!tutorial;
-  setText('paused-note', practice
+  setText('paused-note', inGymkhana()
+    ? (instructionDevice === 'controller' ? `${game.challengeDef.name}. Menu to carry on, or Restart to try again.` : `${game.challengeDef.name}. Press P to carry on, or R to try again.`)
+    : practice
     ? (instructionDevice === 'controller' ? 'Practice pad. Menu to carry on, or Restart to put the car back.' : 'Practice pad. Press P to carry on, or R to put the car back.')
     : instructionDevice === 'controller'
       ? tutorial ? 'Menu to carry on, or Restart at the grid. You keep your place in the lesson.' : 'Menu to carry on, or Restart to start over.'
@@ -740,11 +866,13 @@ function syncScreens() {
   $('hud').hidden = state === 'menu';
   $('paused').hidden = !paused || optionsOpen;
   const finished = state === 'finished';
-  $('results').hidden = !finished || optionsOpen;
+  $('results').hidden = !finished || optionsOpen || game.mode === 'gymkhana';
+  $('gymkhana-results').hidden = !finished || optionsOpen || game.mode !== 'gymkhana';
   $('options').hidden = !optionsOpen;
-  if (finished) showResults();
+  if (finished && game.mode === 'gymkhana') gymkhana.showResults(game);
+  else if (finished) showResults();
   if (document.activeElement instanceof HTMLElement && state !== 'menu' && !finished && !optionsOpen) document.activeElement.blur();
-  startTabAt(optionsOpen ? null : paused ? $('paused') : finished ? $('results') : null);
+  startTabAt(optionsOpen ? null : paused ? $('paused') : finished ? resultsSheet() : null);
 }
 
 // The title shows one partition: the selected track with the selected mode.
@@ -789,7 +917,7 @@ function showResults() {
   $('new-combo').hidden = !best.bestCombo;
 }
 
-const banner = { until: 0, serialCombo: 0, serialLap: 0 };
+const banner = { until: 0, serialCombo: 0, serialLap: 0, serialChallenge: 0 };
 let currentRunId = -1;
 
 function showBanner(kind, text, now) {
@@ -806,7 +934,14 @@ function updateBanners(now) {
     currentRunId = game.runId;
     banner.serialCombo = scoring.eventSerial;
     banner.serialLap = game.lapEventSerial;
+    banner.serialChallenge = 0;
     banner.until = 0;
+  }
+  // A challenge's own news comes first, so that a combo lost to the same cone has the last word.
+  if (game.challenge && game.challenge.eventSerial !== banner.serialChallenge) {
+    banner.serialChallenge = game.challenge.eventSerial;
+    const said = gymkhana.banner(game.challengeDef, game.challenge.event);
+    if (said) showBanner(said.kind, said.text, now);
   }
   if (scoring.eventSerial !== banner.serialCombo) {
     banner.serialCombo = scoring.eventSerial;
@@ -863,6 +998,11 @@ function updatePrompt() {
   }
   let text = '';
   let kind = '';
+  // A challenge says what it asks while the car is on the line, and nothing once the clock runs.
+  if (game.mode === 'gymkhana') {
+    gymkhana.showPrompt(el, game, instructionDevice);
+    return;
+  }
   // The pad has no direction, laps or clock, so it has no warnings either: only a hint at the start.
   if (game.mode === 'practice') {
     if (game.state === 'ready') {
@@ -913,6 +1053,7 @@ function updateHud(now) {
     setText('combo-mult', `×${currentMultiplier(combo)}`);
     $('combo-grace-bar').style.transform = `scaleX(${Math.max(0, combo.grace / T.comboGrace)})`;
   }
+  if (game.mode === 'gymkhana') gymkhana.updateHud(game);
   updateBanners(now);
   updatePrompt();
   if (debug) updateDebug();
@@ -986,5 +1127,5 @@ showSound(audio.snapshot());
 $('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
-  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode, drawnTrack: () => renderer.track.id, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
+  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode, gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
 requestAnimationFrame(frame);

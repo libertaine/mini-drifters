@@ -127,7 +127,7 @@ async function check(name, engine) {
     assert.deepEqual(await page.locator('#handlings label').allTextContents(), ['Classic', 'Power'], 'only the two public modes');
     assert.deepEqual(await page.locator('#handlings input').evaluateAll((i) => i.map((x) => x.value)), ['classic', 'revised'], 'Power keeps the id revised');
     assert.equal(await pref(), null, 'a first visit saves no preference just by loading');
-    assert.deepEqual(await page.locator('.title-menu button').evaluateAll((b) => b.map((x) => x.childNodes[0].textContent.trim())), ['Start driving', 'Practice pad', 'How to play', 'Options']);
+    assert.deepEqual(await page.locator('.title-menu button').evaluateAll((b) => b.map((x) => x.childNodes[0].textContent.trim())), ['Start driving', 'Practice pad', 'Gymkhana', 'How to play', 'Options']);
     for (const [w, h] of [[1920, 1080], [1366, 768], [1024, 600]]) {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForTimeout(150); // the resize event that refits the title, as menus-browser waits

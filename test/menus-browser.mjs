@@ -36,7 +36,7 @@ const ORIGIN = new URL(BASE).origin;
 
 const SIZES = [[1920, 1080], [1366, 768], [1024, 600]];
 const NO_KEYS = { up: false, down: false, left: false, right: false, handbrake: false };
-const TITLE_CONTROLS = ['#start', '#practice', '#how-to-play', '#menu .options-open'];
+const TITLE_CONTROLS = ['#start', '#practice', '#gymkhana', '#how-to-play', '#menu .options-open'];
 
 const visible = (page, id) => page.locator(`#${id}`).isVisible();
 const game = (page) => page.evaluate(() => {
@@ -164,7 +164,7 @@ async function check(name, engine) {
     assert.equal((await page.locator('.title').textContent()).replace(/\s+/g, ' '), 'MINI DRIFTERS');
     assert.equal(await page.locator('.tagline').textContent(), 'ONE OVERPOWERED CAR. ZERO GOOD IDEAS.');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'HOW TO PLAY', 'OPTIONS']);
+    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'GYMKHANA', 'HOW TO PLAY', 'OPTIONS']);
     // Personal bests add lap/combo names, not driving instructions. Verify that
     // panel explicitly, then retain the original instruction checks everywhere else.
     assert.deepEqual(await page.locator('.personal-bests dt').allTextContents(), ['Best score', 'Fastest lap', 'Best combo']);
@@ -183,7 +183,7 @@ async function check(name, engine) {
     });
     assert.doesNotMatch(shown, /\blaps?\b/i, 'the title does not promise a number of laps');
     assert.doesNotMatch(shown, /handbrake|accelerate|combo/i, 'the instructions have moved to How to Play');
-    step('the title shows the approved name, tagline and four actions, and no instructions');
+    step('the title shows the approved name, tagline and five actions, and no instructions');
 
     // --- The layout, at each supported size -----------------------------------------
     for (const [width, height] of SIZES) {
@@ -198,6 +198,8 @@ async function check(name, engine) {
         assert.ok(button.reachable, `${button.selector} is covered at ${width}x${height}`);
         assert.equal(overlaps(button, layout.sound), false, `${button.selector} meets Sound`);
       }
+      assert.equal(overlaps(layout.buttons[1], layout.buttons[2]), false, 'Practice pad and Gymkhana have separate bounds');
+      assert.ok(Math.abs(layout.buttons[1].top - layout.buttons[2].top) < 1, 'Practice pad and Gymkhana share a row');
       assert.ok(layout.buttons[0].top >= layout.tagline.bottom, 'the menu sits under the title');
       assert.ok(layout.buttons.every((b) => b.right <= width * 0.5), 'the menu stays on the left');
       // The car is the focal point: whole, clear of the panel and large in the frame. Its
@@ -219,6 +221,8 @@ async function check(name, engine) {
     assert.equal(await focused(page), 'practice');
     assert.ok(await focusRing(page), 'the selection shows while walking the menu');
     await page.keyboard.press('ArrowDown');
+    assert.equal(await focused(page), 'gymkhana', 'Gymkhana shares Practice pad\'s row and is the next stop');
+    await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('ArrowDown');
     assert.match(await focused(page), /options-open/);
@@ -235,11 +239,14 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
     assert.equal(await focused(page), 'start');
     assert.deepEqual((await game(page)).input, NO_KEYS, 'menu arrows are not pedals');
 
     await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'practice');
+    await page.keyboard.press('Tab');
+    assert.equal(await focused(page), 'gymkhana');
     await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('Tab');
@@ -247,6 +254,7 @@ async function check(name, engine) {
     assert.ok(await focusRing(page), 'Tab shows the focus too');
     await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'sound');
+    await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
@@ -265,6 +273,7 @@ async function check(name, engine) {
     step('Up, Down and Tab walk the menu with a visible focus, and game keys do nothing here');
 
     // --- How to Play --------------------------------------------------------------------
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');

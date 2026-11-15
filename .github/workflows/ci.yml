@@ -57,6 +57,8 @@ jobs:
         run: npm run test:records:browser
       - name: Handling modes and practice pad in Chromium and Firefox
         run: npm run test:handling:browser
+      - name: Gymkhana challenges and their records in Chromium and Firefox
+        run: npm run test:gymkhana:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7

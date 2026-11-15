@@ -21,11 +21,11 @@ Unmapped devices, wheels and unusual adapters are not supported.
 | LT | Proportional brake, then reverse | — |
 | A (bottom face button) | Handbrake | Confirm |
 | B (right face button) | — | Back; resume from Pause; title from Results |
-| X (left face button) | Toggle ghost (outside lesson) | — |
+| X (left face button) | Toggle ghost (outside lesson). In a Gymkhana challenge, which has no ghost: start the challenge again | — |
 | Y (top face button) | Next radio station | — |
 | Menu / Start | Pause | Resume from Pause |
 | D-pad Up / Down | — | Move focus (one step per press) |
-| D-pad Left / Right | — | Choose track on title (or handling, Classic or Power, when it has the focus: D-pad Up from Start driving); change station or volume in Options; move between other actions |
+| D-pad Left / Right | — | Choose track on title (or handling, Classic or Power, when it has the focus: D-pad Up from Start driving); choose a challenge when its radio group has focus in Gymkhana; change station or volume in Options; move between other actions |
 
 Restart, Return to Title, lesson Skip, Resume and Sound are reachable through menu
 focus. The five tutorial concepts still require real movement, slides, countersteering

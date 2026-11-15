@@ -42,6 +42,8 @@ the old rules.
 - Try It sessions and their restarts never establish any records.
 - Practice pad sessions never establish any records: they are never scored or lapped,
   and their pad is not a circuit the keeper accepts.
+- Gymkhana challenges never establish any of these records. They keep their own, under
+  their own storage key: see [the Gymkhana notes](GYMKHANA.md#records).
 - The run's handling mode is fixed when it starts. Every event names it, and an event
   naming another mode, run or track than the run's start is ignored.
 - Ties do not improve a record. Zero is a valid score/combo; null means no record.
