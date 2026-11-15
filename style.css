@@ -388,6 +388,10 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
   font-size: clamp(24px, 3.6vh, 38px);
 }
 .title-menu button:focus-visible { outline-color: var(--ink); outline-offset: 3px; }
+/* Practice pad and Gymkhana share one row, so the menu is no taller than it was without
+   Gymkhana and the logo keeps its size. Up and Down still step through them one at a time. */
+.menu-pair { display: flex; gap: 20px; width: min(100%, 25vw + 90px); margin: 0 0 0 0.6vw; }
+.title-menu .menu-pair button { flex: 1 1 auto; width: auto; margin: 0; padding: 4px 12px; justify-content: center; white-space: nowrap; font-size: clamp(19px, 2.9vh, 30px); }
 
 /* The Sound button sits under the score while driving, but there's no score here. */
 body[data-screen="title"] #sound { top: 16px; }
@@ -472,6 +476,35 @@ body[data-session="practice"] #hud .laps, body[data-session="practice"] #hud .sc
 body[data-session="practice"] #combo, body[data-session="practice"] #banner,
 body[data-session="practice"] #ghost-status { visibility: hidden; }
 body[data-session="practice"] #handling-status { top: 136px; color: var(--amber); }
+
+/* ---- Gymkhana ---- */
+/* A challenge has its own panel where the lap panel sits: its name, clock, what comes next,
+   cones touched and the record it is up against. There are no laps or ghost to show. */
+.gym-panel { top: 16px; left: 16px; min-width: 250px; max-width: 320px; }
+#gym-name { display: block; font: 400 26px/1 var(--poster); letter-spacing: 0.03em; text-transform: uppercase; }
+#gym-handling { font: 700 11px var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--amber); }
+#gym-clock { display: block; margin-top: 4px; font: 400 40px/1.05 var(--display); font-variant-numeric: tabular-nums; }
+#gym-stage { margin-top: 2px; font-size: 15px; font-weight: 700; }
+#gym-cones { font-size: 13px; font-weight: 700; color: var(--red); font-variant-numeric: tabular-nums; }
+#gym-gates { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#gym-cones:empty, #gym-gates:empty { display: none; }
+#gym-best { margin-top: 4px; font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+body[data-session="gymkhana"] #hud .laps, body[data-session="gymkhana"] #ghost-status,
+body[data-session="gymkhana"] #handling-status { visibility: hidden; }
+/* A timed challenge has no score or combo. Its banner stays, for the cone penalties. */
+body[data-session="gymkhana"][data-challenge="time"] #hud .score,
+body[data-session="gymkhana"][data-challenge="time"] #combo { visibility: hidden; }
+body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
+.banner[data-kind="penalty"] { color: var(--red); }
+.prompt[data-kind="gymkhana"] { width: max-content; max-width: min(820px, 92vw); text-align: center; line-height: 1.45; }
+.prompt[data-kind="gymkhana"] .prompt-keys { display: block; font-size: 12px; color: var(--muted); }
+/* The three challenges, chosen as the radio stations are. */
+.stations.challenges { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
+.challenges .station span { padding: 9px 4px; letter-spacing: 0.05em; white-space: nowrap; }
+#challenge-brief { min-height: 2.9em; }
+#challenge-points { min-height: 6.9em; font-size: 14px; }
+#gymkhana-results[data-outcome="failed"] .sheet-title { color: var(--red); }
+#gymkhana-results[data-outcome="failed"] .stats .big dd { color: var(--muted); }
 
 /* ---- Options ---- */
 .stations { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

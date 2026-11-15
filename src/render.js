@@ -3,6 +3,7 @@
 import { TUNING } from './tuning.js';
 import { ghostDisplay } from './ghost.js';
 import { drawPad } from './practice-pad.js';
+import { drawChallenge, drawChallengeMap } from './gymkhana-draw.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -318,7 +319,7 @@ function updateEffects(r, game, pose, dt) {
   }
 }
 
-function updateCamera(r, car, pose, dt) {
+function updateCamera(r, car, pose, dt, game) {
   const T = TUNING;
   const ratio = Math.min(1, car.speed / T.topSpeed);
   const scale = Math.max(0.75, r.height / VIEW.referenceHeight);
@@ -331,6 +332,13 @@ function updateCamera(r, car, pose, dt) {
   if (len > VIEW.lookAheadMax) {
     lx *= VIEW.lookAheadMax / len;
     ly *= VIEW.lookAheadMax / len;
+  }
+  // Before a gymkhana run starts, the view sits between the car and the challenge, so what is
+  // being asked can be read from the line.
+  const focus = game.mode === 'gymkhana' && game.state === 'ready' ? game.challengeDef?.focus : null;
+  if (focus) {
+    lx = (focus.x - pose.x) / 2;
+    ly = (focus.y - pose.y) / 2;
   }
   const f = Math.min(1, VIEW.followRate * dt);
   r.cam.x += (pose.x + lx - r.cam.x) * f;
@@ -636,7 +644,7 @@ function drawDebugWorld(r, game, pose) {
   ctx.stroke();
 }
 
-function drawMinimap(r, car, ghost) {
+function drawMinimap(r, car, ghost, game) {
   const { ctx, track } = r;
   const { bounds } = track;
   const maxW = 170;
@@ -656,6 +664,7 @@ function drawMinimap(r, car, ghost) {
   ctx.lineWidth = 3.4 / scale;
   ctx.lineJoin = 'round';
   if (!track.pad) ctx.stroke(r.course.road);
+  if (game.mode === 'gymkhana' && game.challenge) drawChallengeMap(ctx, game, 1 / scale);
   if (ghost) {
     ctx.fillStyle = GHOST_COLORS.body;
     ctx.beginPath();
@@ -851,7 +860,7 @@ export function drawFrame(r, game, alpha, dt, debug) {
   useTrack(r, game.track);
   const step = Math.min(dt, FX.maxDt);
   if (!game.paused && game.state !== 'finished' && game.state !== 'menu') updateEffects(r, game, pose, step);
-  updateCamera(r, car, pose, step);
+  updateCamera(r, car, pose, step, game);
   if (game.state === 'menu') {
     drawTitleScene(r, step);
     return;
@@ -866,6 +875,8 @@ export function drawFrame(r, game, alpha, dt, debug) {
   drawGrass(r);
   if (r.track.pad) drawPad(ctx, r.track);
   else drawRoad(ctx, r.course);
+  // A gymkhana challenge paints its gates, zones and cones on its pad.
+  if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game);
   drawSkids(r);
   drawWall(r);
   if (ghost) drawGhost(r, ghost);
@@ -874,5 +885,5 @@ export function drawFrame(r, game, alpha, dt, debug) {
   drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
-  drawMinimap(r, car, ghost);
+  drawMinimap(r, car, ghost, game);
 }

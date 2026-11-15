@@ -56,3 +56,18 @@ Released as [v0.3.0](https://github.com/libertaine/mini-drifters/releases/tag/v0
 - Personal bests separated by track, handling and scoring version. Earlier scores
   and combos remain as legacy records, and fastest laps carry forward.
 - Handling-specific ghosts, with the driving lesson kept on Classic.
+
+## Prototype 0.4: Gymkhana (current integration candidate)
+
+The integration candidate retains the three challenges approved in prototype play:
+
+- Precision 180: a timed gate, turn-zone and return challenge, with cone penalties.
+- Linked Drift: six gates scored with the existing drift and combo rules.
+- One Drift: the harder single-combo variant on the Linked Drift course.
+- Classic and Power handling, with separate challenge records by handling and rules version.
+- Title-screen selection, instructions, results, retry, pause and controller navigation.
+
+See [the Gymkhana notes](GYMKHANA.md). Owner acceptance passed on November 14, 2026.
+Hosted PR qualification and an explicit merge decision are the next gates; this is not
+a completed release. The published version remains v0.3.0. Medal thresholds and
+additional courses are outside this candidate.

@@ -32,7 +32,7 @@ It runs in a desktop browser with a keyboard or a standard-mapped controller (co
 | H | Next handling mode, on the title (Shift+H goes back) |
 | D | Debug display |
 
-Enter also starts a run from the title and results screens.
+Enter also starts a run from the title and results screens, and tries a Gymkhana challenge again from its results.
 
 On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. Up from **Start driving** reaches the handling choice. **How to Play** has the controls and scoring, and Esc goes back.
 
@@ -49,8 +49,8 @@ then release all controls before using it. Compatibility depends on browser and 
 | A | Handbrake while driving; Confirm in menus |
 | B | Back / Close; Resume from Pause; Title from Results |
 | Menu / Start | Pause / Resume |
-| D-pad | Menu navigation; Left/Right selects track (or handling, when it's focused) or adjusts Options |
-| X / Y | Toggle ghost / Next radio station while driving |
+| D-pad | Menu navigation; Left/Right selects track (or handling, when it's focused) or chooses a focused Gymkhana challenge or adjusts Options |
+| X / Y | Toggle ghost / Next radio station while driving. In a Gymkhana challenge, X starts it again |
 
 Use the pause menu for Restart, Return to Title and tutorial Skip. Keyboard driving
 keys take priority while held; release the controller to neutral before taking over.
@@ -95,6 +95,16 @@ Press **H** (Shift+H goes back), click one, or press Up from **Start driving** a
 
 **Practice pad** on the title opens a square of open asphalt with a few cones: a ring to circle, a figure-eight, a gate to turn back through and a slalom. It uses the chosen handling. There are no laps, score, ghost or records, and nothing is timed or saved. R puts the car back, P pauses, and Esc goes back to the title.
 
+### Gymkhana
+
+**Gymkhana** on the title opens three short challenges on open asphalt, each with its own personal best for each handling mode:
+
+- **Precision 180** is timed. Drive through the gate and down the box to the turn zone, bring the car round, and come back out through the gate nose first. Each cone you touch adds 2 seconds. Leaving the box, turning before the turn zone or coming out backwards fails the run.
+- **Linked Drift** is scored. Take six gates in order through three alternating bends. Drifts score as they do on a circuit, and missing a gate fails the run.
+- **One Drift** is the same course as a single combo. The run ends when your first combo banks, and fails if it's lost.
+
+On the sheet, Left and Right choose the challenge, H changes handling, Enter starts and Esc goes back. While driving, R starts again, P pauses and Esc returns to the title. When a run ends, Enter or R tries again. See [the Gymkhana notes](docs/GYMKHANA.md) for the full rules, the records and the acceptance steps.
+
 **Return to Title** is on the pause and results screens, so leaving a run no longer takes a reload.
 
 The **Sound** button under the score is the master switch for all sound, and remembers your choice. It works with the mouse, or with Tab and Enter.
@@ -136,7 +146,8 @@ banked combo from a completed three-lap run, counting only the laps that counted
 the fastest valid lap. A valid lap
 is saved as it finishes even if you later restart or leave the run; voided and
 incomplete laps never count. Abandoned runs do not set score or combo records,
-and Try It lessons and the practice pad never set any records.
+and Try It lessons and the practice pad never set any records. Gymkhana challenges
+keep [records of their own](docs/GYMKHANA.md#records), and never change these.
 
 The title shows the saved bests for the selected track and handling (`--` until set).
 Records saved by v0.2.0 appear under Classic. Results mark
@@ -186,7 +197,7 @@ responds to the car.
 npm test
 ```
 
-This runs the physics, scoring, lap, track, session, ghost, tutorial, controller, local records, audio, radio and publishing tests.
+This runs the physics, scoring, lap, track, session, ghost, tutorial, controller, local records, gymkhana, audio, radio and publishing tests.
 
 `npm run test:controller:browser` checks mocked Gamepad snapshots and controller menus in Chromium and Firefox; physical hardware is not required by CI.
 
@@ -208,6 +219,8 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 
 `npm run test:handling:browser` checks choosing handling by keyboard, mouse and controller, remembering the choice, the practice pad, the lesson staying on Classic, records kept apart by handling, and the migration of v0.2.0 records, in Chromium and Firefox.
 
+`npm run test:gymkhana:browser` checks the Gymkhana sheet by keyboard, mouse and controller, drives all three challenges to completed and failed results, and checks retries, cone penalties, the challenges' own records and that the circuit records are never written, in Chromium and Firefox.
+
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
 Changes reach `main` through a pull request, and the `test` check must pass before it can merge.
@@ -221,6 +234,8 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/handling.js` | The handling modes: each one a named, fixed set of car tuning |
 | `src/handling-preferences.js` | Remembers the last chosen handling mode |
 | `src/practice-pad.js` | The practice pad's surface and markers |
+| `src/gymkhana.js`, `src/gymkhana-records.js` | The Gymkhana challenges, and their personal bests |
+| `src/gymkhana-draw.js`, `src/gymkhana-ui.js` | Painting a challenge, and its sheet, HUD panel and results |
 | `src/track.js`, `src/laps.js` | The two circuits and lap validation |
 | `src/scoring.js` | Drift detection, the low-speed fade, combos and the scoring version |
 | `src/records.js` | Local personal bests by track, handling and scoring version, run qualification, and reading the older records keys |
@@ -270,6 +285,7 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 - Desktop keyboard and standard-mapped controllers are supported. The track choice is not saved; the handling choice and personal records stay local to this browser/device.
 - Records are saved to a new storage key from v0.3.0. If an older version is opened, it shows only the records it saved itself. Nothing is lost, and the newer version shows both.
 - Scoring was tuned for Classic. Power uses the same scoring rules, so its scores aren't comparable with Classic's, and each keeps its own records.
+- The Gymkhana challenges were sized from scripted test drives and have no medals or target times yet. Linked Drift has a higher scoring ceiling in Power than in Classic.
 - The Try It lesson teaches Classic only. A lesson for Power's throttle technique may come later.
 - Owner review covered controller driving and drifting on both tracks; every physical disconnect/reconnect scenario was not explicitly verified.
 

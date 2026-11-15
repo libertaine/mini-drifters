@@ -15,7 +15,7 @@ export const NO_INPUT = Object.freeze({ up: false, down: false, left: false, rig
 // keeps it until the next start: the car's tuning is fixed from it in resetRun, so nothing can
 // change it mid-run. The rules (scoring, barriers, session length) always read TUNING.
 export function createGame(track = trackById(DEFAULT_TRACK_ID), { onRunEvent = null, handling = DEFAULT_HANDLING } = {}) {
-  const game = { onRunEvent, track, handling, mode: 'normal', state: 'menu', paused: false, ghostVisible: true };
+  const game = { onRunEvent, track, handling, mode: 'normal', state: 'menu', paused: false, ghostVisible: true, challengeDef: null, challenge: null };
   resetRun(game);
   game.state = 'menu';
   return game;
@@ -70,14 +70,24 @@ function resetRun(game) {
 // { handling } chooses the car's mode; without it the run keeps the mode it had.
 // Everything about the session is rebuilt either way, so nothing
 // from the last circuit's run carries over. Without { track }, the run stays where it was.
-export function startRun(game, { ghost = true, track = game.track, mode = 'normal', handling = game.handling } = {}) {
+// { mode: 'gymkhana', challenge } runs one of gymkhana.js's challenges on the challenge's own
+// pad. Like the practice pad it is never lapped or ghosted; the challenge keeps its own clock
+// and result (game.challenge), judges every step (tick), and ends the session when its run is
+// over (finishChallenge). A restart without { challenge } repeats the same one.
+export function startRun(game, { ghost = true, track = game.track, mode = 'normal', handling = game.handling,
+  challenge = mode === 'gymkhana' ? game.challengeDef : null } = {}) {
+  if (mode === 'gymkhana') track = challenge.track;
   game.track = track;
   game.handling = handling;
   game.mode = mode;
   resetRun(game);
-  if (!ghost || mode === 'practice') game.ghost = null;
+  game.challengeDef = mode === 'gymkhana' ? challenge : null;
+  game.challenge = mode === 'gymkhana' ? challenge.createRun() : null;
+  if (!ghost || mode === 'practice' || mode === 'gymkhana') game.ghost = null;
   game.state = 'ready';
-  game.onRunEvent?.({ type: 'start', trackId: track.id, runId: game.runId, mode, handling: handling.id });
+  const event = { type: 'start', trackId: track.id, runId: game.runId, mode, handling: handling.id };
+  if (mode === 'gymkhana') event.challengeId = challenge.id;
+  game.onRunEvent?.(event);
 }
 
 export const restartRun = startRun;
@@ -87,6 +97,8 @@ export const restartRun = startRun;
 export function returnToMenu(game) {
   game.onRunEvent?.({ type: 'abandon' });
   resetRun(game);
+  game.challengeDef = null;
+  game.challenge = null;
   game.state = 'menu';
 }
 
@@ -203,6 +215,12 @@ export function tick(game, input = NO_INPUT) {
   game.runTime += dt;
   // Practice is free driving: no score, combo, lap, ghost or finish is ever kept for it.
   if (game.mode === 'practice') return;
+  // A gymkhana challenge judges the step itself: no lap, ghost or circuit result is kept for it.
+  if (game.mode === 'gymkhana') {
+    game.challengeDef.step(game.challenge, game, ax, ay, impact);
+    if (game.challenge.phase !== 'running') finishChallenge(game);
+    return;
+  }
   const scoreBefore = game.scoring.score;
   updateScoring(game.scoring, {
     speed: car.speed,
@@ -297,6 +315,17 @@ function finishRun(game) {
     remark: remarkFor(score, scoring.spinouts),
   };
   game.onRunEvent?.({ type: 'finish', trackId: game.track.id, runId: game.runId, handling: game.handling.id, completed: laps.completed, score: game.results.score, bestCombo: game.results.bestCombo });
+}
+
+// A challenge's run is over, completed or failed. The session stops where a circuit run does,
+// in 'finished', with the run itself (game.challenge) as its result. Only a completed run
+// carries a value for the records.
+function finishChallenge(game) {
+  const { challenge: run, challengeDef: def } = game;
+  game.state = 'finished';
+  const completed = run.phase === 'complete';
+  game.onRunEvent?.({ type: 'challenge', challengeId: def.id, runId: game.runId, handling: game.handling.id,
+    completed, value: completed ? run.result.value : null });
 }
 
 // Consume real frame time in fixed steps. Rendering speed never changes the

@@ -12,7 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     # The image already holds the browsers and their system packages, so the job
     # never downloads from the Ubuntu mirrors. Its version must match the
     # Playwright version installed below. Running as the runner's user lets
@@ -57,6 +57,8 @@ jobs:
         run: npm run test:records:browser
       - name: Handling modes and practice pad in Chromium and Firefox
         run: npm run test:handling:browser
+      - name: Gymkhana challenges and their records in Chromium and Firefox
+        run: npm run test:gymkhana:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7
