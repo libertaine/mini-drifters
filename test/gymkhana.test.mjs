@@ -11,7 +11,7 @@ import { TUNING } from '../src/tuning.js';
 import { HANDLING_MODES, handlingById } from '../src/handling.js';
 import { createRecords } from '../src/records.js';
 import { TRACKS, trackById } from '../src/track.js';
-import { GYMKHANA_CHALLENGES, GYMKHANA_CHALLENGE_IDS, PRECISION_180, LINKED_DRIFT, ONE_DRIFT, challengeById } from '../src/gymkhana.js';
+import { GYMKHANA_CHALLENGES, GYMKHANA_CHALLENGE_IDS, PRECISION_180, LINKED_DRIFT, ONE_DRIFT, SLALOM_SPRINT, challengeById } from '../src/gymkhana.js';
 import * as D from './support/gymkhana-drivers.mjs';
 
 const { drive } = D;
@@ -23,10 +23,12 @@ const tidy = () => D.handbrake180({ vCap: 24, triggerX: -8, release: 110 * DEG }
 const drifter = () => D.courseDrift({ targetSlip: 32 * DEG, catchSlip: 40 * DEG, tapTime: 0.3, lateral: 9.5, cooldown: 1.4 });
 
 // --- The mode ----------------------------------------------------------------------------------
-test('there are three challenges on two layouts, and none of them is a circuit', () => {
-  assert.deepEqual(GYMKHANA_CHALLENGE_IDS, ['precision-180', 'linked-drift', 'one-drift']);
-  assert.deepEqual(GYMKHANA_CHALLENGES.map((c) => c.kind), ['time', 'score', 'score']);
+test('there are four challenges on three layouts, and none of them is a circuit', () => {
+  assert.deepEqual(GYMKHANA_CHALLENGE_IDS, ['precision-180', 'linked-drift', 'one-drift', 'slalom-sprint']);
+  assert.deepEqual(GYMKHANA_CHALLENGES.map((c) => c.kind), ['time', 'score', 'score', 'time']);
+  assert.deepEqual(GYMKHANA_CHALLENGES.map((c) => c.layout), ['box', 'course', 'course', 'slalom']);
   assert.equal(challengeById('linked-drift'), LINKED_DRIFT);
+  assert.equal(challengeById('slalom-sprint'), SLALOM_SPRINT);
   assert.equal(challengeById('original'), null);
   assert.equal(ONE_DRIFT.track, LINKED_DRIFT.track, 'One Drift is driven on the Linked Drift course');
   assert.equal(ONE_DRIFT.geometry, LINKED_DRIFT.geometry);
@@ -47,7 +49,7 @@ test('there are three challenges on two layouts, and none of them is a circuit',
 // and the rules behind that id hold. If this fails, decide whether old results still compare,
 // and if they do not, give the challenge a new rules id instead of new values here.
 test('each challenge\'s layout and rules are pinned to its rules id', () => {
-  assert.deepEqual(GYMKHANA_CHALLENGES.map((c) => c.rules), ['precision-180-1', 'linked-drift-1', 'one-drift-1']);
+  assert.deepEqual(GYMKHANA_CHALLENGES.map((c) => c.rules), ['precision-180-1', 'linked-drift-1', 'one-drift-1', 'slalom-sprint-1']);
   const p = PRECISION_180.geometry;
   assert.deepEqual({ start: p.start, box: p.box, zoneFrom: p.zoneFrom, conePenalty: p.conePenalty, timeLimit: p.timeLimit, gate: [p.gate.cx, p.gate.cy, p.gate.half], cones: p.cones.length },
     { start: { x: -50, y: 0, heading: 0 }, box: { minX: 0, maxX: 30, minY: -7, maxY: 7 }, zoneFrom: 16, conePenalty: 2, timeLimit: 30, gate: [-14, 0, 4], cones: 7 });
@@ -55,6 +57,9 @@ test('each challenge\'s layout and rules are pinned to its rules id', () => {
   assert.deepEqual({ segments: l.segments, corridor: l.corridor, gateHalf: l.gateHalf, gateMissMargin: l.gateMissMargin, timeLimit: l.timeLimit, finishS: l.finishS, gates: l.gates.map((g) => g.s) },
     { segments: [{ straight: 45 }, { turn: 90, radius: 38 }, { turn: -150, radius: 34 }, { turn: 120, radius: 34 }, { straight: 50 }],
       corridor: 10, gateHalf: 8, gateMissMargin: 10, timeLimit: 60, finishS: 285, gates: [75, 105, 149, 194, 229, 285] });
+  const s = SLALOM_SPRINT.geometry;
+  assert.deepEqual({ count: s.count, spacing: s.spacing, runUp: s.runUp, runOut: s.runOut, lane: s.lane, finishHalf: s.finishHalf, firstSide: s.firstSide, conePenalty: s.conePenalty, timeLimit: s.timeLimit, start: s.start, cones: s.cones.length, sides: s.slalom.map((c) => c.side) },
+    { count: 7, spacing: 22, runUp: 36, runOut: 30, lane: 12, finishHalf: 4, firstSide: -1, conePenalty: 2, timeLimit: 40, start: { x: -99, y: 0, heading: 0 }, cones: 9, sides: [-1, 1, -1, 1, -1, 1, -1] });
 });
 
 test('no development switch ships: the mode has no URL parameter or host check', () => {
@@ -340,16 +345,16 @@ test('a gymkhana session keeps no lap, ghost, circuit result or circuit record, 
   const game = createGame(undefined, { onRunEvent: (e) => { events.push(e); records.handle(e); } });
   for (const def of GYMKHANA_CHALLENGES) {
     startRun(game, { mode: 'gymkhana', challenge: def });
-    const driver = def === PRECISION_180 ? tidy() : drifter();
+    const driver = def === PRECISION_180 ? tidy() : def === SLALOM_SPRINT ? D.slalomWeave() : drifter();
     for (let i = 0; i < 40 / TUNING.simStep && game.state !== 'finished'; i += 1) tick(game, driver(game));
     assert.equal(game.state, 'finished', def.id);
     assert.equal(game.results, null, 'the circuit results are never filled in');
     assert.equal(game.ghost, null);
     assert.equal(game.laps.completed + game.laps.voided, 0);
   }
-  assert.deepEqual(events.map((e) => e.type), ['start', 'challenge', 'start', 'challenge', 'start', 'challenge']);
+  assert.deepEqual(events.map((e) => e.type), ['start', 'challenge', 'start', 'challenge', 'start', 'challenge', 'start', 'challenge']);
   assert.deepEqual(events.filter((e) => e.type === 'start').map((e) => [e.mode, e.challengeId]),
-    [['gymkhana', 'precision-180'], ['gymkhana', 'linked-drift'], ['gymkhana', 'one-drift']]);
+    [['gymkhana', 'precision-180'], ['gymkhana', 'linked-drift'], ['gymkhana', 'one-drift'], ['gymkhana', 'slalom-sprint']]);
   const [first] = events.filter((e) => e.type === 'challenge');
   assert.deepEqual(Object.keys(first).sort(), ['challengeId', 'completed', 'handling', 'runId', 'type', 'value']);
   assert.equal(first.completed, true);

@@ -31,7 +31,7 @@ const finish = (r, score = 100, bestCombo = 40, runId = 1, trackId = 'original',
 const entry3 = ({ score, fastestLap, bestCombo }) => ({ fastestLap,
   scoring: { [LEGACY_SCORING_VERSION]: { score: null, bestCombo: null }, [SCORING_VERSION]: { score, bestCombo } } });
 // The schema 3 save for a set of current Classic bests, every other partition empty.
-const savedClassic = (tracks) => ({ version: 3, tracks: Object.fromEntries(['original', 'switchback'].map((t) => [t,
+const savedClassic = (tracks) => ({ version: 3, tracks: Object.fromEntries(['original', 'switchback', 'dockyard'].map((t) => [t,
   Object.fromEntries(HANDLING_IDS.map((h) => [h, entry3(h === 'classic' && tracks[t] ? tracks[t] : blank)]))])) });
 function rig(trackId = 'original') {
   const storage = store(); const records = createRecords(() => storage);
@@ -191,7 +191,7 @@ test('invalid saved numbers become missing; known valid fields survive and unkno
     assert.deepEqual(r.forTrack('original', 'classic'), { score: null, bestCombo: null, fastestLap: 50 });
     assert.deepEqual(r.forTrack('fake', 'classic'), blank);
     start(r); finish(r);
-    assert.deepEqual(Object.keys(JSON.parse(s.raw).tracks), ['original', 'fake', 'switchback']);
+    assert.deepEqual(Object.keys(JSON.parse(s.raw).tracks), ['original', 'fake', 'switchback', 'dockyard']);
     assert.deepEqual(JSON.parse(s.raw).tracks.fake, { classic: { score: 999 } });
     assert.deepEqual(JSON.parse(s.raw).tracks.original.classic, entry3({ score: 100, bestCombo: 40, fastestLap: 50 }));
   }

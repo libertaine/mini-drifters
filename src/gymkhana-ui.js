@@ -24,6 +24,11 @@ function failure(reason) {
   if (reason === 'came out backwards') return 'The car has to come back out through the gate nose first.';
   if (reason === 'out of time') return 'Out of time.';
   if (reason === 'missed the finish') return 'You missed the finish gate.';
+  // Slalom Sprint.
+  const side = /^wrong side of cone (\d)$/.exec(reason);
+  if (side) return `You passed cone ${side[1]} on the wrong side. Go left of the first cone, then right of the next, and so on.`;
+  const lane = /^left the lane at cone (\d)$/.exec(reason);
+  if (lane) return `You were outside the painted lane at cone ${lane[1]}. Each cone has to be passed inside the lane.`;
   const gate = /^missed gate (\d)$/.exec(reason);
   if (gate) return `You missed gate ${gate[1]}. Every gate has to be taken, in order.`;
   const lost = /^drift lost: (.+)$/.exec(reason);
@@ -33,6 +38,10 @@ function failure(reason) {
 
 // What a completed run was, in a sentence.
 function remark(def, r) {
+  if (def.layout === 'slalom') {
+    return r.cones ? `Every cone on the correct side. ${plural(r.cones, 'cone')} touched, costing ${r.penalty} seconds.`
+      : 'Every cone on the correct side, and none touched.';
+  }
   if (def.kind === 'time') {
     const cones = r.cones ? ` ${plural(r.cones, 'cone')} cost ${r.penalty} seconds.` : '';
     if (r.technique === 'reversed') return `Round in more than one move. It counts, but a slide is much quicker.${cones}`;
@@ -57,6 +66,18 @@ function precisionRows(r) {
     rows.push(['Exit speed', mph(r.exitSpeed)]);
   }
   return rows;
+}
+
+// Slalom Sprint's result, as driving time + penalties = total.
+function slalomRows(r, failed) {
+  return [
+    ['Driving time', `${r.time.toFixed(2)} s`],
+    ['Penalties', r.cones ? `${plural(r.cones, 'cone')}, +${r.penalty} s` : 'None'],
+    ['Total time', failed ? 'Not counted' : `${r.total.toFixed(2)} s`],
+    ['Cones passed', `${r.passed} of ${r.count}`],
+    ...(r.weaveSpeed ? [['Speed through the cones', mph(r.weaveSpeed)]] : []),
+    ['Top speed', mph(r.topSpeed)],
+  ];
 }
 
 function courseRows(r, failed) {
@@ -168,7 +189,8 @@ export function createGymkhanaUi({ records, onChoose }) {
       setText($('gym-handling'), game.handling.name);
       setText($('gym-clock'), formatClock(run.time));
       setText($('gym-stage'), run.phase === 'running' ? `Next: ${run.stage}` : run.stage);
-      setText($('gym-gates'), def.layout === 'course' ? `Gates ${run.gates.filter(Boolean).length}/${run.gates.length}` : '');
+      setText($('gym-gates'), def.layout === 'course' ? `Gates ${run.gates.filter(Boolean).length}/${run.gates.length}`
+        : def.layout === 'slalom' ? `Cones ${run.next}/${def.geometry.count}` : '');
       setText($('gym-cones'), !run.conesHit ? '' : def.kind === 'time'
         ? `${plural(run.conesHit, 'cone')} · +${run.conesHit * def.geometry.conePenalty} s` : `${plural(run.conesHit, 'cone')} hit`);
       setText($('gym-best'), `Best: ${formatValue(def, records.bestFor(def.id, game.handling.id))}`);
@@ -193,7 +215,7 @@ export function createGymkhanaUi({ records, onChoose }) {
       setText($('gr-label'), def.kind === 'time' ? 'Time' : 'Score');
       setText($('gr-value'), formatValue(def, failed ? null : r.value));
       $('gr-new').hidden = !records.newBest;
-      const rows = def.kind === 'time' ? precisionRows(r) : courseRows(r, failed);
+      const rows = def.layout === 'slalom' ? slalomRows(r, failed) : def.kind === 'time' ? precisionRows(r) : courseRows(r, failed);
       const key = rows.map((row) => row.join('=')).join('|');
       if (key !== shownRows) {
         shownRows = key;

@@ -59,6 +59,8 @@ jobs:
         run: npm run test:handling:browser
       - name: Gymkhana challenges and their records in Chromium and Firefox
         run: npm run test:gymkhana:browser
+      - name: Dockyard and Slalom Sprint in Chromium and Firefox
+        run: npm run test:dockyard-slalom:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7

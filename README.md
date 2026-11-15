@@ -65,7 +65,7 @@ There is no remapping, vibration or universal hardware compatibility claim.
 
 ### Choosing a track
 
-The title screen has a **Track** choice under the tagline: **Original** or **Switchback**. Press Left or Right to change it, or click one, then start as usual.
+The title screen has a **Track** choice under the tagline: **Original**, **Switchback** or **Dockyard**. Press Left or Right to change it, or click one, then start as usual.
 
 - A new visit starts on Original, and the choice isn't saved.
 - Restart and Drive Again stay on the same track. Use **Return to Title** to change it.
@@ -73,6 +73,8 @@ The title screen has a **Track** choice under the tagline: **Original** or **Swi
 - The Try It lesson always uses Original.
 
 Switchback trades Original's long bends and hairpin for a staircase of linked medium corners and one tight right. See [the Switchback notes](docs/SWITCHBACK.md).
+
+Dockyard is short and technical: a right-hander that tightens, a quick chicane and one long sweeping bend back onto the quay. See [the Dockyard notes](docs/DOCKYARD.md).
 
 ### Choosing handling
 
@@ -97,11 +99,12 @@ Press **H** (Shift+H goes back), click one, or press Up from **Start driving** a
 
 ### Gymkhana
 
-**Gymkhana** on the title opens three short challenges on open asphalt, each with its own personal best for each handling mode:
+**Gymkhana** on the title opens four short challenges on open asphalt, each with its own personal best for each handling mode:
 
 - **Precision 180** is timed. Drive through the gate and down the box to the turn zone, bring the car round, and come back out through the gate nose first. Each cone you touch adds 2 seconds. Leaving the box, turning before the turn zone or coming out backwards fails the run.
 - **Linked Drift** is scored. Take six gates in order through three alternating bends. Drifts score as they do on a circuit, and missing a gate fails the run.
 - **One Drift** is the same course as a single combo. The run ends when your first combo banks, and fails if it's lost.
+- **Slalom Sprint** is timed. Weave through seven cones, left of the first and then alternating, and cross the finish gate. Each cone you touch adds 2 seconds. Passing a cone on the wrong side, leaving the painted lane or missing the finish gate fails the run.
 
 On the sheet, Left and Right choose the challenge, H changes handling, Enter starts and Esc goes back. While driving, R starts again, P pauses and Esc returns to the title. When a run ends, Enter or R tries again. See [the Gymkhana notes](docs/GYMKHANA.md) for the full rules, the records and the acceptance steps.
 
@@ -219,7 +222,9 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 
 `npm run test:handling:browser` checks choosing handling by keyboard, mouse and controller, remembering the choice, the practice pad, the lesson staying on Classic, records kept apart by handling, and the migration of v0.2.0 records, in Chromium and Firefox.
 
-`npm run test:gymkhana:browser` checks the Gymkhana sheet by keyboard, mouse and controller, drives all three challenges to completed and failed results, and checks retries, cone penalties, the challenges' own records and that the circuit records are never written, in Chromium and Firefox.
+`npm run test:gymkhana:browser` checks the Gymkhana sheet by keyboard, mouse and controller, drives Precision 180, Linked Drift and One Drift to completed and failed results, and checks retries, cone penalties, the challenges' own records and that the circuit records are never written, in Chromium and Firefox.
+
+`npm run test:dockyard-slalom:browser` drives three laps of Dockyard in Classic and Power and Slalom Sprint to completed, penalised and failed results, by keyboard, mouse and controller. It checks the title and the Gymkhana sheet fit every supported window with fallback fonts, and that records saved by v0.4.0 are read and kept, in Chromium and Firefox.
 
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
@@ -236,7 +241,7 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/practice-pad.js` | The practice pad's surface and markers |
 | `src/gymkhana.js`, `src/gymkhana-records.js` | The Gymkhana challenges, and their personal bests |
 | `src/gymkhana-draw.js`, `src/gymkhana-ui.js` | Painting a challenge, and its sheet, HUD panel and results |
-| `src/track.js`, `src/laps.js` | The two circuits and lap validation |
+| `src/track.js`, `src/laps.js` | The three circuits and lap validation |
 | `src/scoring.js` | Drift detection, the low-speed fade, combos and the scoring version |
 | `src/records.js` | Local personal bests by track, handling and scoring version, run qualification, and reading the older records keys |
 | `src/ghost.js` | Recording and replaying the previous valid lap |

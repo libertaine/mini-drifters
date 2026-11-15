@@ -165,7 +165,7 @@ async function check(name, engine) {
     assert.equal(await shown('#gymkhana-menu'), true);
     assert.equal(await shown('#menu'), false, 'the sheet stands in for the title');
     assert.equal(await focused(), 'gymkhana-start');
-    assert.deepEqual(await page.locator('#challenges .station span').allTextContents(), ['Precision 180', 'Linked Drift', 'One Drift']);
+    assert.deepEqual(await page.locator('#challenges .station span').allTextContents(), ['Precision 180', 'Linked Drift', 'One Drift', 'Slalom Sprint']);
     assert.equal(s.chosen, 'precision-180');
     assert.match(await text('#challenge-brief'), /^Through the gate, down the box to the turn zone/);
     assert.equal(await page.locator('#challenge-points li').count(), 3);
@@ -181,9 +181,13 @@ async function check(name, engine) {
     await key('ArrowRight');
     assert.equal((await status()).chosen, 'one-drift');
     await key('ArrowRight');
+    assert.equal((await status()).chosen, 'slalom-sprint');
+    await key('ArrowRight');
     assert.equal((await status()).chosen, 'precision-180', 'Right wraps');
     await key('ArrowLeft');
-    assert.equal((await status()).chosen, 'one-drift', 'Left wraps');
+    assert.equal((await status()).chosen, 'slalom-sprint', 'Left wraps');
+    await key('ArrowLeft');
+    assert.equal((await status()).chosen, 'one-drift');
     await key('ArrowDown');
     assert.equal(await focused(), 'gymkhana-back');
     await key('ArrowUp');
@@ -218,7 +222,7 @@ async function check(name, engine) {
     await page.locator('#gymkhana-back').click();
     await frames();
     assert.equal((await status()).sheet, false);
-    ok('sheet: three challenges, Left/Right choose and wrap, Up/Down walk the controls, H changes handling, Esc and Back close');
+    ok('sheet: four challenges, Left/Right choose and wrap, Up/Down walk the controls, H changes handling, Esc and Back close');
 
     // --- 3. Precision 180, clean ---------------------------------------------------------
     await page.locator('#gymkhana').focus();
@@ -445,10 +449,15 @@ async function check(name, engine) {
     assert.equal(s.sheet, true, 'A opens the sheet');
     assert.equal(await focused(), 'gymkhana-start');
     assert.match(await text('#gymkhana-handling'), /chosen on the title screen/);
-    await press(12); // up, onto the challenges
+    await press(12); // up, onto the chosen challenge
     assert.equal(await focused(), 'one-drift');
-    await press(15); // right: the next challenge, wrapping
+    await press(15); // right: the next challenge
+    assert.equal((await status()).chosen, 'slalom-sprint');
+    assert.equal(await focused(), 'slalom-sprint', 'the focus follows the choice');
+    await press(15); // right again, wrapping
     assert.equal((await status()).chosen, 'precision-180');
+    await press(13); await press(12); // down to Start and back up
+    assert.equal(await focused(), 'precision-180', 'Up from Start reaches the chosen challenge, whichever it is');
     await press(1); // B
     assert.equal((await status()).sheet, false, 'B closes the sheet');
     assert.equal(await focused(), 'gymkhana');

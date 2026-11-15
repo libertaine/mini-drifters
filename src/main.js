@@ -688,6 +688,8 @@ function controllerSheet() {
 
 function menuControls(sheet) {
   if (sheet === $('menu')) return [...titleStops(), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
+  // The Gymkhana sheet's stops are the keyboard's: the chosen challenge, Start and Back.
+  if (sheet === $('gymkhana-menu')) return [...gymkhanaStops(), soundButton].filter((el) => el && !el.disabled && el.getClientRects().length);
   return [...sheet.querySelectorAll('button, input'), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
 }
 
@@ -726,7 +728,8 @@ function controllerMenu(pressed, sheet) {
       return;
     }
     if (el.type === 'radio') {
-      const radios = controls.filter((c) => c instanceof HTMLInputElement && c.type === 'radio' && c.name === el.name);
+      // The whole group, even where only its chosen radio is a stop (the Gymkhana sheet).
+      const radios = [...sheet.querySelectorAll('input[type="radio"]')].filter((c) => c.name === el.name && !c.disabled && c.getClientRects().length);
       const next = radios[(radios.indexOf(el) + horizontal + radios.length) % radios.length];
       next.click();
       controllerFocus(next);
@@ -820,7 +823,8 @@ function fitTitle() {
   const heading = title.getBoundingClientRect();
   const used = $('controller-note').getBoundingClientRect().bottom - heading.top;
   if (used > available) {
-    const scale = Math.max(0.25, (heading.height - (used - available) - 4) / heading.height);
+    // A wrapped Track row (three circuits at 1024x600) needs a little below v0.4.0's 0.25 floor.
+    const scale = Math.max(0.2, (heading.height - (used - available) - 4) / heading.height);
     title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * scale}px`;
   }
 }

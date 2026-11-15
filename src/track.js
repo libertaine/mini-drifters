@@ -1,5 +1,5 @@
 // The circuits: closed centrelines with lookups for surface, progress along the lap,
-// and the checkpoint gates. Both laps run clockwise on screen.
+// and the checkpoint gates. Every lap runs clockwise on screen.
 
 // Original's control points, in metres. The first point sits on the start/finish line.
 const CENTERLINE = [
@@ -43,6 +43,26 @@ const SWITCHBACK = [
   [-101, 190], [-150, 190],
   // Bottom-left right-hander onto the west straight.
   [-169, 186], [-185, 175], [-196, 159], [-200, 140],
+];
+
+// Dockyard: compact and technical, driven Hook-first. The control points carry one decimal
+// place: rounded to whole metres, the spline wobbles through the Hook's wide half.
+const DOCKYARD = [
+  // Quay straight, heading east. The line is 45 m along it.
+  [-41, -78], [5.8, -78], [52.6, -78], [99.4, -78],
+  // The Hook: a right-hander that opens at 64 m...
+  [117.1, -75.5], [133.3, -68.3], [147, -56.8], [156.9, -42], [162.4, -25.1],
+  // ...and tightens to 24 m.
+  [163.2, -14.6], [161.4, -4.4], [156.4, 4.7], [147.8, 11.3], [137.3, 13.6],
+  // Acceleration zone, heading west.
+  [92.3, 13.6], [47.3, 13.6], [2.3, 13.6],
+  // Chicane: left...
+  [-7.4, 15.2], [-16, 19.8], [-22.7, 27], [-26.7, 35.9],
+  // ...then right, and a short link.
+  [-32, 55.8], [-36.1, 64.7], [-42.8, 71.8], [-51.4, 76.4], [-61, 78],
+  // The Basin: a 180 degree sweeper at 69 to 80 m, back onto the quay.
+  [-86, 78], [-108, 74.8], [-128.2, 65.6], [-145, 51], [-157, 32.3], [-163.2, 11.1],
+  [-163.2, -11.2], [-156.9, -32.4], [-144.9, -51.1], [-128.1, -65.6], [-107.9, -74.9], [-85.9, -78],
 ];
 
 export const TRACK_HALF_WIDTH = 10;
@@ -190,10 +210,12 @@ export function buildTrack(control = CENTERLINE) {
   };
 }
 
-// Both circuits, in the order the title offers them. Ids are stable: tests and the page use them.
+// Every circuit, in the order the title offers them. Ids are stable: tests, the page and the
+// saved records (records.js) use them.
 export const TRACKS = Object.freeze([
   Object.freeze({ id: 'original', name: 'Original', control: CENTERLINE }),
   Object.freeze({ id: 'switchback', name: 'Switchback', control: SWITCHBACK }),
+  Object.freeze({ id: 'dockyard', name: 'Dockyard', control: DOCKYARD }),
 ]);
 export const DEFAULT_TRACK_ID = 'original';
 

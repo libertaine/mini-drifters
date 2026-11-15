@@ -5,7 +5,7 @@
 // this file into the page, so it depends on nothing outside src/.
 import { TUNING } from '../../src/tuning.js';
 import { createGame, startRun, tick } from '../../src/game.js';
-import { PRECISION_180, LINKED_DRIFT, projectOnCourse } from '../../src/gymkhana.js';
+import { PRECISION_180, LINKED_DRIFT, SLALOM_SPRINT, projectOnCourse } from '../../src/gymkhana.js';
 
 const DECISION_INTERVAL = 1 / 15;
 export const DEG = Math.PI / 180;
@@ -251,6 +251,67 @@ export function courseWeave(base, { untilS = 45, period = 1.1 } = {}) {
     const right = phase < 0.5;
     return { up: true, down: false, left: !right, right, handbrake: (phase % 0.5) < 0.18 };
   };
+}
+
+// --- Slalom Sprint ---------------------------------------------------------------------------
+// A weaver that reads the challenge's own geometry, as the v0.5.0 research harness's did.
+const SL = SLALOM_SPRINT.geometry;
+const ease = (u) => (1 - Math.cos(Math.PI * Math.max(0, Math.min(1, u)))) / 2;
+
+// The line a weaver aims along: `amp` metres to the required side of each cone, eased from one
+// to the next, and `exitY` metres off the centre of the finish gate at the end.
+function slalomLine(amp, exitY) {
+  const { slalom, runUp, runOut, spacing } = SL;
+  const lead = Math.min(22, runUp * 0.6);
+  const last = slalom.length - 1;
+  return (x) => {
+    if (x <= slalom[0].x) return amp * slalom[0].side * ease((x - (slalom[0].x - lead)) / lead);
+    for (let i = 0; i < last; i += 1) {
+      if (x <= slalom[i + 1].x) return amp * (slalom[i].side + (slalom[i + 1].side - slalom[i].side) * ease((x - slalom[i].x) / spacing));
+    }
+    const out = ease((x - slalom[last].x) / (runOut * 0.6));
+    return amp * slalom[last].side * (1 - out) + exitY * out;
+  };
+}
+
+// Weaves at `speed` m/s, `amp` metres to the required side of each cone. A negative `amp` takes
+// every cone on the wrong side. `tap` > 0 adds a handbrake flick of that many seconds at each
+// cone, `flat` never lifts, and `exitY` aims that far off the centre of the finish gate.
+export function slalomWeave({ speed = 19.25, amp = 2.8, lookV = 0.4, tap = 0, flat = false, exitY = 0 } = {}) {
+  const line = slalomLine(amp, exitY);
+  const xs = SL.slalom.map((c) => c.x);
+  const lastX = xs[xs.length - 1];
+  let next = 0;
+  let tapUntil = -1;
+  let tapped = -1;
+  let keys = KEYS();
+  keys.up = true;
+  return (game) => {
+    const t = game.ticks * TUNING.simStep;
+    if (t < next) { keys.handbrake = t < tapUntil; return keys; }
+    next = t + DECISION_INTERVAL;
+    const { car } = game;
+    const tx = car.x + 6 + lookV * car.speed;
+    const err = angleTo(car.heading, Math.atan2(line(tx) - car.y, tx - car.x));
+    keys = { up: true, down: false, left: err < -2 * DEG, right: err > 2 * DEG, handbrake: false };
+    if (!flat && car.x < lastX - 2) {
+      // The fastest speed from which the first cone can still be reached at the weaving speed.
+      const limit = Math.sqrt(speed * speed + 2 * 16 * Math.max(0, xs[0] - 4 - car.x));
+      keys.up = car.speed < limit;
+      keys.down = car.speed > limit + 1.5;
+    }
+    if (tap > 0) {
+      const i = xs.findIndex((x) => car.x >= x - 1 && car.x < x + 4);
+      if (i >= 0 && i !== tapped && i < xs.length - 1) { tapped = i; tapUntil = t + tap; }
+      keys.handbrake = t < tapUntil;
+    }
+    return keys;
+  };
+}
+
+// Flat out along the line of cones, touching nothing but the throttle.
+export function slalomStraight() {
+  return () => ({ up: true, down: false, left: false, right: false, handbrake: false });
 }
 
 // Runs one challenge through the session loop (game.js tick) with a driver, exactly as the
