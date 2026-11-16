@@ -6,6 +6,7 @@
 // renderer's own. Screenshots go to artifacts/ for a person to look at: no check here can say
 // whether the smoke looks right.
 //   node test/wheelspin-browser.mjs /path/to/playwright/index.mjs
+//   MINI_DRIFTERS_FIREFOX_NO_AUDIO_DEVICE=1 node test/wheelspin-browser.mjs ...   (Firefox with no output)
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -32,7 +33,10 @@ const base = `http://127.0.0.1:${server.address().port}/`;
 const KNOWN_KEYS = new Set(['mini-drifters-sound', 'mini-drifters-handling', 'mini-drifters-audio', 'mini-drifters-records-v3', 'mini-drifters-gymkhana-v1']);
 
 async function check(name, engine) {
-  const browser = await engine.launch({ headless: true });
+  // MINI_DRIFTERS_FIREFOX_NO_AUDIO_DEVICE=1 gives Firefox a null audio backend, so a Windows or
+  // macOS machine with speakers can reproduce device-less Linux Firefox: resume() never settles.
+  const noDevice = name === 'firefox' && process.env.MINI_DRIFTERS_FIREFOX_NO_AUDIO_DEVICE === '1';
+  const browser = await engine.launch({ headless: true, ...(noDevice && { firefoxUserPrefs: { 'media.cubeb.force_null_context': true } }) });
   const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   const page = await context.newPage();
   const errors = [];
@@ -151,17 +155,39 @@ async function check(name, engine) {
     ok(`100 s of throttle circles: at most ${s.maxSkids}/1800 skid segments and ${s.maxSmoke}/110 puffs`);
 
     // --- 5. Sound Off: the picture carries on, the engine is silent -------------------------
-    // Device-less Linux Firefox never starts its output (docs/GAMEPLAY-AUDIO.md), and the button
-    // then reads Sound Unavailable. The sound model still runs there, so only the toggle is skipped.
-    const unavailable = (await page.locator('#sound').textContent()) === 'Sound Unavailable';
-    if (!unavailable) {
+    // Device-less Linux Firefox never starts its output (docs/GAMEPLAY-AUDIO.md): native resume()
+    // never settles, the controller reports the bounded failure and lets the context go, and the
+    // button reads Sound Unavailable. There is no Sound Off to press, so only the failure and the
+    // missing engine are checked. Wait until output has either started (an engine is loaded) or
+    // been given up on, so neither path is chosen while the outcome is still open.
+    await page.waitForFunction(() => { const a = window.__miniDrifters.audio(); return a.engine !== 'none' || a.failure; }, null, { timeout: 15000 });
+    let a = await sound();
+    const unavailable = a.failure !== null;
+    if (noDevice) assert.ok(unavailable, 'the emulated device-less Firefox takes the unavailable path');
+    if (unavailable) {
+      // Only the documented case may take this path; any other audio failure fails the check.
+      assert.equal(name, 'firefox', `unexpected audio failure: ${a.failure}`);
+      assert.ok(process.platform === 'linux' || noDevice, `unexpected audio failure on ${process.platform}: ${a.failure}`);
+      assert.match(a.failure, /did not start/);
+      assert.equal(await page.locator('#sound').textContent(), 'Sound Unavailable');
+    } else {
+      assert.equal(a.label, 'Sound On');
       await page.locator('#sound').click();
       assert.equal(await page.locator('#sound').textContent(), 'Sound Off');
     }
     await hold('ArrowUp', 'ArrowLeft');
     s = await sample(60 * 3);
     await release('ArrowUp', 'ArrowLeft');
-    assert.equal((await sound()).mode, 'silent');
+    a = await sound();
+    if (unavailable) {
+      assert.match(a.failure ?? '', /did not start/, 'the audio failure is still reported');
+      assert.equal(a.label, 'Sound Unavailable');
+      assert.equal(a.engine, 'none', 'no engine is running');
+      assert.equal(a.sourceCount, 0);
+    } else {
+      assert.equal(a.failure, null, 'Sound Off is not an audio failure');
+      assert.equal(a.mode, 'silent');
+    }
     assert.ok(s.spinPuffFrames > 0, 'smoke does not depend on sound');
     assert.ok(s.finite);
     if (!unavailable) {
@@ -169,7 +195,7 @@ async function check(name, engine) {
       assert.equal(await page.locator('#sound').textContent(), 'Sound On');
       ok('Sound Off silences the engine and leaves the smoke alone');
     } else {
-      ok('audio output unavailable here: checked only that the smoke and the sound model carry on');
+      ok(`audio output unavailable${noDevice ? ' (emulated)' : ''}: failure reported (${a.failure}), no engine, and the smoke and the sound model carry on`);
     }
 
     // --- 6. Back to the title clears the pad ------------------------------------------------
