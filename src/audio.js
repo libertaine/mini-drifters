@@ -212,6 +212,7 @@ export class GameAudio {
       load: this.audioState.load,
       gear: this.audioState.gear,
       shifts: this.audioState.shifts,
+      wheelspin: this.audioState.spin,
       tireIntensity: this.audioState.tire,
       station: this.station,
       stationName: stationById(this.station, this.stations)?.name ?? '',

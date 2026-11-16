@@ -184,6 +184,63 @@ function drawLinked(ctx, def, run) {
   });
 }
 
+// Slalom Sprint: the lane, the start line, an arrow on the side each cone
+// is passed on, the next cone's gate, and the finish.
+function slalomColor(run, i) {
+  if (i < run.next) return GREEN;
+  if (i === run.failedAt) return RED;
+  if (i === run.next && run.phase === 'running') return CYAN;
+  return FAINT;
+}
+
+function drawSlalom(ctx, def, run) {
+  const { slalom, finish, lane, start, count } = def.geometry;
+  const first = slalom[0].x;
+  const last = slalom[count - 1].x;
+  const live = run.phase === 'running';
+
+  // The lane's two edges.
+  ctx.strokeStyle = /^left the lane/.test(run.reason) ? RED : 'rgba(246,241,228,0.5)';
+  ctx.lineWidth = 0.35;
+  line(ctx, first - 10, -lane, last + 10, -lane);
+  line(ctx, first - 10, lane, last + 10, lane);
+  // The line of cones, faintly, so the weave reads as crossing it.
+  ctx.strokeStyle = 'rgba(246,241,228,0.12)';
+  ctx.lineWidth = 0.25;
+  ctx.setLineDash([3, 5]);
+  line(ctx, first - 10, 0, last + 10, 0);
+  ctx.setLineDash([]);
+
+  // The start line.
+  ctx.strokeStyle = FAINT;
+  ctx.lineWidth = 0.3;
+  line(ctx, start.x - 3.2, -4, start.x - 3.2, 4);
+
+  slalom.forEach((cone, i) => {
+    const color = slalomColor(run, i);
+    // The next cone's gate: from the cone out to the lane edge, on the side to pass.
+    if (i === run.next && live) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.5;
+      ctx.setLineDash([1.6, 1.1]);
+      line(ctx, cone.x, cone.side * 1.2, cone.x, cone.side * lane);
+      ctx.setLineDash([]);
+    }
+    arrow(ctx, cone.x, cone.side * 4, 0, 6, color);
+    // The number sits on the far side, clear of the driving line.
+    label(ctx, String(cone.number), cone.x, -cone.side * 3.4, 2.6, color);
+  });
+
+  const done = run.next >= count;
+  const finishColor = run.phase === 'complete' || (done && live) ? GREEN : run.reason === 'missed the finish' ? RED : FAINT;
+  ctx.strokeStyle = finishColor;
+  ctx.lineWidth = 0.9;
+  ctx.setLineDash([1, 1]);
+  line(ctx, finish.x1, finish.y1, finish.x2, finish.y2);
+  ctx.setLineDash([]);
+  label(ctx, 'FINISH', finish.cx, finish.half + 2.8, 2, finishColor);
+}
+
 // Called by render.js after the pad is painted and before the skid marks and the car.
 export function drawChallenge(ctx, game) {
   const def = game.challengeDef;
@@ -192,6 +249,7 @@ export function drawChallenge(ctx, game) {
   ctx.save();
   ctx.lineCap = 'butt';
   if (def.layout === 'box') drawPrecision(ctx, def, run);
+  else if (def.layout === 'slalom') drawSlalom(ctx, def, run);
   else drawLinked(ctx, def, run);
   drawCones(ctx, run.cones, def.kind === 'time' ? def.geometry.conePenalty : 0);
   ctx.restore();
@@ -219,6 +277,22 @@ export function drawChallengeMap(ctx, game, px) {
     ctx.strokeStyle = CYAN;
     ctx.lineWidth = 2 * px;
     line(ctx, gate.x1, gate.y1, gate.x2, gate.y2);
+  } else if (def.layout === 'slalom') {
+    // Slalom Sprint: the lane, a dot for each cone, and the finish.
+    const { slalom, finish, lane, count } = def.geometry;
+    ctx.strokeStyle = 'rgba(246,241,228,0.6)';
+    ctx.lineWidth = 1.2 * px;
+    line(ctx, slalom[0].x - 10, -lane, slalom[count - 1].x + 10, -lane);
+    line(ctx, slalom[0].x - 10, lane, slalom[count - 1].x + 10, lane);
+    slalom.forEach((cone, i) => {
+      ctx.fillStyle = i < run.next ? GREEN : i === run.failedAt ? RED : i === run.next ? CYAN : '#f08a24';
+      ctx.beginPath();
+      ctx.arc(cone.x, cone.y, 2.4 * px, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.strokeStyle = run.next >= count ? GREEN : 'rgba(246,241,228,0.85)';
+    ctx.lineWidth = 2.2 * px;
+    line(ctx, finish.cx, -finish.half - 5 * px, finish.cx, finish.half + 5 * px);
   } else {
     const { gates } = def.geometry;
     ctx.strokeStyle = 'rgba(246,241,228,0.85)';

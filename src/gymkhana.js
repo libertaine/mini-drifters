@@ -454,7 +454,127 @@ function linkedChallenge({ oneDrift }) {
 export const LINKED_DRIFT = linkedChallenge({ oneDrift: false });
 export const ONE_DRIFT = linkedChallenge({ oneDrift: true });
 
-export const GYMKHANA_CHALLENGES = Object.freeze([PRECISION_180, LINKED_DRIFT, ONE_DRIFT]);
+// --- Slalom Sprint ---------------------------------------------------------------------------
+// From a standing start: weave through a line of cones, left of the first and then alternating,
+// and cross the finish gate. The clock runs from the first pedal press to the gate. Seven cones
+// 22 m apart, the practice pad's own slalom spacing, a 36 m run-up and 30 m to the finish, with
+// the course centred on the pad.
+//
+// A cone is passed at the moment the car's centre draws level with it. At that moment the
+// centre must be on the cone's required side and inside the lane: there is no other way past,
+// so no cone can be skipped, taken twice or left in doubt. A car driven straight over a cone
+// is on neither side of it and fails.
+function slalomChallenge() {
+  const S = Object.freeze({
+    count: 7,
+    spacing: 22,
+    runUp: 36,               // from the start to the first cone
+    runOut: 30,              // from the last cone to the finish gate
+    lane: 12,                // the painted lane reaches this far either side of the cones
+    finishHalf: 4,
+    firstSide: -1,           // -1: the first cone is passed on its left. The sides then alternate.
+    conePenalty: 2,          // seconds added per cone touched
+    timeLimit: 40,
+  });
+  const length = S.runUp + (S.count - 1) * S.spacing + S.runOut;
+  const startX = -length / 2;
+  const slalom = Object.freeze(Array.from({ length: S.count }, (_, i) => Object.freeze({
+    x: startX + S.runUp + i * S.spacing, y: 0, side: i % 2 === 0 ? S.firstSide : -S.firstSide, number: i + 1,
+  })));
+  const finish = makeGate(startX + length, 0, 0, S.finishHalf);
+  const cones = Object.freeze([...slalom.map((c) => ({ x: c.x, y: c.y })), ...gateCones(finish)]);
+  const start = { x: startX, y: 0, heading: 0 };
+  const sideName = (side) => (side < 0 ? 'Left' : 'Right');
+  const stageFor = (index) => (index < S.count ? `${sideName(slalom[index].side)} of cone ${index + 1}` : 'The finish gate');
+
+  function createRun() {
+    return {
+      phase: 'running', time: 0, stage: stageFor(0), reason: '', result: null,
+      event: null, eventSerial: 0,
+      cones: freshCones(cones), conesHit: 0,
+      next: 0,               // the next cone to pass; S.count once every cone is behind the car
+      failedAt: -1,          // the cone the run failed at, for the picture
+      enteredAt: 0, leftAt: 0, topSpeed: 0, peakSlip: 0,
+    };
+  }
+
+  function result(run, finished) {
+    const penalty = run.conesHit * S.conePenalty;
+    // To the millisecond, so a saved time is a plain number and not a sum of 120ths.
+    const total = Math.round((run.time + penalty) * 1000) / 1000;
+    const through = run.leftAt > run.enteredAt ? run.leftAt - run.enteredAt : 0;
+    return {
+      // Only a completed run has a value: it is what the record keeps.
+      value: finished ? total : null,
+      time: run.time, penalty, total, cones: run.conesHit,
+      passed: run.next, count: S.count,
+      topSpeed: run.topSpeed, peakSlip: run.peakSlip,
+      // Average speed from the first cone to the last, once both are behind the car.
+      weaveSpeed: through > 0 ? ((S.count - 1) * S.spacing) / through : 0,
+    };
+  }
+
+  function step(run, game, ax, ay) {
+    if (run.phase !== 'running') return;
+    const { car } = game;
+    run.time += TUNING.simStep;
+    const fallen = knockCones(run.cones, car);
+    if (fallen) {
+      run.conesHit += fallen;
+      note(run, { type: 'cone', count: fallen, penalty: fallen * S.conePenalty });
+    }
+    run.topSpeed = Math.max(run.topSpeed, car.speed);
+    if (run.next > 0 && run.next < S.count && car.speed > 3) run.peakSlip = Math.max(run.peakSlip, Math.abs(car.slipAngle));
+
+    if (run.next < S.count) {
+      const cone = slalom[run.next];
+      if (ax < cone.x && car.x >= cone.x) {
+        // Level with the cone on this step. `off` is how far to its required side the centre is.
+        const y = ay + ((car.y - ay) * (cone.x - ax)) / (car.x - ax);
+        const off = (y - cone.y) * cone.side;
+        if (off <= 0 || off > S.lane) {
+          run.failedAt = run.next;
+          end(run, 'failed', off > S.lane ? `left the lane at cone ${cone.number}` : `wrong side of cone ${cone.number}`, result(run, false));
+          return;
+        }
+        if (run.next === 0) run.enteredAt = run.time;
+        run.next += 1;
+        if (run.next === S.count) run.leftAt = run.time;
+        run.stage = stageFor(run.next);
+      }
+    } else if (gateCrossing(finish, ax, ay, car.x, car.y) === 1) {
+      end(run, 'complete', '', result(run, true));
+      return;
+    } else if (ax < finish.cx && car.x >= finish.cx) {
+      end(run, 'failed', 'missed the finish', result(run, false));
+      return;
+    }
+    if (run.time >= S.timeLimit) end(run, 'failed', 'out of time', result(run, false));
+  }
+
+  return Object.freeze({
+    id: 'slalom-sprint',
+    name: 'Slalom Sprint',
+    kind: 'time',
+    rules: 'slalom-sprint-1',
+    layout: 'slalom',
+    brief: 'Weave through the seven cones, left of the first and then alternating, and cross the finish gate.',
+    points: Object.freeze([
+      'Fastest time wins. The clock starts when you move, and stops at the finish gate.',
+      'Each cone you touch adds 2 seconds.',
+      'The run fails if you pass a cone on the wrong side, leave the painted lane, or miss the finish gate.',
+    ]),
+    track: challengeTrack('gymkhana-slalom-sprint', 'Slalom Sprint', start,
+      { minX: startX - 45, maxX: startX + length + 70, minY: -50, maxY: 50 }),
+    geometry: Object.freeze({ ...S, length, start, slalom, finish, cones }),
+    focus: Object.freeze({ x: slalom[3].x, y: 0 }),   // where the view leans before the run starts
+    createRun,
+    step,
+  });
+}
+export const SLALOM_SPRINT = slalomChallenge();
+
+export const GYMKHANA_CHALLENGES = Object.freeze([PRECISION_180, LINKED_DRIFT, ONE_DRIFT, SLALOM_SPRINT]);
 export const GYMKHANA_CHALLENGE_IDS = Object.freeze(GYMKHANA_CHALLENGES.map((c) => c.id));
 
 export function challengeById(id) {

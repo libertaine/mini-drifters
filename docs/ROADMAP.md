@@ -71,3 +71,22 @@ See [the Gymkhana notes](GYMKHANA.md). Owner acceptance passed on November 14, 2
 Existing circuit gameplay and records are preserved. Gymkhana records remain local to
 the browser/device; there is no online leaderboard or medal system. Medal thresholds
 and additional courses remain outside this release.
+
+## Prototype 0.5: Dockyard and Slalom Sprint (complete)
+
+Version 0.5.0 contains:
+
+- Dockyard, a third handcrafted circuit: a right-hander that tightens, a quick chicane and
+  one long bend back onto the quay. See [the Dockyard notes](DOCKYARD.md).
+- Dockyard's own scenery: a concrete apron, warehouses, containers, barriers and loading
+  stripes, with four corner boards. All of it is decorative, with no collision.
+- Slalom Sprint, a fourth Gymkhana challenge: seven cones on alternating sides, timed, with
+  cone penalties.
+- Wheelspin feedback in Power: smoke, rubber marks and an engine flare driven by the
+  physics' own wheelspin. See [the wheelspin notes](WHEELSPIN.md).
+
+Owner acceptance passed for Dockyard, Slalom Sprint and the wheelspin feedback on
+November 15, 2026, and for the scenery on November 16, 2026. Physics, tuning, handling and
+scoring are unchanged from v0.4.0. Records, ghosts and saved settings work as before, and
+Dockyard and Slalom Sprint records sit beside the existing ones in the same storage.
+Medal thresholds and online leaderboards remain outside this version.

@@ -24,7 +24,7 @@ import {
 import { createRecords as createV020Records, RECORDS_KEY as V020_KEY } from './support/records-v0.2.0.mjs';
 import { gripDriver } from './support/drivers.mjs';
 
-const TRACKS = ['original', 'switchback'];
+const TRACKS = ['original', 'switchback', 'dockyard'];
 const NONE = Object.freeze({ score: null, fastestLap: null, bestCombo: null });
 const NO_SCORE = Object.freeze({ score: null, bestCombo: null });
 // A v0.2.0 save as v0.2.0 writes it: one real zero, and records missing on purpose.
@@ -139,7 +139,7 @@ test('reloading many times and writing again neither duplicates nor drifts the r
     run(r, { handling: 'revised', laps: [{ time: 55 }], finish: { score: 10, bestCombo: 0 } }); // worse: no write
   }
   assert.equal(s.map.get(RECORDS_KEY), first);
-  assert.deepEqual(Object.keys(saved(s).tracks), ['original', 'switchback']);
+  assert.deepEqual(Object.keys(saved(s).tracks), ['original', 'switchback', 'dockyard']);
 });
 
 // --- Independence by mode ------------------------------------------------------------
@@ -155,8 +155,9 @@ test('each track and mode pair keeps its own records', () => {
   assert.deepEqual(grid, {
     'original/classic': 9000, 'original/revised': 20000,
     'switchback/classic': null, 'switchback/revised': 1,
+    'dockyard/classic': null, 'dockyard/revised': null,
   });
-  // All four partitions survive a reload.
+  // Every partition survives a reload.
   const again = keeper(s);
   for (const t of TRACKS) for (const h of HANDLING_IDS) assert.deepEqual(again.forTrack(t, h), r.forTrack(t, h), `${t}/${h}`);
 });

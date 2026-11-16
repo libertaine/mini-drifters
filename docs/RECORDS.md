@@ -86,7 +86,7 @@ entry:
 ```
 
 Points must be nonnegative safe integers; laps must be finite positive seconds no
-larger than Number.MAX_SAFE_INTEGER. Stable track IDs are original and switchback;
+larger than Number.MAX_SAFE_INTEGER. Stable track IDs are original, switchback and dockyard;
 stable handling IDs are classic and revised (`src/handling.js`); stable scoring ids are
 `scoring-1` and `scoring-2` (`src/scoring.js`). Invalid known values become null.
 Tracks, modes, scoring versions and fields this version does not know are never shown

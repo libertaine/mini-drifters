@@ -190,8 +190,8 @@ async function check(name, engine) {
     // --- The selector on a fresh visit ---------------------------------------------------
     // Reduced motion holds the poster still, so its pixels can be compared exactly.
     page = await open({ reducedMotion: 'reduce' });
-    assert.deepEqual(await page.locator('#tracks label').allInnerTexts().then((t) => t.map((s) => s.trim().toUpperCase())), ['ORIGINAL', 'SWITCHBACK']);
-    assert.equal(await checked(page), 'original* switchback');
+    assert.deepEqual(await page.locator('#tracks label').allInnerTexts().then((t) => t.map((s) => s.trim().toUpperCase())), ['ORIGINAL', 'SWITCHBACK', 'DOCKYARD']);
+    assert.equal(await checked(page), 'original* switchback dockyard');
     let g = await game(page);
     assert.equal(g.selected, 'original');
     assert.equal(g.track, 'original');
@@ -217,20 +217,24 @@ async function check(name, engine) {
       });
       assert.equal(fit.scrolls, false, `the title scrolls at ${width}x${height}`);
       assert.ok(fit.select.top >= fit.tagline.bottom && fit.select.bottom <= fit.start.top, `the choice sits between the tagline and Start at ${width}x${height}`);
-      assert.ok(fit.labels.every((l) => l.reachable && l.right <= width * 0.5 && l.bottom <= height), `both choices are pressable at ${width}x${height}`);
+      assert.ok(fit.labels.every((l) => l.reachable && l.right <= width * 0.5 && l.bottom <= height), `every choice is pressable at ${width}x${height}`);
       await page.screenshot({ path: artifact(`${name}-title-${width}x${height}.png`) });
     }
     await page.setViewportSize({ width: 1366, height: 768 });
     await frames(page);
-    step('a fresh visit offers Original and Switchback, with Original chosen and the menu as before');
+    step('a fresh visit offers Original, Switchback and Dockyard, with Original chosen and the menu as before');
 
     await page.keyboard.press('ArrowRight');
-    assert.equal(await checked(page), 'original switchback*');
+    assert.equal(await checked(page), 'original switchback* dockyard');
     assert.equal(await focused(page), 'start', 'choosing does not move the focus off Start');
     await page.keyboard.press('ArrowRight');
-    assert.equal(await checked(page), 'original* switchback', 'Right wraps');
+    assert.equal(await checked(page), 'original switchback dockyard*');
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await checked(page), 'original* switchback dockyard', 'Right wraps');
     await page.keyboard.press('ArrowLeft');
-    assert.equal(await checked(page), 'original switchback*', 'Left wraps');
+    assert.equal(await checked(page), 'original switchback dockyard*', 'Left wraps');
+    await page.keyboard.press('ArrowLeft');
+    assert.equal(await checked(page), 'original switchback* dockyard');
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'practice', 'Up and Down still walk the menu');
     await page.keyboard.press('ArrowUp');
@@ -243,15 +247,15 @@ async function check(name, engine) {
     await page.keyboard.press('Shift+Tab');
     assert.equal(await focused(page), 'switchback', 'Tab reaches the chosen circuit');
     await page.keyboard.press('ArrowLeft');
-    assert.equal(await checked(page), 'original* switchback');
+    assert.equal(await checked(page), 'original* switchback dockyard');
     assert.equal(await focused(page), 'original', 'and the focus follows the choice');
     await page.keyboard.press('Space');
-    assert.equal(await checked(page), 'original* switchback');
+    assert.equal(await checked(page), 'original* switchback dockyard');
     assert.deepEqual((await game(page)).input, NO_KEYS, 'Space on the choice is not the handbrake');
     await page.locator('#tracks label', { hasText: 'Switchback' }).click();
-    assert.equal(await checked(page), 'original switchback*', 'a click chooses');
+    assert.equal(await checked(page), 'original switchback* dockyard', 'a click chooses');
     await page.locator('#tracks label', { hasText: 'Original' }).click();
-    assert.equal(await checked(page), 'original* switchback');
+    assert.equal(await checked(page), 'original* switchback dockyard');
     await page.locator('#tracks label', { hasText: 'Switchback' }).click();
     assert.equal((await game(page)).selected, 'switchback');
     await frames(page);
@@ -325,7 +329,7 @@ async function check(name, engine) {
     await page.keyboard.press('KeyP');
     await page.locator('#paused .return-title').click();
     assert.ok(await visible(page, 'menu'));
-    assert.equal(await checked(page), 'original switchback*', 'the title remembers the choice for this visit');
+    assert.equal(await checked(page), 'original switchback* dockyard', 'the title remembers the choice for this visit');
     await frames(page);
     assert.equal(await stamp(page, POSTER), poster, 'the poster is still the original hairpin');
     step('Return to Title keeps the choice, and the poster is unchanged after driving Switchback');
@@ -340,7 +344,7 @@ async function check(name, engine) {
     assert.ok(g.atStart);
     await page.keyboard.press('Escape');
     assert.ok(await visible(page, 'menu'));
-    assert.equal(await checked(page), 'original switchback*', 'leaving the lesson keeps the choice');
+    assert.equal(await checked(page), 'original switchback* dockyard', 'leaving the lesson keeps the choice');
     step('the lesson uses Original while Switchback is chosen, and leaves the choice alone');
 
     // --- Drive Again, and going back to Original --------------------------------------------

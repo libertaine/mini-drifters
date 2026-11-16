@@ -45,6 +45,7 @@
 // this version does not know are carried through every write untouched.
 import { HANDLING_IDS } from './handling.js';
 import { SCORING_VERSION, LEGACY_SCORING_VERSION } from './scoring.js';
+import { TRACKS } from './track.js';
 
 export const RECORDS_KEY = 'mini-drifters-records-v3';
 export const V2_RECORDS_KEY = 'mini-drifters-records-v2';
@@ -56,7 +57,9 @@ export const RECORD_TYPES = Object.freeze(['score', 'fastestLap', 'bestCombo']);
 export const SCORED_TYPES = Object.freeze(['score', 'bestCombo']);
 // Every scoring version this version shows. Older keys hold only the legacy one.
 export const SCORING_VERSIONS = Object.freeze([LEGACY_SCORING_VERSION, SCORING_VERSION]);
-const TRACK_IDS = ['original', 'switchback'];
+// Every circuit the title offers keeps records. Built from the circuit list itself, so a circuit
+// can't be added there and silently save nothing here.
+const TRACK_IDS = TRACKS.map((t) => t.id);
 
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const points = (v) => Number.isSafeInteger(v) && v >= 0;

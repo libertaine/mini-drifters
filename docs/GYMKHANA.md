@@ -1,7 +1,7 @@
 # Gymkhana
 
 Gymkhana is a set of short driving challenges on open asphalt, opened from the title
-screen. Each uses the handling mode chosen on the title and keeps its own personal best. There are three challenges on two
+screen. Each uses the handling mode chosen on the title and keeps its own personal best. There are four challenges on three
 layouts.
 
 | Challenge | Kind | What it asks |
@@ -9,6 +9,7 @@ layouts.
 | Precision 180 | Time | Through a gate, down a box to the turn zone, round, and back out nose first |
 | Linked Drift | Score | Six gates through three alternating bends, scored by the game's drift rules |
 | One Drift | Score | The Linked Drift course as a single combo |
+| Slalom Sprint | Time | Seven cones to weave through on alternating sides, then a finish gate |
 
 There are no medals or target times. Whether to add them, and at what marks, waits for
 results from people playing the challenges.
@@ -76,6 +77,28 @@ The Linked Drift course and scoring, with one difference: the run is the first c
 - If that combo is lost, to a spin, a cone or the edge of the course, the run fails.
 - A missed gate fails the run, as in Linked Drift.
 
+## Slalom Sprint
+
+A standing start, seven cones in a line 22 m apart (the practice pad's own slalom spacing),
+and a finish gate 8 m wide. The car starts 36 m before the first cone, on the line of cones,
+and the gate is 30 m past the last. A painted lane reaches 12 m either side of the cones.
+
+- The clock runs from the first pedal press until the car crosses the finish gate.
+- Pass the first cone on its left, the next on its right, and so on. Each cone has an arrow
+  on the side to pass it, and the next cone's gate is drawn in cyan.
+- A cone is passed when the car's centre draws level with it. At that moment the centre must
+  be on the required side and inside the lane, so no cone can be skipped or taken twice, and
+  a car driven straight over the cones fails at the first.
+- Each cone touched adds 2 seconds, including the two at the finish gate.
+- The run fails on the wrong side of a cone, outside the lane, past the finish outside its
+  gate, or after 40 seconds.
+
+The result is the driving time plus penalties, to the millisecond. Lower is better. The
+results sheet shows the driving time, the penalties and the total.
+
+Unlike the other three, the quickest run is tidy rather than sideways: in scripted runs the
+best clean times barely slide, and going a little too fast costs cones before it fails.
+
 ## Records
 
 Gymkhana records are separate from the circuit records and stored under their own key,
@@ -89,6 +112,7 @@ A record's identity is challenge + handling mode + rules:
 | Precision 180 | Lowest total time, penalties included | `precision-180-1` |
 | Linked Drift | Highest score | `linked-drift-1` + the scoring version |
 | One Drift | Highest score | `one-drift-1` + the scoring version |
+| Slalom Sprint | Lowest total time, penalties included | `slalom-sprint-1` |
 
 **Qualification.** Only a run that completes its challenge sets a record. Failed,
 restarted and abandoned runs never do. Ties do not improve a record. Zero is a real
@@ -130,7 +154,9 @@ improvements cannot be saved.
 | `src/gymkhana-draw.js` | Painting a challenge on its pad and on the minimap |
 | `src/gymkhana-ui.js` | The sheet, the HUD panel and the results sheet |
 | `test/gymkhana.test.mjs`, `test/gymkhana-records.test.mjs` | Rules, sessions and records |
+| `test/slalom.test.mjs` | Slalom Sprint's rules, retries and records, and a v0.4.0 tab's writes |
 | `test/gymkhana-browser.mjs` | The mode on the real page, in Chromium and Firefox |
+| `test/dockyard-slalom-browser.mjs` | Slalom Sprint on the real page, by keyboard and controller |
 | `test/support/gymkhana-drivers.mjs` | Scripted drivers for all of the above |
 
 A gymkhana session is `game.mode === 'gymkhana'`. `game.js` gives it the challenge's own
@@ -152,6 +178,11 @@ one that never saw it.
   record.
 - Holding the handbrake through every bend of Linked Drift scores, though well under a
   controlled drift.
+- Slalom Sprint passed the owner's prototype review on November 15, 2026, with no changes
+  requested. Its records start under `slalom-sprint-1`; the prototype's, under its own rules
+  id, are not carried over or shown.
+- The slalom is longer than the screen: from the start you see the first four cones, and the
+  minimap shows all seven.
 - Owner acceptance of physical controller operation and normal circuit gameplay passed
   on November 14, 2026. The automated check uses a mocked standard-mapped controller;
   exhaustive device mapping and disconnect/reconnect coverage is not established.
