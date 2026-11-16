@@ -2,7 +2,7 @@
 
 The third circuit: compact and technical, and driven Hook-first. It is one handcrafted track,
 not a generator, and it uses the same car, physics, scoring, road width, checkpoint rules and
-look as Original and Switchback.
+road markings as Original and Switchback. Its surroundings are a dockside of its own.
 
 ## Try it
 
@@ -58,8 +58,20 @@ prototype's control points unchanged. `test/dockyard.test.mjs` pins them and the
   the grass. That is the lap rule working, and the layout is unchanged. Lengthening the link
   from the chicane to the Basin from 25 m to 55 m removed it in scripted runs, if it ever needs
   removing.
-- **No scenery of its own yet.** It has the same road, curbs, grass, trees and wall as the other
-  circuits.
+- **The scenery is decorative.** Warehouses, containers, concrete barriers and corner boards
+  have no collision. The off-track ground is drawn as a concrete apron, but it behaves exactly
+  as grass does on the other circuits, and the lap rules above still call it grass.
+
+## Scenery
+
+Added in v0.5.0 R3 and accepted by the owner on November 16, 2026. Dockyard draws a muted
+concrete apron with slab joints in place of grass and trees, three warehouses beyond the wall,
+nine containers in loading groups, seven short concrete barriers and two striped loading areas:
+21 fixed props, all decorative. Four corner boards (HOOK, TIGHTENS, CHICANE and BASIN) show
+each corner's shape with an arrow drawn in the direction of travel. Everything clears the road
+and curbs by at least 4 m, and only what the camera can see is drawn. The road, curbs, finish
+line, wall, minimap and HUD are drawn as before, and Original, Switchback, the practice pad and
+the title are unchanged. See [the R3 review](R3-REVIEW.md).
 
 ## How it's checked
 
@@ -75,3 +87,9 @@ writing records keeps them.
 `npm run test:dockyard-slalom:browser` chooses Dockyard on the title by keyboard and mouse,
 drives it for three laps in Classic and in Power, and starts, drives and pauses it by
 controller, in Chromium and Firefox. It saves screenshots to `artifacts/`.
+
+`test/dockyard-scenery.test.mjs` checks the scenery layout: its clearance from the road, that
+building it never changes the track, that it belongs to Dockyard alone, and that each
+board's arrow matches the track's direction. `test/scenery-browser.mjs` compares the drawn
+scenery with the v0.5.0 R2 build in Chromium and Firefox. It needs a separate checkout of that
+build, so it runs locally and not in CI.

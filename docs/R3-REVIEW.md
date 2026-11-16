@@ -1,6 +1,23 @@
 # v0.5.0 R3 environmental polish review
 
-16 November 2026. Local development candidate. **Status: R3 locally qualified, awaiting human acceptance.**
+16 November 2026. **Status: R3 accepted by the owner and qualified by hosted CI, with one documented exception. Prepared for the v0.5.0 release candidate; v0.5.0 is not yet published.**
+
+The sections after [Acceptance and release status](#acceptance-and-release-status) are the review as it was written before acceptance. They describe the R3 commit `9aac743`, at version 0.4.0, and are kept as the record of that review.
+
+## Acceptance and release status
+
+**Human acceptance.** On 16 November 2026 the owner reported **PASS** on five broader R3 acceptance checks and requested no further adjustments. The seven-item checklist under [Limits and human acceptance](#limits-and-human-acceptance) is kept as the detailed reference for what the review covered. Individual responses to those seven items were not recorded, so its boxes are left unticked.
+
+**Hosted CI.** R3's stacked PR, [#28](https://github.com/libertaine/mini-drifters/pull/28), targets the R2 branch, and the workflow runs only for pull requests into `main`. A temporary PR into `main`, [#29](https://github.com/libertaine/mini-drifters/pull/29), was opened as the CI vehicle and closed unmerged. [Run 43924040937](https://github.com/libertaine/mini-drifters/actions/runs/43924040937) passed on attempt 1 for head `9aac743`, on the synthetic merge `78e66e2`, whose tree `7cf15f3` is R3's own:
+
+- 659 / 659 unit, session and publishing tests passed, with 0 skipped, failed, cancelled or todo. These include the four scenery unit tests in `test/dockyard-scenery.test.mjs`.
+- All 16 established browser suites passed in Chromium and Firefox.
+- Hosted Firefox has no audio output device, and the wheelspin suite took its tested no-audio branch.
+- The Pages deployment job was skipped.
+
+**Documented exception: the scenery browser check ran locally only.** `test/scenery-browser.mjs` compares R3's drawing with an independent checkout of R2, so it is not a workflow step. It passed locally in Chromium and Firefox on the qualified R3 files (see [Qualification](#qualification)). It was **not** executed in hosted CI. "Hosted CI passed" therefore does not mean that every R3 test ran in hosted CI. The owner accepted this on 16 November 2026 as a documented qualification exception for v0.5.0, with no change to the CI workflow.
+
+**Release preparation.** A separate release-preparation commit on this branch sets the version to 0.5.0 in `package.json`, the page title and the title-screen badge. It updates the README, the roadmap and [the Dockyard notes](DOCKYARD.md), and this report. It changes no production JavaScript, CSS, tests or workflow. The draft release notes are under [Draft v0.5.0 release notes](#draft-v050-release-notes). No tag or GitHub release has been created.
 
 The first session was interrupted by a usage limit. A second session resumed it the same day. It kept the implementation and all completed evidence. It closed the remaining gaps and ran the performance comparison. The [Qualification](#qualification) section separates the two sessions' work.
 
@@ -255,7 +272,11 @@ Headless screenshots and scripted drives cannot establish human readability, enj
 
 Record **R3 Human acceptance: PASS**, or identify the corner, handling mode, browser/window and requested visual correction. No commit or remote action is authorised by this review.
 
+**Recorded outcome (16 November 2026):** the owner reported PASS on five broader acceptance checks, with no adjustments requested. This list was the detailed reference; no separate response to each of its seven items was recorded. See [Acceptance and release status](#acceptance-and-release-status).
+
 ## Proposed v0.5.0 integration and release sequence
+
+*As proposed before acceptance. Two steps went differently, with the owner's authorisation. In step 2, the scenery browser check was not added to hosted CI; it is a documented exception instead. In step 3, the stacked PRs are consolidated from the top down by merge commits (#28 into R2, then #26 into R1), so that the final candidate reaches `main` through PR #25 alone. No separate integration branch is used.*
 
 1. Obtain R3 human acceptance. Keep the accepted R1/R2 gameplay and wheelspin behaviour fixed. Any R3 correction gets fresh relevant checks; a changed candidate gets fresh qualification before delivery.
 2. With separate authorisation, commit/push R3 and open a Draft PR stacked on qualified R2. Add the focused scenery browser check to the hosted setup with an exact R2 comparison checkout; qualify the exact R3 head locally and on hosted Chromium/Firefox.
@@ -265,3 +286,30 @@ Record **R3 Human acceptance: PASS**, or identify the corner, handling mode, bro
 6. Under release authorisation, create the annotated `v0.5.0` tag and GitHub release against the verified final merge SHA, and verify the published release and site. Preserve all worktrees, earlier records and qualification evidence.
 
 **Stop at the R3 human acceptance gate.** None of the proposed remote or release steps have been performed.
+
+## Draft v0.5.0 release notes
+
+Draft text for the GitHub release body, in the form used for v0.4.0. **Not published:** no `v0.5.0` tag or GitHub release exists, and publication needs separate authorisation after the final merge.
+
+> # v0.5.0
+>
+> Play: https://libertaine.github.io/mini-drifters/
+>
+> A third circuit, a fourth Gymkhana challenge, and wheelspin you can see and hear:
+>
+> - **Dockyard:** a short, technical third circuit, driven Hook-first: a right-hander that tightens, a quick chicane and one long bend back onto the quay. Three laps take under two minutes.
+> - **Dockyard scenery:** a concrete apron, warehouses, containers, barriers and loading stripes, with four corner boards (HOOK, TIGHTENS, CHICANE and BASIN) whose arrows show each corner's shape. The scenery is decorative and has no collision.
+> - **Slalom Sprint:** a fourth Gymkhana challenge. Weave through seven cones on alternating sides and cross the finish gate. It is timed, and each cone touched adds 2 seconds.
+> - **Power wheelspin feedback:** in Power, spinning rear wheels now raise smoke, lay rubber marks and flare the engine note, driven by the physics' own wheelspin. Classic shows none of it.
+>
+> Physics, tuning, handling and scoring are unchanged from v0.4.0. Classic and Power drive exactly as before, and Original, Switchback, Practice Pad, the driving lesson and the first three Gymkhana challenges are preserved. Records and settings saved by v0.4.0 are read and kept, and Dockyard has its own previous-lap ghost for each handling mode. Dockyard and Slalom Sprint records sit beside them in the same browser storage, with no new storage keys, and a v0.4.0 tab left open keeps them.
+>
+> Records remain local to the browser/device. There is no online leaderboard, record synchronization or medal system.
+>
+> Owner acceptance covered Dockyard, Slalom Sprint, the wheelspin feedback and the Dockyard scenery. Known limitations:
+>
+> - Dockyard's off-track ground is drawn as concrete but behaves exactly as grass does elsewhere.
+> - Board lettering is small at speed in the smallest supported window; the arrows carry most of the meaning.
+> - Scenery performance was measured only in headless desktop browsers, not on low-power devices or phones.
+> - The Dockyard scenery browser comparison ran locally in Chromium and Firefox, not in hosted CI, because it needs a separate checkout of the previous build. Hosted CI ran the full unit suite, including the scenery unit tests, and all 16 browser suites.
+> - Automated controller coverage uses a standard-mapped mock; exhaustive device mapping and disconnect/reconnect compatibility are not established. The driving lesson teaches Classic only.
