@@ -192,7 +192,8 @@ is excluded from Pages and does not connect to the driving game.
 The game plays recordings of the project owner's Mustang with a CC0 tire recording, and
 falls back to a synthesized engine if the recordings can't load. See
 [the gameplay audio notes](docs/GAMEPLAY-AUDIO.md) for how to listen and how the sound
-responds to the car.
+responds to the car. In Power, spinning rear wheels show as smoke and rubber and are heard in
+the engine: see [the wheelspin notes](docs/WHEELSPIN.md).
 
 ### Test
 
@@ -225,6 +226,8 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 `npm run test:gymkhana:browser` checks the Gymkhana sheet by keyboard, mouse and controller, drives Precision 180, Linked Drift and One Drift to completed and failed results, and checks retries, cone penalties, the challenges' own records and that the circuit records are never written, in Chromium and Firefox.
 
 `npm run test:dockyard-slalom:browser` drives three laps of Dockyard in Classic and Power and Slalom Sprint to completed, penalised and failed results, by keyboard, mouse and controller. It checks the title and the Gymkhana sheet fit every supported window with fallback fonts, and that records saved by v0.4.0 are read and kept, in Chromium and Firefox.
+
+`npm run test:wheelspin:browser` drives Power and Classic on the practice pad and Power on Dockyard. It checks that Power's wheelspin raises smoke, rubber and an engine flare, that the effects stay inside their limits, that pause, focus loss, restart, Sound Off and the title handle them correctly, and that Classic shows none of it, in Chromium and Firefox. See [the wheelspin notes](docs/WHEELSPIN.md).
 
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 

@@ -32,17 +32,18 @@ To hear the fallback, set `$env:COYOTE_LOCAL='off'` before starting the server. 
 | `src/coyote.js`, `src/coyote-model.js` | The Coyote voice and its mapping, shared with the lab |
 | `src/main.js` | Calls the controller from gestures, focus changes and each rendered frame |
 
-Audio only reads the game. `readTelemetry` copies ten values from the car, and the controller otherwise looks only at `game.state` and `game.paused`. No audio module imports the simulation or its tuning, and the simulation doesn't know audio exists.
+Audio only reads the game. `readTelemetry` copies eleven values from the car (the eleventh, `wheelspin`, since v0.5.0 R2: see [Wheelspin](#wheelspin)), and the controller otherwise looks only at `game.state` and `game.paused`. No audio module imports the simulation or its tuning, and the simulation doesn't know audio exists.
 
 A run builds 5 sources with Coyote (4 engine layers and 1 tire loop) or 7 with the fallback (6 engine and 1 tire). The lab builds 15. Parameter updates reach the audio graph at most 30 times a second, and only when a value has changed, so a steady idle schedules nothing.
 
 ## Engine RPM
 
-The car has no gearbox, so RPM is an audio-only estimate in the lab's 750–7000 range. It uses two mappings and blends between them on wheelspin:
+The car has no gearbox, so RPM is an audio-only estimate in the lab's 750–7000 range. It uses two mappings and blends between them as the rear slides:
 
 ```
 in gear = road speed x this gear's ratio + throttle share   (or the launch RPM, if higher)
-sliding = coast curve (speed) + throttle flare + wheelspin flare
+          + Power's wheelspin x up to 1000 RPM
+sliding = coast curve (speed) + throttle flare + spin flare
 ```
 
 - **In gear:** RPM follows road speed through a virtual four-speed gearbox, described below.
@@ -56,7 +57,7 @@ All of these numbers are starting estimates in `AUDIO_TUNING`, apart from the dr
 
 ## Virtual gears
 
-The gears exist only in the sound. They read the same ten telemetry values as everything else and change no acceleration, speed, force, traction, control, score, lap time or simulation state. `stepGears` in `src/audio-telemetry.js` holds the state machine, and `AUDIO_TUNING.gears` holds all its tuning, apart from `src/tuning.js`.
+The gears exist only in the sound. They read the same telemetry as everything else and change no acceleration, speed, force, traction, control, score, lap time or simulation state. `stepGears` in `src/audio-telemetry.js` holds the state machine, and `AUDIO_TUNING.gears` holds all its tuning, apart from `src/tuning.js`.
 
 | Gear | Runs out at | Comes back down below |
 |---|---|---|
@@ -68,13 +69,25 @@ The gears exist only in the sound. They read the same ten telemetry values as ev
 - **Upshift:** at each gear's top speed. Over 0.22 s, the throttle's share of RPM and a quarter of the engine load lift and return, and the voice follows pitch faster than usual. In a full-throttle run RPM falls 27–30% in about 0.15 s, then builds in the next gear.
 - **Downshift:** when speed falls below the lower gear's lower limit. Pitch rises gently (0.16 s) and the load doesn't dip. A hard stop can skip gears, for example 3 to 1.
 - **No hunting:** the gap between the up and down speeds, plus at least 0.7 s between shifts.
-- **Drifting:** rear slip of 12° or more holds the gear, and for 0.35 s afterwards. RPM follows the sliding mapping as wheelspin builds, so a drift sounds as it did and doesn't shift.
+- **Drifting:** rear slip of 12° or more holds the gear, and for 0.35 s afterwards. RPM follows the sliding mapping as the slide builds, so a drift sounds as it did and doesn't shift. Power's wheelspin alone never holds the gear, so a car that keeps gaining speed while spinning still changes up rather than sitting on the limiter.
 - **Reverse and stopping:** going into reverse, or stopping, isn't a heard shift. The car simply leaves reverse in first.
 - **Lifecycle:** the gearbox steps only while the sound model does. A pause freezes a shift partway through, a new run resets it to first, and a finished car settles without shifting.
 
 There's no transmission sound, clutch simulation or gear indicator.
 
 In scripted driving there were 10 shifts a minute on grip, drift and reckless runs, with no back-and-forth and no shift during a held slide. Held power drifts averaged about 5600 RPM. All of this says the gears behave as designed. The owner's view of how they sound is under [Listening result](#listening-result).
+
+## Wheelspin
+
+Since v0.5.0 R2 the engine also reads Power's own wheelspin state (`car.wheelspin`, set by the physics), not only an estimate from rear slip. Spinning rear wheels turn faster than the road, so in gear the engine revs above its road-speed note, by up to 1000 RPM with the wheels fully spinning (`wheelspinOnset` 0.25 to `wheelspinFull` 0.75, scaled by throttle). Unlike the slip estimate this isn't gated on speed, so a burnout against a wall revs too.
+
+- **Smoothing:** the state can flicker five or six times a second. The engine hears it eased, rising in 0.06 s and falling in 0.32 s, so a spin-up is heard at once and a flicker holds the note instead of wobbling it.
+- **Slides:** only rear slip hands the engine over to the sliding mapping, as before. In a held power slide that mapping takes the larger of the slip estimate and the wheelspin, and a held slide sounds exactly as it did.
+- **Gears:** wheelspin changes no shift. In scripted Power driving on all three circuits the shift count is identical to R1.
+- **Classic:** has no wheelspin state, so it hears exactly what it heard in R1. `test/wheelspin-feedback.test.mjs` holds every Classic frame to R1's mapping, kept in `test/support/audio-telemetry-bf7a1b7.mjs`.
+- **Tires and load:** unchanged. Wheelspin reaches only the engine's pitch.
+
+The smoke, rubber and dust that go with it are in [WHEELSPIN.md](WHEELSPIN.md).
 
 ## Tires
 

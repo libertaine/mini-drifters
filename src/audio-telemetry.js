@@ -21,6 +21,17 @@ export const AUDIO_TUNING = Object.freeze({
   spinSlipFull: 28,
   spinMinSpeed: 1.5,     // below this a parked car has no slide to rev through
   spinFullSpeed: 7,
+  // Power's own wheelspin state (physics.js). Spinning rear wheels turn faster than the road, so
+  // in gear the engine revs above what road speed gives it, by up to wheelspinFlare. In a slide
+  // the approved slide mapping still decides, taking the larger of this and the rear-slip
+  // estimate above. Classic has no wheelspin, so it hears exactly what it always has.
+  wheelspinOnset: 0.25,  // wheelspin state where the flare starts...
+  wheelspinFull: 0.75,   // ...and where it is complete
+  wheelspinFlare: 1000,  // RPM above the in-gear note with the wheels fully spinning
+  // The state can flicker several times a second. The ear gets it smoothed: quick to rise, so a
+  // spin-up is heard at once, and slower to fall, so a flicker holds rather than wobbles the pitch.
+  wheelspinRiseTime: 0.06,
+  wheelspinFallTime: 0.32,
   drivingMaxRpm: 6800,   // leaves the top of the range unused while driving
   reverseSpeed: 9,
   reverseEngage: 0.8,    // rolling backward faster than this counts as reverse
@@ -102,10 +113,13 @@ export function readTelemetry(car) {
     rearGrip: car.rearGrip,
     surface: car.surface,
     reversing: car.reversing,
+    wheelspin: finite(car.wheelspin), // 0 for a Classic car, which has no wheelspin state
   };
 }
 
 const isReversing = (t, A) => !!t.reversing || finite(t.forwardSpeed) < -A.reverseEngage;
+// Wheelspin alone never holds the gear: the gears follow road speed, so a spinning car that keeps
+// gaining speed still changes up rather than sitting on the limiter in a gear it has outrun.
 const isSliding = (t, A) => Math.abs(finite(t.rearSlip)) * DEG >= A.gears.slideHoldSlip;
 
 // The gear a car at this speed belongs in, ignoring hysteresis and timing.
@@ -131,18 +145,23 @@ export function engineTarget(t, A = AUDIO_TUNING, gear = gearForSpeed(t.speed, A
   const coast = A.idleRpm + (A.coastRpmAtReference - A.idleRpm) * ratio ** A.speedCurve;
   const flare = throttle * (A.launchFlare + (A.topSpeedFlare - A.launchFlare) * ratio);
   const rearSlip = Math.abs(finite(t.rearSlip)) * DEG;
-  const spin = throttle
-    * smoothstep(A.spinSlipOnset, A.spinSlipFull, rearSlip)
-    * smoothstep(A.spinMinSpeed, A.spinFullSpeed, speed);
-  const sliding = coast + flare + spin * A.spinFlare;
+  const moving = smoothstep(A.spinMinSpeed, A.spinFullSpeed, speed);
+  const spin = throttle * smoothstep(A.spinSlipOnset, A.spinSlipFull, rearSlip) * moving;
+  // Not gated on speed like the slip estimate, whose angles mean nothing near a standstill: the
+  // wheelspin state is real at any speed, so a burnout against a wall revs as well.
+  const wheelspin = throttle * smoothstep(A.wheelspinOnset, A.wheelspinFull, finite(t.wheelspin));
+  const sliding = coast + flare + Math.max(spin, wheelspin) * A.spinFlare;
 
   // In gear, RPM follows road speed. A launch slips the clutch up to the same RPM
   // the old mapping gave at a standstill, so the first moment still sounds immediate.
+  // Wheelspin revs the engine above that, as the driven wheels outrun the road.
   const G = A.gears;
   const top = G.topSpeeds[clamp(gear, 1, G.topSpeeds.length) - 1];
   const inGear = Math.max(A.idleRpm + throttle * A.launchFlare, speed * G.roadRpmAtTop / top + throttle * G.throttleRpm);
+  const spun = inGear + wheelspin * A.wheelspinFlare;
+  // Only the slide hands the engine over to the slide mapping, as it always has.
   const free = smoothstep(G.slideBlendOnset, G.slideBlendFull, spin);
-  return Math.min(A.drivingMaxRpm, inGear + (sliding - inGear) * free);
+  return Math.min(A.drivingMaxRpm, spun + (sliding - spun) * free);
 }
 
 // One step of the virtual gearbox. Time-based, so it behaves the same at any frame
@@ -199,7 +218,7 @@ export function tireTarget(t, A = AUDIO_TUNING) {
 
 export function createAudioState(A = AUDIO_TUNING) {
   return {
-    rpm: A.idleRpm, load: 0, tire: 0, slide: 0, grass: false, speed: 0,
+    rpm: A.idleRpm, load: 0, tire: 0, slide: 0, grass: false, speed: 0, spin: 0,
     gear: 1, sinceShift: Infinity, shiftLeft: 0, shiftDirection: 0, slideHold: 0, shifts: 0,
   };
 }
@@ -228,10 +247,17 @@ export function stepAudioState(state, telemetry, dt, driving = true, A = AUDIO_T
   const loadTarget = throttle * (1 - braking);
   state.load = ease(state.load, loadTarget, loadTarget > state.load ? A.loadRiseTime : A.loadFallTime, step);
 
-  stepGears(state, telemetry, step, driving, A);
+  // Wheelspin as the engine hears it: the physics' own value, smoothed (see wheelspinRiseTime).
+  // Everything below reads this copy, never the raw value. A Classic car's stays exactly 0.
+  const spinTarget = driving ? clamp01(telemetry.wheelspin) : 0;
+  state.spin = ease(state.spin, spinTarget, spinTarget > state.spin ? A.wheelspinRiseTime : A.wheelspinFallTime, step);
+  if (state.spin < 1e-4 && spinTarget === 0) state.spin = 0;
+  const heard = { ...telemetry, wheelspin: state.spin };
+
+  stepGears(state, heard, step, driving, A);
   // The throttle's share of the RPM goes with the lift. A slide is free of the gears, so its target stays put.
-  const lifted = isSliding(telemetry, A) ? 0 : upshiftLift(state, A) * A.gears.throttleRpm * clamp01(telemetry.throttle);
-  const target = driving ? clamp(engineTarget(telemetry, A, state.gear) - lifted, A.idleRpm, A.maxRpm) : A.idleRpm;
+  const lifted = isSliding(heard, A) ? 0 : upshiftLift(state, A) * A.gears.throttleRpm * clamp01(telemetry.throttle);
+  const target = driving ? clamp(engineTarget(heard, A, state.gear) - lifted, A.idleRpm, A.maxRpm) : A.idleRpm;
   const rising = target > state.rpm;
   const shifting = driving && state.shiftLeft > 0;
   const riseTime = shifting && state.shiftDirection < 0 ? A.gears.shiftRiseTime : A.rpmRiseTime;

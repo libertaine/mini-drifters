@@ -21,6 +21,7 @@
     "test:scoring:browser": "node test/scoring-browser.mjs",
     "test:handling:browser": "node test/handling-browser.mjs",
     "test:gymkhana:browser": "node test/gymkhana-browser.mjs",
-    "test:dockyard-slalom:browser": "node test/dockyard-slalom-browser.mjs"
+    "test:dockyard-slalom:browser": "node test/dockyard-slalom-browser.mjs",
+    "test:wheelspin:browser": "node test/wheelspin-browser.mjs"
   }
 }

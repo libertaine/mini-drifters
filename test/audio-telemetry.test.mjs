@@ -220,8 +220,9 @@ test('tire sound follows physics only: it needs no handbrake and no score', () =
   const telemetry = car({ speed: 25, forwardSpeed: 15, rearSlip: 30 * DEG });
   assert.ok(tireTarget(telemetry) > 0.5, 'a slide with a free rear still squeals');
   assert.equal('handbrake' in readTelemetry({ handbrake: true }), false);
+  // v0.5.0 R2 added `wheelspin`: Power's physical wheelspin state, never an input or a score.
   assert.deepEqual(Object.keys(readTelemetry({})).sort(), [
-    'brake', 'forwardSpeed', 'frontSlip', 'rearGrip', 'rearSlip', 'reversing', 'slipAngle', 'speed', 'surface', 'throttle',
+    'brake', 'forwardSpeed', 'frontSlip', 'rearGrip', 'rearSlip', 'reversing', 'slipAngle', 'speed', 'surface', 'throttle', 'wheelspin',
   ]);
 });
 

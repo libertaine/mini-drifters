@@ -4,6 +4,7 @@ import { TUNING } from './tuning.js';
 import { ghostDisplay } from './ghost.js';
 import { drawPad } from './practice-pad.js';
 import { drawChallenge, drawChallengeMap } from './gymkhana-draw.js';
+import { TYRE_FX, createTyreEffectState, resetTyreEffectState, tyreEmission } from './tyre-effects.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -83,18 +84,15 @@ const VIEW = {
   referenceHeight: 760,   // larger windows zoom in proportionally
 };
 
+// When the tyres mark, smoke or throw dust is decided in tyre-effects.js. These are the limits
+// on what is kept and how it is drawn.
 const FX = {
-  skidMinSlip: 11 * (Math.PI / 180),
-  skidMinSpeed: 6,
   skidCapacity: 1800,
   skidChunk: 300,
   skidBaseAlpha: 0.48,
-  smokeMinSlip: 16 * (Math.PI / 180),
-  smokeMinSpeed: 8,
   smokeCapacity: 110,
-  smokeRate: 34,          // puffs per second at full intensity
   smokeLife: 0.85,
-  dustRate: 18,
+  spinSmokeDrift: 1.2,    // m/s a wheelspin puff is thrown back from the spinning tyre
   maxDt: 0.05,
 };
 
@@ -198,6 +196,8 @@ export function createRenderer(canvas, track, titleTrack = track) {
     skids: [],
     skidHead: 0,
     lastWheels: null,
+    markAnchor: null,
+    tyreState: createTyreEffectState(),
     smoke: [],
     smokeCarry: 0,
     ghostSprite: buildGhostSprite(),
@@ -222,11 +222,7 @@ export function useTrack(r, track) {
   if (!r.courses.has(track)) r.courses.set(track, buildCourse(track));
   r.course = r.courses.get(track);
   r.track = track;
-  r.skids.length = 0;
-  r.skidHead = 0;
-  r.lastWheels = null;
-  r.smoke.length = 0;
-  r.smokeCarry = 0;
+  clearTyreMarks(r);
   r.cam.x = track.start.x;
   r.cam.y = track.start.y;
 }
@@ -242,12 +238,30 @@ export function resize(r) {
   r.dpr = dpr;
 }
 
-export function resetEffects(r, car) {
+// Every mark, puff and piece of tyre memory goes together, so nothing survives into a new run.
+function clearTyreMarks(r) {
   r.skids.length = 0;
   r.skidHead = 0;
   r.lastWheels = null;
+  r.markAnchor = null;
+  resetTyreEffectState(r.tyreState);
   r.smoke.length = 0;
   r.smokeCarry = 0;
+}
+
+// A copy of what the effects hold, for the browser checks. Read-only.
+export function effectsSnapshot(r) {
+  const puffs = (test) => r.smoke.filter(test).length;
+  return {
+    skids: r.skids.length, skidCapacity: FX.skidCapacity, smoke: r.smoke.length, smokeCapacity: FX.smokeCapacity,
+    spinPuffs: puffs((p) => p.spin), dust: puffs((p) => p.kind === 'dust'),
+    oldestPuff: r.smoke.reduce((a, p) => Math.max(a, p.age), 0), spinMarking: r.tyreState.spinMarking,
+    anchored: r.markAnchor !== null,
+  };
+}
+
+export function resetEffects(r, car) {
+  clearTyreMarks(r);
   r.cam.x = car.x;
   r.cam.y = car.y;
 }
@@ -263,45 +277,63 @@ function wheelPositions(x, y, heading) {
   ];
 }
 
+function pushSkid(r, a, b, alpha) {
+  for (let i = 0; i < 2; i += 1) {
+    const seg = { ax: a[i].x, ay: a[i].y, bx: b[i].x, by: b[i].y, alpha };
+    if (r.skids.length < FX.skidCapacity) r.skids.push(seg);
+    else r.skids[r.skidHead] = seg;
+    r.skidHead = (r.skidHead + 1) % FX.skidCapacity;
+  }
+}
+
 function updateEffects(r, game, pose, dt) {
   const { car } = game;
-  const slipAbs = Math.abs(car.slipAngle);
-  const onGrass = car.surface === 'grass';
-  const rearSliding = Math.abs(car.rearSlip) > FX.skidMinSlip || slipAbs > FX.skidMinSlip;
-  const skidding = !onGrass && car.speed > FX.skidMinSpeed && rearSliding;
+  const emit = tyreEmission(car, r.tyreState);
 
+  // A slide's mark follows the tyres frame by frame, as it always has. Wheelspin alone lays its
+  // rubber in pieces at least spinMarkMinLength long, joined end to end from where the last mark
+  // stopped, so it is continuous, never a row of dots, and can't grow while the car stands still.
   const wheels = wheelPositions(pose.x, pose.y, pose.heading);
-  if (skidding && r.lastWheels) {
-    const alpha = Math.min(1, slipAbs / (35 * (Math.PI / 180)) + 0.35);
-    for (let i = 0; i < 2; i += 1) {
-      const seg = { ax: r.lastWheels[i].x, ay: r.lastWheels[i].y, bx: wheels[i].x, by: wheels[i].y, alpha };
-      if (r.skids.length < FX.skidCapacity) r.skids.push(seg);
-      else r.skids[r.skidHead] = seg;
-      r.skidHead = (r.skidHead + 1) % FX.skidCapacity;
+  if (emit.mark > 0 && !emit.spinMark) {
+    const from = r.markAnchor ?? r.lastWheels; // the previous frame, or the end of a wheelspin mark
+    if (from) pushSkid(r, from, wheels, emit.mark);
+    r.markAnchor = wheels;
+  } else if (emit.spinMark) {
+    const anchor = r.markAnchor ?? r.lastWheels;
+    const moved = anchor ? Math.hypot(wheels[0].x - anchor[0].x, wheels[0].y - anchor[0].y) : 0;
+    if (!anchor || moved > TYRE_FX.spinMarkMaxJump) {
+      r.markAnchor = wheels;
+    } else if (moved >= TYRE_FX.spinMarkMinLength) {
+      pushSkid(r, anchor, wheels, emit.mark);
+      r.markAnchor = wheels;
+    } else {
+      r.markAnchor = anchor;
     }
+  } else {
+    r.markAnchor = null;
   }
   r.lastWheels = wheels;
 
-  // Smoke on the road, dust on the grass; both are capped and short-lived.
-  let rate = 0;
-  let kind = 'smoke';
-  if (!onGrass && car.speed > FX.smokeMinSpeed && slipAbs > FX.smokeMinSlip) {
-    rate = FX.smokeRate * Math.min(1, slipAbs / (45 * (Math.PI / 180)));
-  } else if (onGrass && car.speed > FX.smokeMinSpeed) {
-    rate = FX.dustRate * Math.min(1, car.speed / 25);
-    kind = 'dust';
-  }
-  r.smokeCarry += rate * dt;
+  // Smoke on the road, dust on the grass; both are capped and short-lived. Wheelspin smoke is
+  // thrown back off the spinning tyres and hangs where it was made, rather than following the car.
+  const { smokeKind: kind, smokeStrength: strength, wheelspinSmoke } = emit;
+  const carry = wheelspinSmoke ? 0.06 : 0.12;
+  const back = wheelspinSmoke ? FX.spinSmokeDrift : 0;
+  const hx = Math.cos(pose.heading);
+  const hy = Math.sin(pose.heading);
+  r.smokeCarry += emit.smokeRate * dt;
   while (r.smokeCarry >= 1) {
     r.smokeCarry -= 1;
     const w = wheels[Math.random() < 0.5 ? 0 : 1];
     const puff = {
       x: w.x,
       y: w.y,
-      vx: car.vx * 0.12 + (Math.random() - 0.5) * 3,
-      vy: car.vy * 0.12 + (Math.random() - 0.5) * 3,
+      vx: car.vx * carry - hx * back + (Math.random() - 0.5) * 3,
+      vy: car.vy * carry - hy * back + (Math.random() - 0.5) * 3,
       age: 0,
       kind,
+      strength,
+      spin: wheelspinSmoke,
       size: 0.9 + Math.random() * 0.8,
     };
     if (r.smoke.length >= FX.smokeCapacity) r.smoke.shift();
@@ -477,10 +509,10 @@ function drawSmoke(r) {
     const radius = p.size * (0.7 + life * 2.2);
     if (p.kind === 'dust') {
       ctx.fillStyle = '#c6b184';
-      ctx.globalAlpha = 0.42 * (1 - life);
+      ctx.globalAlpha = 0.42 * (1 - life) * p.strength;
     } else {
       ctx.fillStyle = '#ece9e2';
-      ctx.globalAlpha = 0.46 * (1 - life);
+      ctx.globalAlpha = 0.46 * (1 - life) * p.strength;
     }
     ctx.beginPath();
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
