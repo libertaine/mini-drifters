@@ -4,7 +4,7 @@ import { createRecords } from './records.js';
 import { Controller, NEUTRAL_DRIVE } from './controller.js';
 import { InputArbiter } from './controls.js';
 import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance, countedScore } from './game.js';
-import { createRenderer, drawFrame, resize, resetEffects } from './render.js';
+import { createRenderer, drawFrame, effectsSnapshot, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
 import { DEFAULT_TRACK_ID, TRACKS, projectOnTrack, trackById } from './track.js';
 import { GameAudio } from './audio.js';
@@ -1131,5 +1131,5 @@ showSound(audio.snapshot());
 $('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
-  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode, gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
+  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode, gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
 requestAnimationFrame(frame);
