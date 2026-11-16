@@ -14,7 +14,7 @@ It runs in a desktop browser with a keyboard or a standard-mapped controller (co
 
 ## Status
 
-**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, and handling and scoring may change. The current release is [v0.4.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.4.0). It adds three Gymkhana challenges: timed Precision 180, scored Linked Drift and single-combo One Drift, with challenge selection, a dedicated HUD and results, fast retries and separate browser-local records for Classic and Power. Existing circuit gameplay and records are preserved; there is no online leaderboard or medal system. [v0.3.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.3.0) added Classic and Power handling, a remembered handling choice and an unscored practice pad. Slow slides keep their combos but pay less, and personal bests are separated by track, handling and scoring version. Earlier scores remain visible as legacy records, with fastest laps carried forward. [v0.2.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.2.0) added Switchback alongside Original, analog controller support, per-track personal bests and scoring fixes for shortcuts and voided laps. Prototype 0.1 was released as [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) with one track. See the [roadmap](docs/ROADMAP.md) for what might come next.
+**Early playable prototype.** Mini Drifters is here to find out whether the driving is fun, and it isn't feature-complete. There is one car, and handling and scoring may change. The current version is v0.5.0 ([release notes](https://github.com/libertaine/mini-drifters/releases/tag/v0.5.0)). It adds Dockyard, a short, technical third circuit with its own dockside scenery and corner boards, and Slalom Sprint, a fourth Gymkhana challenge. In Power, spinning rear wheels now show as smoke and rubber marks and are heard in the engine. Classic and Power handling, scoring and existing records are unchanged. [v0.4.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.4.0) added three Gymkhana challenges: timed Precision 180, scored Linked Drift and single-combo One Drift, with challenge selection, a dedicated HUD and results, fast retries and separate browser-local records for Classic and Power. There is no online leaderboard or medal system. [v0.3.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.3.0) added Classic and Power handling, a remembered handling choice and an unscored practice pad. Slow slides keep their combos but pay less, and personal bests are separated by track, handling and scoring version. Earlier scores remain visible as legacy records, with fastest laps carried forward. [v0.2.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.2.0) added Switchback alongside Original, analog controller support, per-track personal bests and scoring fixes for shortcuts and voided laps. Prototype 0.1 was released as [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) with one track. See the [roadmap](docs/ROADMAP.md) for what might come next.
 
 ## Controls
 
@@ -229,6 +229,8 @@ To run the same check against the live site, set `TEST_URL=https://libertaine.gi
 
 `npm run test:wheelspin:browser` drives Power and Classic on the practice pad and Power on Dockyard. It checks that Power's wheelspin raises smoke, rubber and an engine flare, that the effects stay inside their limits, that pause, focus loss, restart, Sound Off and the title handle them correctly, and that Classic shows none of it, in Chromium and Firefox. See [the wheelspin notes](docs/WHEELSPIN.md).
 
+`test/scenery-browser.mjs` compares Dockyard's scenery with the v0.5.0 R2 build (`259eb41`) in Chromium and Firefox, and checks that Original, Switchback, the practice pad and the title draw exactly as before. It needs a separate checkout of that commit, so it isn't an npm script and doesn't run in CI. See [the R3 review](docs/R3-REVIEW.md).
+
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
 Changes reach `main` through a pull request, and the `test` check must pass before it can merge.
@@ -286,7 +288,8 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 ## Known limitations
 
 - Grass affects the whole car at once, based on its centre, so there's no two-wheels-off behaviour.
-- The only barrier is a simple perimeter wall.
+- The only barrier is a simple perimeter wall. Dockyard's warehouses, containers, concrete barriers and corner boards are decorative and have no collision.
+- Dockyard's off-track ground is drawn as a concrete apron, but it behaves exactly as grass does on the other circuits.
 - Fishtailing down a straight still scores. It costs speed, but it isn't prevented.
 - A careful driver can occasionally slide by accident and score, and a bad drifting run can score less than a good reckless one.
 - Drifting is slower than grip driving in the scripted test runs, so points and lap time pull in different directions.
@@ -295,7 +298,7 @@ Several tests check that drifts stay holdable and that controlled driving out-sc
 - Scoring was tuned for Classic. Power uses the same scoring rules, so its scores aren't comparable with Classic's, and each keeps its own records.
 - The Gymkhana challenges were sized from scripted test drives and have no medals or target times yet. Linked Drift has a higher scoring ceiling in Power than in Classic.
 - The Try It lesson teaches Classic only. A lesson for Power's throttle technique may come later.
-- Owner review covered controller driving and drifting on both tracks; every physical disconnect/reconnect scenario was not explicitly verified.
+- Owner review covered controller driving and drifting on Original and Switchback; every physical disconnect/reconnect scenario was not explicitly verified.
 
 ## License
 

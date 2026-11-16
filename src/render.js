@@ -5,6 +5,7 @@ import { ghostDisplay } from './ghost.js';
 import { drawPad } from './practice-pad.js';
 import { drawChallenge, drawChallengeMap } from './gymkhana-draw.js';
 import { TYRE_FX, createTyreEffectState, resetTyreEffectState, tyreEmission } from './tyre-effects.js';
+import { buildDockyardScenery, drawDockyardGround, drawDockyardScenery } from './dockyard-scenery.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -178,6 +179,7 @@ function buildCourse(track) {
     road: buildRoadPath(track),
     curbs: buildCurbPath(track),
     scenery: buildScenery(track),
+    dockyard: buildDockyardScenery(track),
     startPoint: track.points[0],
   };
 }
@@ -904,7 +906,12 @@ export function drawFrame(r, game, alpha, dt, debug) {
   ctx.translate(r.width / 2, r.height / 2);
   ctx.scale(r.cam.zoom, r.cam.zoom);
   ctx.translate(-r.cam.x, -r.cam.y);
-  drawGrass(r);
+  const yard = r.course.dockyard;
+  if (yard) {
+    const view = { x: r.cam.x, y: r.cam.y, hw: r.width / 2 / r.cam.zoom, hh: r.height / 2 / r.cam.zoom };
+    drawDockyardGround(ctx, view);
+    drawDockyardScenery(ctx, yard, view);
+  } else drawGrass(r);
   if (r.track.pad) drawPad(ctx, r.track);
   else drawRoad(ctx, r.course);
   // A gymkhana challenge paints its gates, zones and cones on its pad.
@@ -914,7 +921,7 @@ export function drawFrame(r, game, alpha, dt, debug) {
   if (ghost) drawGhost(r, ghost);
   drawCar(ctx, car, pose);
   drawSmoke(r);
-  drawTrees(r);
+  if (!yard) drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
   drawMinimap(r, car, ghost, game);
