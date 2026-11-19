@@ -1085,6 +1085,8 @@ function updateDebug() {
     ['wheelspin', car.wheelspin === undefined ? 'n/a' : car.wheelspin.toFixed(2)],
     ['traction', car.traction.toFixed(2)],
     ['surface', car.surface],
+    ['course', game.onCourse ? 'on' : 'OFF (no drift points)'],
+    ['contact', contactText(game)],
     ['drift', scoring.qualification],
     ['angle score', angleScore(Math.abs(car.slipAngle)).toFixed(2)],
     ['progress', `${game.progressRate.toFixed(1)} m/s`],
@@ -1094,6 +1096,15 @@ function updateDebug() {
     ['step', `${(T.simStep * 1000).toFixed(1)} ms`],
   ];
   setText('debug', rows.map(([k, v]) => `${k.padEnd(12)}${v}`).join('\n'));
+}
+
+// The most recent hit on solid scenery, for the debug panel.
+function contactText(game) {
+  const hit = game.lastContact;
+  if (!hit) return game.obstacles?.length ? 'none yet' : 'n/a';
+  const ago = (game.ticks - hit.tick) * TUNING.simStep;
+  const hard = hit.impact >= TUNING.barrierSignificantImpact ? ' HARD' : '';
+  return `${hit.kind} ${hit.impact.toFixed(1)} m/s${hard}, ${ago.toFixed(1)} s ago`;
 }
 
 // --- Loop ------------------------------------------------------------------

@@ -77,4 +77,4 @@ Please note anything that felt wrong and where it happened. The track hasn't bee
 
 - The curbs stop for a moment at every change of direction, leaving a small step in the road edge. Original has this at its one left-right transition, and Switchback has it at every switchback. It's how the renderer has always painted curbs, so it's left alone for now.
 - Each track keeps its own ghost only for the current run, as before. Nothing is saved, including the choice of track.
-- The scenery is the same scatter of trees around the outside on both tracks.
+- Switchback has wooded-hillside scenery with solid reachable pines, boulders, woodland and retaining walls. Its road geometry and both handling modes are unchanged. Gravel shoulders, dry wash and bare earth retain the established loose-surface behavior. See [ENVIRONMENT-R2.md](ENVIRONMENT-R2.md) for the design and measurements.

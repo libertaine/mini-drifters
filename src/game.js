@@ -3,7 +3,8 @@
 import { TUNING } from './tuning.js';
 import { drivingCommands } from './controls.js';
 import { createCar, stepCar, updateDerived } from './physics.js';
-import { DEFAULT_TRACK_ID, trackById, projectOnTrack, surfaceFromDistance, trackDelta } from './track.js';
+import { DEFAULT_TRACK_ID, trackById, projectOnTrack, surfaceFromDistance, isOnCourse, trackDelta } from './track.js';
+import { obstaclesFor, resolveObstacles } from './obstacles.js';
 import { createLaps, updateLaps } from './laps.js';
 import { createScoring, updateScoring, bankCombo, loseCombo, currentMultiplier } from './scoring.js';
 import { createGhost, beginGhostRecording, recordGhostTick } from './ghost.js';
@@ -59,6 +60,9 @@ function resetRun(game) {
   game.credited = 0;       // all the new ground the scoring has been given this run
   game.progressRate = 0;   // smoothed along-track speed
   game.lastImpact = 0;
+  game.onCourse = true;
+  game.obstacles = obstaclesFor(track); // solid scenery, if the circuit has any
+  game.lastContact = null;              // the most recent scenery hit, for the debug view
   game.ghost = createGhost(track, game.tuning);
   game.runId = (game.runId ?? 0) + 1;
 }
@@ -185,9 +189,18 @@ export function tick(game, input = NO_INPUT) {
 
   const ax = car.x;
   const ay = car.y;
+  // The surface decides how the car drives; whether it is on the course is the rules' own question.
+  game.onCourse = isOnCourse(track, game.trackInfo.distance);
   stepCar(car, input, surfaceFromDistance(track, game.trackInfo.distance), dt, game.tuning);
-  const impact = resolveBarrier(game);
-  if (impact > 0) updateDerived(car);
+  let impact = resolveBarrier(game);
+  let impactKind = 'wall';
+  const contact = resolveObstacles(car, game.obstacles, ax, ay);
+  if (contact) {
+    if (contact.impact > impact) impactKind = contact.kind;
+    impact = Math.max(impact, contact.impact);
+    game.lastContact = { ...contact, tick: game.ticks };
+  }
+  if (impact > 0 || contact) updateDerived(car);
   game.lastImpact = impact;
 
   // Along-track progress. Jumps (the nearest centreline point hopping to another
@@ -227,10 +240,12 @@ export function tick(game, input = NO_INPUT) {
     forwardSpeed: car.forwardSpeed,
     slipAngle: car.slipAngle,
     surface: car.surface,
+    offCourse: !game.onCourse,
     progressRate: game.progressRate,
     newGround,
     handbrake: car.handbrake,
     impact,
+    impactKind,
   }, dt, T);
   noteLapScoring(game, game.scoring.score - scoreBefore);
 

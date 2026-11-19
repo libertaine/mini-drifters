@@ -8,9 +8,9 @@ A small top-down arcade drifting game for the browser. Throw a muscle car sidewa
 
 It runs in a desktop browser with a keyboard or a standard-mapped controller. There's nothing to install and no account to create.
 
-**Current version: [v0.5.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.5.0).** Earlier versions and their changes are on the [Releases page](https://github.com/libertaine/mini-drifters/releases).
+**Current version: [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0).** Earlier versions and their changes are on the [Releases page](https://github.com/libertaine/mini-drifters/releases).
 
-![Mini Drifters title screen](docs/media/title-screen.png)
+![Mini Drifters title screen](docs/media/title-screen-v0.6.0.png)
 
 ![Mini Drifters gameplay: a drift combo through Switchback](docs/media/gameplay.gif)
 
@@ -74,9 +74,11 @@ The longer you pull, the bigger the slide. A very short tap only unsettles the c
 
 The title screen has a **Track** choice under the tagline. Press Left or Right to change it, or click one.
 
-- **Original:** long bends and a hairpin.
-- **Switchback:** a staircase of linked medium corners and one tight right. See [the Switchback notes](docs/SWITCHBACK.md).
+- **Original:** long bends and a hairpin at a club-racing circuit, with paddock, garages, race control and grandstands.
+- **Switchback:** linked medium corners and one tight right on a wooded hillside, with pines, boulders, retaining walls and guardrails. See [the Switchback notes](docs/SWITCHBACK.md).
 - **Dockyard:** short and technical, with a right-hander that tightens, a quick chicane and one long sweeping bend back onto the quay, among warehouses and containers. See [the Dockyard notes](docs/DOCKYARD.md).
+
+Reachable solid scenery has collision: Dockyard's containers and concrete barriers, Original's tyre and steel barriers, and Switchback's trees, rocks and retaining walls. Warehouses are solid but lie outside normal reachable play. Dockyard's concrete apron drives like asphalt but remains off-course for drift scoring. Original and Switchback keep their established loose-surface handling beyond the curbs. Flat markings, paths and ground details are decorative.
 
 A new visit starts on Original, and the track choice isn't saved. Restart and Drive Again stay on the same track, and changing track starts a fresh run with no score, laps or ghost carried over.
 
@@ -115,7 +117,7 @@ Press **H** (Shift+H goes back), click one, or press Up from **Start driving** a
 
 **Combos.** Keep drifting, link drifts within two seconds, or flick from one side to the other to climb the multiplier from ×1 through ×1.5 and ×2 to ×3. The multiplier applies to the whole combo when it's banked.
 
-**Spinouts and penalties.** Straighten up and the combo banks into your score. If you spin past 75°, hit the wall hard, stay on the grass for more than 1.5 seconds or stop making progress, you lose the unbanked combo. Points you've already banked are safe, unless the lap is voided.
+**Spinouts and penalties.** Straighten up and the combo banks into your score. If you spin past 75°, hit a wall or solid obstacle hard, stay off-course for more than 1.5 seconds or stop making progress, you lose the unbanked combo. Points you've already banked are safe, unless the lap is voided.
 
 **Lap timing.** A lap counts only if you pass every checkpoint in order. Cutting across the grass voids that lap, and timing restarts at the finish line so you never have to turn back. Your best valid lap is kept for the run. Running wide on the outside of a corner costs time but doesn't void the lap. A voided lap scores nothing: the points you banked on it come off your score at the line, and a combo still running there is lost. You're warned as soon as the missed checkpoint is detected, at the next one you cross. The run still ends after three counted laps, and the results show any laps that weren't counted.
 
@@ -131,6 +133,7 @@ The title shows the saved bests for the selected track and handling (`--` until 
 
 - Records saved by v0.2.0 appear under Classic.
 - Scores and combos set before slow slides started paying less are shown as **legacy scoring** records, in one small line under the current bests. They aren't comparable with current scores, and no run competes with them. Fastest laps aren't affected by scoring, so each track and handling pair keeps one fastest lap, old or new.
+- v0.6.0 keeps the existing record identities, including Dockyard. Older bests remain until beaten through the normal saving process; handling modes stay separate.
 - Records live in this browser's localStorage. They survive reloads and restarts, but clearing browser storage removes them, and they don't sync between browsers or devices.
 - If storage is unavailable or full, driving continues and a note explains that new improvements can't be saved. The displayed records stay at the last saved values.
 
@@ -194,14 +197,15 @@ npm test
 | [GAMEPLAY-AUDIO](docs/GAMEPLAY-AUDIO.md), [AUDIO-LAB](docs/AUDIO-LAB.md) | How the game sounds, and the development listening bench |
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |
 | [ROADMAP](docs/ROADMAP.md) | What each version contained, and what might come next |
+| [v0.6.0 release notes](docs/RELEASE-v0.6.0.md) | Functional environments, compatibility and known limits |
 | [R3-REVIEW](docs/R3-REVIEW.md) | The v0.5.0 scenery review and qualification record |
 
 ## Known limitations
 
 - It's for desktop browsers with a keyboard or a standard-mapped controller. There are no touch controls.
 - Grass affects the whole car at once, based on its centre, so there's no two-wheels-off behaviour.
-- The only barrier is a simple perimeter wall. Dockyard's warehouses, containers, concrete barriers and corner boards are decorative and have no collision.
-- Dockyard's off-track ground is drawn as a concrete apron, but it behaves exactly as grass does on the other circuits.
+- Dockyard's chicane shortcut across the concrete remains an accepted known limitation, approximately 1.6–1.8 seconds faster in scripted runs. Its regression test is explicitly TODO.
+- Dockyard's loading markings and corner boards are decorative. Switchback's gravel shoulders and bare earth retain the existing grass-surface behavior.
 - Fishtailing down a straight still scores. It costs speed, but it isn't prevented.
 - A careful driver can occasionally slide by accident and score, and a bad drifting run can score less than a good reckless one.
 - Drifting is slower than grip driving in the scripted test runs, so points and lap time pull in different directions.

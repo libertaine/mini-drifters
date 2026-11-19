@@ -6,6 +6,8 @@ import { drawPad } from './practice-pad.js';
 import { drawChallenge, drawChallengeMap } from './gymkhana-draw.js';
 import { TYRE_FX, createTyreEffectState, resetTyreEffectState, tyreEmission } from './tyre-effects.js';
 import { buildDockyardScenery, drawDockyardGround, drawDockyardScenery } from './dockyard-scenery.js';
+import { sceneryFor } from './scenery.js';
+import { buildLandscape, drawLandscapeBelow, drawLandscapeAbove } from './scenery-draw.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -180,8 +182,19 @@ function buildCourse(track) {
     curbs: buildCurbPath(track),
     scenery: buildScenery(track),
     dockyard: buildDockyardScenery(track),
+    landscape: undefined, // Original's and Switchback's (scenery.js), built on first use: see landscapeOf
     startPoint: track.points[0],
   };
+}
+
+// The v0.6.0 R2 landscape for a circuit that has one, worked out the first time it is driven (the
+// title poster's course never needs it).
+function landscapeOf(course) {
+  if (course.landscape === undefined) {
+    const scenery = sceneryFor(course.track);
+    course.landscape = scenery ? buildLandscape(course.track, scenery) : null;
+  }
+  return course.landscape;
 }
 
 // The poster always shows `titleTrack`, whichever circuit is being driven.
@@ -676,6 +689,53 @@ function drawDebugWorld(r, game, pose) {
   ctx.moveTo(pose.x, pose.y);
   ctx.lineTo(pose.x + Math.cos(pose.heading) * 7, pose.y + Math.sin(pose.heading) * 7);
   ctx.stroke();
+  drawDebugContact(ctx, game, pose);
+}
+
+// Debug only: the solid scenery's collision boxes (filled gaps dashed), the car's contact circle,
+// and the most recent hit, which fades over a second.
+function drawDebugContact(ctx, game, pose) {
+  const boxes = game.obstacles ?? [];
+  if (!boxes.length) return;
+  ctx.save();
+  ctx.lineWidth = 0.3;
+  for (const b of boxes) {
+    ctx.strokeStyle = b.filled ? 'rgba(255,140,60,0.6)' : '#ff8c3c';
+    ctx.setLineDash(b.filled ? [0.8, 0.6] : []);
+    if (b.shape === 'capsule') {
+      // The capsule's true outline: two sides and the round ends (a circle when it has no length).
+      const a = Math.atan2(b.by - b.ay, b.bx - b.ax);
+      ctx.beginPath();
+      ctx.arc(b.bx, b.by, b.radius, a - Math.PI / 2, a + Math.PI / 2);
+      ctx.arc(b.ax, b.ay, b.radius, a + Math.PI / 2, a + Math.PI * 1.5);
+      ctx.closePath();
+      ctx.stroke();
+    } else if (b.shape === 'poly') {
+      ctx.beginPath();
+      b.points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.stroke();
+    } else ctx.strokeRect(b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY);
+  }
+  ctx.setLineDash([]);
+  ctx.strokeStyle = game.onCourse ? 'rgba(90,255,140,0.8)' : 'rgba(255,90,90,0.9)';
+  ctx.beginPath();
+  ctx.arc(pose.x, pose.y, TUNING.carRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  const hit = game.lastContact;
+  const age = hit ? (game.ticks - hit.tick) * TUNING.simStep : Infinity;
+  if (age < 1) {
+    const hard = hit.impact >= TUNING.barrierSignificantImpact;
+    ctx.globalAlpha = 1 - age;
+    ctx.strokeStyle = hard ? '#ff3b3b' : '#ffe14d';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.arc(hit.x, hit.y, 0.6 + Math.min(hit.impact, 30) * 0.08, 0, Math.PI * 2);
+    ctx.moveTo(hit.x, hit.y);
+    ctx.lineTo(hit.x + hit.nx * 4, hit.y + hit.ny * 4);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawMinimap(r, car, ghost, game) {
@@ -907,21 +967,26 @@ export function drawFrame(r, game, alpha, dt, debug) {
   ctx.scale(r.cam.zoom, r.cam.zoom);
   ctx.translate(-r.cam.x, -r.cam.y);
   const yard = r.course.dockyard;
+  const land = yard ? null : landscapeOf(r.course);
+  const view = { x: r.cam.x, y: r.cam.y, hw: r.width / 2 / r.cam.zoom, hh: r.height / 2 / r.cam.zoom };
   if (yard) {
-    const view = { x: r.cam.x, y: r.cam.y, hw: r.width / 2 / r.cam.zoom, hh: r.height / 2 / r.cam.zoom };
     drawDockyardGround(ctx, view);
     drawDockyardScenery(ctx, yard, view);
+  } else if (land) {
+    if (land.style === 'grassroots') drawGrass(r);
+    drawLandscapeBelow(ctx, r.track, land, view);
   } else drawGrass(r);
   if (r.track.pad) drawPad(ctx, r.track);
   else drawRoad(ctx, r.course);
   // A gymkhana challenge paints its gates, zones and cones on its pad.
   if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game);
   drawSkids(r);
-  drawWall(r);
+  if (!land) drawWall(r); // a landscape draws its own perimeter, under its scenery
   if (ghost) drawGhost(r, ghost);
   drawCar(ctx, car, pose);
   drawSmoke(r);
-  if (!yard) drawTrees(r);
+  if (land) drawLandscapeAbove(ctx, land, view);
+  else if (!yard) drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
   drawMinimap(r, car, ghost, game);

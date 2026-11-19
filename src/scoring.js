@@ -67,6 +67,12 @@ export function lowSpeedFade(speed, T = TUNING) {
   return end > lo ? clamp01((speed - lo) / (end - lo)) : 1;
 }
 
+// Off the course, for the rules: the sample's `offCourse` when the session gives one (game.js does,
+// from track.js isOnCourse, so a paved apron is off course), and otherwise grass, as before.
+export function isOffCourse(sample) {
+  return sample.offCourse ?? sample.surface === 'grass';
+}
+
 // Why a sample does or does not count as a drift. Used for scoring and shown in
 // the debug panel, so it returns a readable reason rather than a boolean.
 export function classifyDrift(sample, wasDrifting, sinceNewGround, T = TUNING) {
@@ -76,7 +82,7 @@ export function classifyDrift(sample, wasDrifting, sinceNewGround, T = TUNING) {
   if (sample.forwardSpeed <= 0) return 'reversing';
   if (slipAbs < minSlip) return 'low angle';
   if (slipAbs >= T.spinoutSlip) return 'over-rotated';
-  if (sample.surface === 'grass') return 'off road';
+  if (isOffCourse(sample)) return 'off road';
   if (sample.progressRate < T.driftMinProgressRate) return 'no progress';
   if (sinceNewGround > T.newGroundRecentWindow) return 'repeat ground';
   return 'drifting';
@@ -119,8 +125,15 @@ function earnTier(combo, T) {
   combo.linkGround = 0;
 }
 
+// Contact classification affects the announcement only, never the collision response or penalty.
+// Omitted kinds are the existing perimeter-wall samples used by callers and older tests.
+export function collisionReason(kind = 'wall') {
+  return ['wall', 'barrier', 'tyrewall', 'guardrail', 'retaining', 'fence'].includes(kind)
+    ? 'hit the wall' : 'hit an obstacle';
+}
+
 // Update from one simulation step. `sample` holds speed, forwardSpeed, slipAngle,
-// surface, progressRate, newGround, handbrake and (optionally) impact speed.
+// surface, progressRate, newGround, handbrake and (optionally) offCourse, impact and impactKind.
 export function updateScoring(state, sample, dt, T = TUNING) {
   const slipAbs = Math.abs(sample.slipAngle);
   const newGround = sample.newGround ?? 0;
@@ -129,7 +142,7 @@ export function updateScoring(state, sample, dt, T = TUNING) {
   state.handbrakeTime = sample.handbrake ? state.handbrakeTime + dt : 0;
 
   // A hard barrier hit ends an unbanked combo before anything else.
-  if (sample.impact >= T.barrierSignificantImpact && state.combo) loseCombo(state, 'hit the wall');
+  if (sample.impact >= T.barrierSignificantImpact && state.combo) loseCombo(state, collisionReason(sample.impactKind));
 
   // Spinouts: past the threshold, at speed, for a moment.
   if (slipAbs >= T.spinoutSlip && sample.speed >= T.spinoutMinSpeed) state.spinTimer += dt;
@@ -143,8 +156,8 @@ export function updateScoring(state, sample, dt, T = TUNING) {
     state.spunOut = false;
   }
 
-  // Time on the grass eats into a live combo.
-  state.offTrackTime = sample.surface === 'grass' ? state.offTrackTime + dt : 0;
+  // Time off the course (grass, or a paved apron) eats into a live combo.
+  state.offTrackTime = isOffCourse(sample) ? state.offTrackTime + dt : 0;
   if (state.combo && state.offTrackTime >= T.comboOffTrackLimit) loseCombo(state, 'off the track');
 
   const reason = state.spunOut ? 'spun out' : classifyDrift(sample, state.drifting, state.sinceNewGround, T);

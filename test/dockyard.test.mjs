@@ -252,12 +252,13 @@ function run(makeDriver, handling, offset = 0, on = track) {
   startRun(game, { track: on, handling });
   for (let i = 0; i < offset; i += 1) tick(game, NO_INPUT);
   const driver = makeDriver();
-  const seen = { wallHits: 0, grass: 0, minWall: Infinity };
+  const seen = { wallHits: 0, offCourse: 0, minWall: Infinity };
   const b = on.bounds;
   while (game.state !== 'finished' && game.ticks < steps(500)) {
     tick(game, driver(game));
     if (game.lastImpact > 0) seen.wallHits += 1;
-    if (game.car.surface === 'grass') seen.grass += T.simStep;
+    // Dockyard's apron is concrete (v0.6.0 R1), not grass, so this counts time off the course.
+    if (!game.onCourse) seen.offCourse += T.simStep;
     seen.minWall = Math.min(seen.minWall, game.car.x - b.minX, b.maxX - game.car.x, game.car.y - b.minY, b.maxY - game.car.y);
   }
   return { game, ...seen };
@@ -271,13 +272,13 @@ const runs = Object.fromEntries(MODES.map(([name, handling]) => [name, {
 }]));
 
 for (const [name] of MODES) {
-  test(`${name}: a grip driver laps Dockyard cleanly: three counted laps, no wall, no grass`, () => {
+  test(`${name}: a grip driver laps Dockyard cleanly: three counted laps, no wall, never off the course`, () => {
     for (const r of runs[name].grip) {
       assert.equal(r.game.state, 'finished');
       assert.equal(r.game.laps.completed, T.runLaps);
       assert.equal(r.game.laps.voided, 0);
       assert.equal(r.wallHits, 0);
-      assert.ok(r.grass < 1, `${r.grass.toFixed(1)} s on the grass`);
+      assert.ok(r.offCourse < 1, `${r.offCourse.toFixed(1)} s off the course`);
       assert.ok(r.game.laps.bestLap > 28 && r.game.laps.bestLap < 32, `best lap ${r.game.laps.bestLap}`);
       assert.ok(r.game.results && Number.isFinite(r.game.results.runTime) && r.game.results.voidedLaps === 0, 'timing and results');
     }
@@ -305,10 +306,13 @@ for (const [name] of MODES) {
   });
 }
 
-// The prototype's finding, pinned so that it is looked at again if the layout moves: the
-// one driver that ever voids a lap is the handbrake-hauler in Power, and only at checkpoint 11,
-// 40 m into the Basin, by crawling across the infield just past the checkpoint's inside end.
-test('lap voiding: only the Power handbrake-hauler, only by cutting inside the Basin\'s entry', () => {
+// v0.5.0's finding was that the one driver that ever voided a lap was the handbrake-hauler in
+// Power, at checkpoint 11, 40 m into the Basin, crawling across the grass just past the
+// checkpoint's inside end (1 to 8 laps of about 75). With the apron concrete (v0.6.0 R1) the car
+// keeps its grip out there, recovers at speed and stays outside that end, so no scripted driver
+// voids a lap. The checks on any void are kept, so a regression shows where it happened.
+// Pinned so that it is looked at again if the layout or the apron moves.
+test('lap voiding: checkpoint 11 still reaches 22 m inside the Basin, and on concrete no handbrake-hauler crawls inside it', () => {
   assert.equal(runs.Classic.reckless.reduce((a, r) => a + r.game.laps.voided, 0), 0);
   const gate = track.gates[11];
   const at = track.points[Math.round(gate.s / track.step)];
@@ -338,7 +342,7 @@ test('lap voiding: only the Power handbrake-hauler, only by cutting inside the B
       wasNext = game.laps.next;
     }
   }
-  assert.ok(voided >= 1 && voided <= 8, `${voided} voided laps of about 75`);
+  assert.equal(voided, 0, `${voided} voided laps of about 75 (v0.5.0, on grass: 1 to 8)`);
 });
 
 // --- Ghost, records and changing circuit -----------------------------------------------------------

@@ -65,10 +65,12 @@ export function steerLimit(speed, T = TUNING) {
   );
 }
 
+// How each physical surface drives. Concrete is paved, and drives exactly as the road does: its
+// difference is in the rules (track.js isOnCourse), not the grip. Any other surface is road.
 export function surfaceFactors(surface, T = TUNING) {
   if (surface === 'grass') return { traction: T.offTrackTraction, engine: T.offTrackEngine, drag: T.offTrackDrag };
   if (surface === 'curb') return { traction: T.curbTraction, engine: T.curbEngine, drag: 0 };
-  return { traction: 1, engine: 1, drag: 0 };
+  return { traction: 1, engine: 1, drag: 0 }; // road and concrete
 }
 
 // Advance the same car model with Boolean keyboard or proportional commands.

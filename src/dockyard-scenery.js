@@ -1,4 +1,6 @@
-// Dockyard's picture only. World-space metres; no collision shapes or simulation state.
+// Dockyard's scenery layout and picture. World-space metres. The layout is also what the solid
+// scenery is made from (obstacles.js turns its warehouses, containers and barriers into collision
+// boxes), so a prop's position lives here and nowhere else. No simulation state.
 // The fixed layout is built once per cached course, with no random work per frame.
 export function buildDockyardScenery(track) {
   if (track.id !== 'dockyard') return null;

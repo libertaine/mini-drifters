@@ -68,9 +68,10 @@ Each script below runs in Chromium and Firefox, and CI runs all of them on every
 | `npm run test:handling:browser` | Choosing handling by keyboard, mouse and controller, remembering the choice, the practice pad, the lesson staying on Classic, records kept apart by handling, and the migration of v0.2.0 records |
 | `npm run test:gymkhana:browser` | The Gymkhana sheet by keyboard, mouse and controller; Precision 180, Linked Drift and One Drift driven to completed and failed results; retries, cone penalties, the challenges' own records, and that the circuit records are never written |
 | `npm run test:dockyard-slalom:browser` | Three laps of Dockyard in Classic and Power, and Slalom Sprint to completed, penalised and failed results, by keyboard, mouse and controller. That the title and the Gymkhana sheet fit every supported window with fallback fonts, and that records saved by v0.4.0 are read and kept |
+| `npm run test:environment:browser` | Functional scenery on all three circuits in both handling modes, Dockyard concrete/off-course behavior, obstacle collision messaging and debug outlines |
 | `npm run test:wheelspin:browser` | Power and Classic on the practice pad and Power on Dockyard: that Power's wheelspin raises smoke, rubber and an engine flare, that the effects stay inside their limits, that pause, focus loss, restart, Sound Off and the title handle them correctly, and that Classic shows none of it. See [the wheelspin notes](WHEELSPIN.md) |
 
-`test/scenery-browser.mjs` compares Dockyard's scenery with the v0.5.0 R2 build (`259eb41`) in Chromium and Firefox, and checks that Original, Switchback, the practice pad and the title draw exactly as before. It needs a separate checkout of that commit, so it isn't an npm script and doesn't run in CI. See [the R3 review](R3-REVIEW.md).
+`test/scenery-browser.mjs` retains Dockyard's visual checks against the v0.5.0 R2 build (`259eb41`), plus unchanged title and Practice Pad frames. `test/scenery-r2-browser.mjs` compares the release to the environmental R1 prototype: Original/Switchback road and minimap identity, unchanged Dockyard/title/Practice Pad frames, both handling modes, console errors and frame costs. Both accept a reference-tree path after the Playwright path and run locally; the reference worktrees are not CI dependencies. See the historical [R1](ENVIRONMENT-R1.md) and [R2](ENVIRONMENT-R2.md) reports.
 
 Screenshots and a report go to `artifacts/`, which isn't tracked.
 
@@ -90,7 +91,9 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/gymkhana.js`, `src/gymkhana-records.js` | The Gymkhana challenges, and their personal bests |
 | `src/gymkhana-draw.js`, `src/gymkhana-ui.js` | Painting a challenge, and its sheet, HUD panel and results |
 | `src/track.js`, `src/laps.js` | The three circuits and lap validation |
-| `src/dockyard-scenery.js` | Dockyard's decorative dockside, with no collision |
+| `src/dockyard-scenery.js` | Dockyard's picture and shared solid-prop layout |
+| `src/scenery.js`, `src/scenery-original.js`, `src/scenery-switchback.js`, `src/scenery-draw.js` | Original and Switchback layouts, shared solidity rules and rendering |
+| `src/obstacles.js` | Static collision shapes and contact response for the three environments |
 | `src/scoring.js` | Drift detection, the low-speed fade, combos and the scoring version |
 | `src/records.js` | Local personal bests by track, handling and scoring version, run qualification, and reading the older records keys |
 | `src/ghost.js` | Recording and replaying the previous valid lap |
