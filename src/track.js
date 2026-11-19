@@ -219,12 +219,17 @@ export const TRACKS = Object.freeze([
 ]);
 export const DEFAULT_TRACK_ID = 'original';
 
+// What lies beyond each circuit's curbs, physically. It decides only how the car drives there
+// (physics.js); whether the car is on the course is a separate question (isOnCourse below), so a
+// paved apron is never part of the circuit. A circuit that names no apron has grass.
+const APRONS = Object.freeze({ dockyard: 'concrete' });
+
 // Each circuit is built once, so every session on it shares one track object.
 const built = new Map();
 export function trackById(id) {
   const entry = TRACKS.find((t) => t.id === id);
   if (!entry) throw new Error(`Unknown track: ${id}`);
-  if (!built.has(id)) built.set(id, { ...buildTrack(entry.control), id: entry.id, name: entry.name });
+  if (!built.has(id)) built.set(id, { ...buildTrack(entry.control), id: entry.id, name: entry.name, apron: APRONS[id] ?? 'grass' });
   return built.get(id);
 }
 
@@ -264,10 +269,17 @@ export function projectOnTrack(track, x, y) {
   return { s, distance, offset: side >= 0 ? distance : -distance, tx: q.tx, ty: q.ty, curvature: q.curvature };
 }
 
+// The physical surface: road, curb, then the circuit's apron (grass unless the track says otherwise).
 export function surfaceFromDistance(track, distance) {
   if (distance <= track.halfWidth) return 'road';
   if (distance <= track.halfWidth + track.curbWidth) return 'curb';
-  return 'grass';
+  return track.apron ?? 'grass';
+}
+
+// The competition rule, kept apart from the physical surface: the course is the road and its curbs,
+// whatever the ground beyond them is made of. Scoring reads this, never the surface.
+export function isOnCourse(track, distance) {
+  return distance <= track.halfWidth + track.curbWidth;
 }
 
 export function surfaceAt(track, x, y) {

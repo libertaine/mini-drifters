@@ -63,6 +63,8 @@ jobs:
         run: npm run test:dockyard-slalom:browser
       - name: Wheelspin smoke, rubber and engine note in Chromium and Firefox
         run: npm run test:wheelspin:browser
+      - name: Functional environments and collision messages in Chromium and Firefox
+        run: npm run test:environment:browser
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7

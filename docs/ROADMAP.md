@@ -90,3 +90,7 @@ November 15, 2026, and for the scenery on November 16, 2026. Physics, tuning, ha
 scoring are unchanged from v0.4.0. Records, ghosts and saved settings work as before, and
 Dockyard and Slalom Sprint records sit beside the existing ones in the same storage.
 Medal thresholds and online leaderboards remain outside this version.
+
+## Prototype 0.6: Functional environments (complete)
+
+Version 0.6.0 adds solid environmental scenery to all three circuits: a club-racing setting for Original, a wooded hillside for Switchback, and paved concrete recovery ground at Dockyard. The existing track layouts and Classic/Power handling remain. Record identities are retained. Dockyard's chicane shortcut remains an explicitly accepted TODO. See [the release notes](RELEASE-v0.6.0.md).

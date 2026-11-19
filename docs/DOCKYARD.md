@@ -51,18 +51,15 @@ prototype's control points unchanged. `test/dockyard.test.mjs` pins them and the
 
 ## Known limits
 
-- **The Basin's entry can void a lap.** Checkpoint 11 sits 40 m into the Basin and, like every
-  checkpoint on the inside of a corner, reaches 22 m inside the centreline, 10 m past the curb.
-  Only one scripted driver ever crossed inside it: the one that holds the handbrake through
-  every corner, in Power (7 of 151 laps), after spinning out of the chicane and crawling across
-  the grass. That is the lap rule working, and the layout is unchanged. Lengthening the link
-  from the chicane to the Basin from 25 m to 55 m removed it in scripted runs, if it ever needs
-  removing.
-- **The scenery is decorative.** Warehouses, containers, concrete barriers and corner boards
-  have no collision. The off-track ground is drawn as a concrete apron, but it behaves exactly
-  as grass does on the other circuits, and the lap rules above still call it grass.
+- **The chicane shortcut is accepted for v0.6.0.** Cutting across the concrete can produce a counted lap about 1.6–1.8 seconds faster. The regression remains explicitly TODO; no obstacles, checkpoint tightening or geometry changes are introduced to fix it.
+- **Concrete is paved but off-course.** The apron drives like asphalt and earns no drift points. Containers and concrete barriers have solid collision; warehouses are solid but outside normal reachable play. Loading markings and corner boards remain decorative.
+- **Records keep the same identities.** Existing bests remain until beaten normally; Classic and Power remain separate. No reset or environment-specific partition is introduced.
+
+See [the R1 report](ENVIRONMENT-R1.md) for historical measurements and [the release notes](RELEASE-v0.6.0.md) for final decisions.
 
 ## Scenery
+
+v0.6.0 retains the accepted scenery placement and corner boards, adds solid warehouses, containers and concrete barriers, and makes the apron physically paved. The following describes the original v0.5.0 visual design; its former decorative-only behavior is superseded by the functional rules above.
 
 Added in v0.5.0 R3 and accepted by the owner on November 16, 2026. Dockyard draws a muted
 concrete apron with slab joints in place of grass and trees, three warehouses beyond the wall,

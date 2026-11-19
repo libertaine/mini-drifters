@@ -109,8 +109,12 @@ try {
         const before = {};
         for (const tree of ['r2', 'r3']) {
           await setup(page, tree);
+          // v0.6.0 R2 changes Original's and Switchback's scenery on purpose, so their driving frames
+          // are no longer whole-frame identical to v0.5.0. test/scenery-r2-browser.mjs checks their
+          // road, curbs, markings and minimap pixel for pixel instead. Their title frames, and every
+          // practice pad frame, are still compared whole here.
           for (const track of ['original', 'switchback', 'practice-pad']) {
-            for (const menu of [false, true]) {
+            for (const menu of track === 'practice-pad' ? [false, true] : [true]) {
               await page.evaluate((o) => window.paint(o), { track, menu });
               const fingerprint = await page.evaluate(() => window.pixels());
               const key = `${track}/${menu}`;
@@ -124,7 +128,7 @@ try {
           if (tree === 'r2') before.map = map;
           else assert.equal(map, before.map, 'Dockyard minimap remains unchanged');
         }
-        console.log(`${name}: ${w}x${h}: Original, Switchback, practice and title pixel-identical; Dockyard minimap drawing identical to R2`);
+        console.log(`${name}: ${w}x${h}: practice and title pixel-identical (Original and Switchback driving frames: see scenery-r2-browser); Dockyard minimap drawing identical to R2`);
         // Every corner in both handling modes at fast-camera scale. Static effects are posed evidence.
         for (const handling of ['classic', 'revised']) {
           for (const view of ['hook', 'tightening', 'chicane', 'basin']) {
@@ -180,9 +184,10 @@ try {
       const rp = await retina.newPage();
       let old;
       for (const tree of ['r2', 'r3']) {
-        await setup(rp, tree); await rp.evaluate(() => window.paint({ track: 'switchback' }));
+        // R2: the practice pad stands in for Switchback, whose scenery now differs by design.
+        await setup(rp, tree); await rp.evaluate(() => window.paint({ track: 'practice-pad' }));
         const hash = await rp.evaluate(() => window.pixels());
-        if (tree === 'r2') old = hash; else assert.equal(hash, old, 'DPR 2 Switchback pixels');
+        if (tree === 'r2') old = hash; else assert.equal(hash, old, 'DPR 2 practice pad pixels');
       }
       await rp.evaluate(() => window.paint({ view: 'hook', effects: true }));
       await rp.screenshot({ path: fileURLToPath(new URL(`${name}-r3-hook-dpr2.png`, out)) });
