@@ -443,7 +443,7 @@ body[data-screen="title"] .overlay:not(.title-screen) {
   text-transform: uppercase;
   color: #8fe6ff;
 }
-#ghost-status[data-state="off"] { color: var(--muted); }
+#ghost-status[data-state="off"], #ghost-status[data-state="none"] { color: var(--muted); }
 
 /* Under the ghost note, and just as quiet. */
 #radio-status {
@@ -561,6 +561,11 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 .volume-head { display: flex; justify-content: space-between; font-size: 14px; color: #dcd7ca; }
 .volume-head output { font-weight: 700; font-variant-numeric: tabular-nums; }
 .volume input { display: block; width: 100%; margin: 4px 0 0; accent-color: var(--orange); cursor: pointer; }
+/* v0.7.0's ghost choice: one row of three, under the sound settings. */
+.options-section { margin-top: 14px; }
+.stations.ghost-sources { grid-template-columns: repeat(3, 1fr); }
+.ghost-sources .station span { padding: 9px 4px; letter-spacing: 0.05em; white-space: nowrap; }
+.ghost-note { min-height: 2.9em; margin-bottom: 0; }
 
 .stats { margin: 14px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
 .stats div { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--rule); padding-bottom: 5px; gap: 10px; }

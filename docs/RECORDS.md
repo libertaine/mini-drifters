@@ -158,6 +158,11 @@ a later qualifying improvement can retry. A note on the title/results explains t
 failure. Gameplay continues; no temporary records are presented as saved.
 Existing sound and radio preference keys are untouched.
 
+The saved reference ghost (v0.7.0) keeps its recordings under a key of its own,
+`mini-drifters-ghosts-v1`, and never reads or writes any records key. A lap is saved there
+only after this keeper has handled the same lap, and is labelled a personal best only if it
+set the fastest-lap record. See [the ghost notes](GHOST.md#the-saved-reference).
+
 ## Human acceptance
 
 Run `npm start` and open http://127.0.0.1:4190 in desktop

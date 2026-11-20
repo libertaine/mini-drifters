@@ -16,7 +16,11 @@ export const NO_INPUT = Object.freeze({ up: false, down: false, left: false, rig
 // keeps it until the next start: the car's tuning is fixed from it in resetRun, so nothing can
 // change it mid-run. The rules (scoring, barriers, session length) always read TUNING.
 export function createGame(track = trackById(DEFAULT_TRACK_ID), { onRunEvent = null, handling = DEFAULT_HANDLING } = {}) {
-  const game = { onRunEvent, track, handling, mode: 'normal', state: 'menu', paused: false, ghostVisible: true, challengeDef: null, challenge: null };
+  // Like ghostVisible, ghostSource ('previous' | 'reference' | 'off') is a display preference,
+  // not part of a run. ghostReference is the saved reference lap the browser glue hands this run,
+  // cleared whenever a run starts. The simulation reads neither.
+  const game = { onRunEvent, track, handling, mode: 'normal', state: 'menu', paused: false, ghostVisible: true,
+    ghostSource: 'previous', ghostReference: null, challengeDef: null, challenge: null };
   resetRun(game);
   game.state = 'menu';
   return game;
@@ -64,6 +68,7 @@ function resetRun(game) {
   game.obstacles = obstaclesFor(track); // solid scenery, if the circuit has any
   game.lastContact = null;              // the most recent scenery hit, for the debug view
   game.ghost = createGhost(track, game.tuning);
+  game.ghostReference = null; // a reference belongs to one track and mode, so never carries over
   game.runId = (game.runId ?? 0) + 1;
 }
 
@@ -257,7 +262,14 @@ export function tick(game, input = NO_INPUT) {
     game.onRunEvent?.({ type: 'lap', trackId: track.id, runId: game.runId, handling: game.handling.id, valid: lapResult === 'lap', time: game.laps.lastLap });
   }
   // The ghost gets copies of these numbers and hands nothing back to the simulation.
-  if (game.ghost) recordGhostTick(game.ghost, car.x, car.y, car.heading, lapResult);
+  const keptLap = game.ghost ? recordGhostTick(game.ghost, car.x, car.y, car.heading, lapResult) : null;
+  // A kept lap is offered to the saved reference ghost (reference-ghost.js), after the records
+  // have seen this lap. Only a lap timed from the line is a flying lap: a run's first lap starts
+  // at rest on the grid, 6 m past it. Nothing is handed back.
+  if (keptLap) {
+    game.onRunEvent?.({ type: 'ghost', trackId: track.id, runId: game.runId, handling: game.handling.id,
+      time: game.laps.lastLap, flying: game.laps.completed + game.laps.voided > 1, recording: keptLap });
+  }
   if (game.laps.completed >= T.runLaps) finishRun(game);
 }
 

@@ -41,6 +41,8 @@ jobs:
         run: npm run test:gameplay-audio:browser
       - name: Previous-lap ghost in Chromium and Firefox
         run: npm run test:ghost:browser
+      - name: Saved reference ghost, its storage and Options in Chromium and Firefox
+        run: npm run test:reference-ghost:browser
       - name: Radio in Chromium and Firefox
         run: npm run test:radio:browser
       - name: Title screen and menus in Chromium and Firefox

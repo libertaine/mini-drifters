@@ -936,9 +936,17 @@ function drawTitleScene(r, step) {
 
 // The player's car is drawn one step behind the simulation, blending toward its
 // latest position by `alpha`, so the ghost is sampled at that same moment.
+// The selected ghost: the previous lap, the saved reference, or none. Both run on the same lap
+// clock. The reference is a flying lap, timed from the line, so it waits for the first line
+// crossing rather than racing a standing start from the grid.
 function ghostForFrame(game, pose, alpha) {
-  if (!game.ghost || !game.ghostVisible || game.state !== 'racing') return null;
-  return ghostDisplay(game.ghost, game.ghost.lapTick - 1 + alpha, pose.x, pose.y);
+  if (!game.ghost || !game.ghostVisible || game.state !== 'racing' || game.ghostSource === 'off') return null;
+  const tick = game.ghost.lapTick - 1 + alpha;
+  if (game.ghostSource === 'reference') {
+    if (game.laps.completed + game.laps.voided === 0) return null;
+    return ghostDisplay(game.ghost, tick, pose.x, pose.y, game.ghostReference);
+  }
+  return ghostDisplay(game.ghost, tick, pose.x, pose.y);
 }
 
 // Draw one frame. `alpha` blends between the last two physics steps.

@@ -32,6 +32,9 @@ const base = `http://127.0.0.1:${server.address().port}/`;
 // Records are written to schema 3 only: score and combo by scoring version, a shared lap. The
 // older keys (schema 2 and v0.2.0's) are only read; their scores and combos are legacy scoring.
 const KEY = 'mini-drifters-records-v3';
+// From v0.7.0 a circuit run's flying laps also save the reference ghost, under its own key.
+const GHOST_KEY = 'mini-drifters-ghosts-v1';
+const RUN_KEYS = [GHOST_KEY, KEY].sort();
 const V2_KEY = 'mini-drifters-records-v2';
 const LEGACY_KEY = 'mini-drifters-records';
 const entry3 = (fastestLap = null, current = [null, null], legacy = [null, null]) => ({ fastestLap, scoring: {
@@ -379,7 +382,7 @@ async function check(name, engine) {
     assert.deepEqual(saved.tracks.switchback.revised, entry3());
     assert.ok(!(await writes()).includes(LEGACY_KEY), 'the v0.2.0 key was never written');
     assert.ok(!(await writes()).includes(V2_KEY), 'nor the schema 2 key');
-    assert.deepEqual(await writes(), [KEY]);
+    assert.deepEqual((await writes()).sort(), RUN_KEYS);
     // The title shows each pair's own values.
     const pb = async () => value(() => [document.getElementById('records-heading').textContent, document.getElementById('pb-lap').textContent]);
     await page.locator('#handlings label', { hasText: 'Power' }).click();
@@ -513,7 +516,7 @@ async function check(name, engine) {
     assert.deepEqual(migrated.tracks.original.classic, entry3(47.31, [null, null], [15420, 0]), 'the v0.2.0 Original records were copied forward exactly, as legacy scoring');
     assert.deepEqual(migrated.tracks.switchback.revised, entry3());
     assert.equal(await value((k) => localStorage.getItem(k), LEGACY_KEY), V020, 'the v0.2.0 key is byte-for-byte untouched');
-    assert.deepEqual(await writes(), [KEY]);
+    assert.deepEqual((await writes()).sort(), RUN_KEYS);
     await page.locator('#results .return-title').click();
     await frames();
     ok('v0.2.0 save: legacy scoring under Classic only, zero shown as 0, missing as --, lap shared, copied forward on a new best, old key untouched');

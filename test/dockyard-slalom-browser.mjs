@@ -46,8 +46,10 @@ const V040 = {
   'mini-drifters-handling': 'revised',
   'mini-drifters-sound': 'off',
 };
-// Every key the page may write. Nothing new is introduced for Dockyard or Slalom Sprint.
-const KEYS = ['mini-drifters-records-v3', 'mini-drifters-gymkhana-v1', 'mini-drifters-handling', 'mini-drifters-sound'];
+// Every key the page may write. Nothing new is introduced for Dockyard or Slalom Sprint. v0.7.0
+// added one: a circuit run's flying laps save the reference ghost under its own key (GHOST.md).
+const KEYS = ['mini-drifters-records-v3', 'mini-drifters-gymkhana-v1', 'mini-drifters-handling', 'mini-drifters-sound',
+  'mini-drifters-ghosts-v1'];
 const FALLBACKS = [null, 'Arial, sans-serif', 'Verdana, sans-serif'];
 const SIZES = [[1920, 1080], [1366, 768], [1280, 720], [1024, 600]];
 // A weave that stays clean in both modes when the driver is asked once a frame, as the page

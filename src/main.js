@@ -15,6 +15,9 @@ import { readHandlingPreference, writeHandlingPreference } from './handling-pref
 import { padTrack } from './practice-pad.js';
 import { createGymkhanaRecords } from './gymkhana-records.js';
 import { createGymkhanaUi } from './gymkhana-ui.js';
+import { createGhostStore } from './ghost-store.js';
+import { createReferenceGhosts, slotState } from './reference-ghost.js';
+import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -31,9 +34,16 @@ const LESSON_HANDLING = handlingById('classic');
 // their own, per challenge and handling mode, under their own key (gymkhana-records.js).
 const records = createRecords();
 const gymkhanaRecords = createGymkhanaRecords();
+// The saved reference ghost keeps one flying lap per track and mode under its own key
+// (ghost-store.js). It hears each event after the records, so it can tell whether a lap has
+// just set the fastest-lap record (reference-ghost.js).
+const referenceGhosts = createReferenceGhosts({ store: createGhostStore(),
+  bestLapFor: (trackId, handlingId) => records.forTrack(trackId, handlingId).fastestLap });
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
   gymkhanaRecords.handle(event);
+  referenceGhosts.handle(event);
+  if (event.type === 'start' || event.type === 'ghost') showReference();
   showPersonalBests();
 } });
 // The title's poster is Original's hairpin, whichever circuit is chosen for driving.
@@ -117,6 +127,78 @@ function stepHandling(direction) {
 }
 
 const selectedHandling = () => handlingById(selectedHandlingId);
+
+// --- Ghost -------------------------------------------------------------------
+// Which ghost a circuit run shows, chosen in Options and remembered like the handling mode. G
+// still only shows or hides the chosen one. The lesson, the pad and the gymkhana have none.
+const GHOST_CHOICES = [
+  { id: 'previous', name: 'Previous lap' },
+  { id: 'reference', name: 'Saved reference' },
+  { id: 'off', name: 'Off' },
+];
+game.ghostSource = readGhostPreference(preferenceStorage);
+
+const ghostInputs = GHOST_CHOICES.map((choice) => {
+  const label = document.createElement('label');
+  label.className = 'station';
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'ghost-source';
+  input.value = choice.id;
+  input.setAttribute('aria-describedby', 'ghost-note');
+  const name = document.createElement('span');
+  name.textContent = choice.name;
+  label.append(input, name);
+  $('ghost-sources').append(label);
+  input.addEventListener('change', () => selectGhostSource(choice.id));
+  return input;
+});
+
+function selectGhostSource(id) {
+  if (!GHOST_CHOICES.some((c) => c.id === id)) return;
+  game.ghostSource = id;
+  writeGhostPreference(preferenceStorage, id); // only ever on the player's own choice
+  showGhostStatus();
+  showGhostOptions();
+}
+
+// The reference this run may show, handed to the renderer. Only a lap the store accepted.
+function showReference() {
+  game.ghostReference = referenceGhosts.recording;
+  showGhostStatus();
+  if (optionsOpen) showGhostOptions();
+}
+
+const circuitRun = () => game.state !== 'menu' && game.mode === 'normal' && !tutorial;
+
+// A sentence on what the chosen ghost will do, for the run in progress or, on the title, for
+// the selected track and mode.
+function ghostNote() {
+  if (game.state !== 'menu' && !circuitRun()) return 'Ghosts are only shown on circuit runs, never in lessons, practice or Gymkhana.';
+  if (game.ghostSource === 'previous') return 'Races your last clean lap of this run. Press G to hide or show it.';
+  if (game.ghostSource === 'off') return 'No ghost is shown. Clean laps still update your saved reference.';
+  const trackId = circuitRun() ? game.track.id : selectedTrackId;
+  const handlingId = circuitRun() ? game.handling.id : selectedHandlingId;
+  const slot = circuitRun() ? referenceGhosts.slot : referenceGhosts.peek(trackId, handlingId);
+  const best = records.forTrack(trackId, handlingId).fastestLap;
+  const where = `${trackById(trackId).name} · ${handlingById(handlingId).name}`;
+  const state = slotState(slot, best);
+  if (state === 'best') return `${where}: saved personal best, ${formatTime(slot.lapTime)}. It joins you from lap 2.`;
+  if (state === 'reference') {
+    const unrecorded = best !== null && best < slot.lapTime ? ` Your best lap, ${formatTime(best)}, has no recording.` : '';
+    return `${where}: saved reference, ${formatTime(slot.lapTime)}.${unrecorded} It joins you from lap 2.`;
+  }
+  if (state === 'incompatible') return `${where}: the saved lap was driven under older physics, so it isn't shown. Your next clean lap after lap 1 replaces it.`;
+  if (state === 'corrupt') return `${where}: the saved lap couldn't be read. Your next clean lap after lap 1 replaces it.`;
+  if (state === 'newer' || state === 'unsupported') return `${where}: the saved lap is from a newer version of Mini Drifters. It is kept, but can't be shown or replaced here.`;
+  if (state === 'unavailable') return 'Ghost storage is unavailable, so laps can\'t be saved or loaded. Previous lap still works.';
+  return `${where}: no saved reference yet. Your first clean lap after lap 1 is saved.`;
+}
+
+function showGhostOptions() {
+  for (const input of ghostInputs) input.checked = input.value === game.ghostSource;
+  setText('ghost-note', ghostNote());
+}
 
 // --- Sound -----------------------------------------------------------------
 const soundButton = $('sound');
@@ -376,6 +458,7 @@ function openOptions(opener = null) {
   optionsOpen = true;
   optionsOpener = opener;
   clearInput();
+  showGhostOptions();
   syncScreens();
   (stationInputs.find((input) => input.checked) ?? stationInputs[0]).focus();
 }
@@ -787,10 +870,37 @@ function setText(id, text) {
   if (el.textContent !== text) el.textContent = text;
 }
 
+// The tag under the Sound button names the chosen ghost and whether G has hidden it. A saved
+// reference that can't be shown says why, briefly; Options has the full sentence.
+const REFERENCE_MISSING = { none: 'No Reference Yet', incompatible: 'Reference Outdated', corrupt: 'No Reference Yet',
+  newer: 'Reference: Newer Version', unsupported: 'Reference: Newer Version', unavailable: 'Reference Unavailable' };
 function showGhostStatus() {
   const el = $('ghost-status');
-  el.dataset.state = game.ghostVisible ? 'on' : 'off';
-  setText('ghost-status', game.ghostVisible ? 'Ghost On' : 'Ghost Off');
+  const source = game.ghostSource;
+  let text;
+  let state;
+  if (source === 'off') {
+    text = 'Ghost Off';
+    state = 'off';
+    el.title = 'No ghost. Choose one in Options.';
+  } else if (source === 'reference') {
+    const slot = referenceGhosts.slot;
+    if (game.ghostReference) {
+      text = game.ghostVisible ? 'Reference On' : 'Reference Off';
+      state = game.ghostVisible ? 'on' : 'off';
+    } else {
+      text = REFERENCE_MISSING[slot?.status] ?? REFERENCE_MISSING.none;
+      state = 'none';
+    }
+    el.title = 'Press G to show or hide your saved reference lap. It joins you from lap 2.';
+  } else {
+    text = game.ghostVisible ? 'Ghost On' : 'Ghost Off';
+    state = game.ghostVisible ? 'on' : 'off';
+    el.title = 'Press G to show or hide the ghost of your last valid lap';
+  }
+  el.dataset.state = state;
+  el.dataset.source = source;
+  setText('ghost-status', text);
 }
 
 // Tab carries on from whatever last had focus, even once that's hidden, and that can be past
@@ -957,7 +1067,12 @@ function updateBanners(now) {
     banner.serialLap = game.lapEventSerial;
     if (game.lapEvent === 'lap') {
       const best = laps.lastLap === laps.bestLap && laps.completed > 1;
-      showBanner('lap', `LAP ${formatTime(laps.lastLap)}${best ? ' — BEST' : ''}`, now);
+      // With the saved reference chosen, a lap it saved (or failed to save) says so.
+      const offered = referenceGhosts.lastResult;
+      const thisLap = offered && offered.runId === game.runId && offered.time === laps.lastLap && game.ghostSource === 'reference';
+      const saved = thisLap && offered.saved ? ' · REFERENCE SAVED'
+        : thisLap && (offered.reason === 'write failed' || offered.reason === 'too large') ? ' · REFERENCE NOT SAVED' : '';
+      showBanner('lap', `LAP ${formatTime(laps.lastLap)}${best ? ' — BEST' : ''}${saved}`, now);
     } else {
       const lost = game.lastForfeit;
       showBanner('void', lost > 0 ? `LAP NOT COUNTED — ${formatNumber(lost)} POINTS LOST` : 'LAP NOT COUNTED — CHECKPOINT MISSED', now);
@@ -1142,5 +1257,6 @@ showSound(audio.snapshot());
 $('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
-  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode, gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
+  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode,
+  referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
 requestAnimationFrame(frame);
