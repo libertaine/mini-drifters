@@ -234,7 +234,7 @@ const REVIEWED = {
     baseline: 'v0.6.0',
     drive: '58f07dfe5e47bb5b7e0bb66fd3b5edba650697a4f0f9724300d0e5dd42354b99',
     geometry: 'ea5f7664d1bf50ae8fb8cfd0eb6bc5b631dc071c15fb29db7c652998796ad2ae',
-    sources: 'aba295e09893c87a67bb8bd65c94a30a2fabf16361abaf3378387ec1c451c6f1',
+    sources: 'e1fcf948c9e1ecf21287d9249f101ca534efae69179d8bfe2f605379d2395c07',
   },
 };
 const REVIEW = 'Review GHOST_COMPATIBILITY in src/ghost-store.js (see docs/GHOST.md, "Compatibility")';

@@ -71,6 +71,8 @@ export function collidersFromProps(props, C = CONTACT) {
 const cache = new WeakMap();
 export function obstaclesFor(track) {
   if (!track) return Object.freeze([]);
+  // Getaway cities supply their solid scenery with the layout.
+  if (track.colliders) return track.colliders;
   if (!cache.has(track)) {
     const dockyard = buildDockyardScenery(track);
     const scenery = dockyard ? null : sceneryFor(track);

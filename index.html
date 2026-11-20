@@ -32,6 +32,25 @@
 
     <div id="banner" class="banner" hidden></div>
 
+    <!-- Getaway Drift in town (experimental, R4B): BUST RISK, and the red edge of the screen at CRITICAL. -->
+    <div id="bust-vignette" aria-hidden="true"></div>
+    <section id="bust" class="bust" hidden data-level="clear">
+      <div class="bust-head"><span class="bust-label">Bust risk</span><strong id="bust-state">Clear</strong><span id="bust-pct">0%</span></div>
+      <div class="bust-track" aria-hidden="true"><div class="bust-fill"></div></div>
+      <div id="bust-detail"></div>
+    </section>
+    <!-- Getaway Drift in town (experimental, R4C): the next turn and the objective, docked on the minimap. -->
+    <section id="nav" class="nav-chip" hidden data-glyph="straight" data-goal="camera">
+      <svg class="nav-glyph" viewBox="-12 -12 24 24" aria-hidden="true">
+        <g class="g-straight"><path d="M0 10V-3"/><polygon points="0,-11 -6.5,-3 6.5,-3"/></g>
+        <g class="g-arrive"><path d="M0 10V2"/><circle cx="0" cy="-4" r="5"/></g>
+        <g class="g-right"><path d="M-5 10V1Q-5 -5 1 -5H3"/><polygon points="11,-5 3,-11.5 3,1.5"/></g>
+        <g class="g-left"><path d="M5 10V1Q5 -5 -1 -5H-3"/><polygon points="-11,-5 -3,-11.5 -3,1.5"/></g>
+        <g class="g-around"><path d="M5 10V-2A5 5 0 0 0 -5 -2V3"/><polygon points="-5,11 -11.5,3 1.5,3"/></g>
+      </svg>
+      <div class="nav-text"><strong id="nav-call">Straight on</strong><span id="nav-goal">Cam 1</span></div>
+    </section>
+
     <section id="gym-panel" class="panel gym-panel" hidden>
       <strong id="gym-name"></strong>
       <span id="gym-handling"></span>
@@ -39,6 +58,7 @@
       <div id="gym-stage"></div>
       <div id="gym-gates"></div>
       <div id="gym-cones"></div>
+      <div id="gym-heat" class="gym-heat" hidden><span class="gym-heat-bar" aria-hidden="true"></span><span id="gym-heat-text"></span></div>
       <div id="gym-best"></div>
       <div id="gym-medal"></div>
     </section>

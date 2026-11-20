@@ -14,7 +14,8 @@ import { HANDLING_MODES, handlingById } from './handling.js';
 import { readHandlingPreference, writeHandlingPreference } from './handling-preferences.js';
 import { padTrack } from './practice-pad.js';
 import { createGymkhanaRecords } from './gymkhana-records.js';
-import { createGymkhanaUi } from './gymkhana-ui.js';
+import { createGymkhanaUi, hideBust } from './gymkhana-ui.js';
+import { getawayExtras } from './getaway-entry.js';
 import { createGhostStore } from './ghost-store.js';
 import { createReferenceGhosts, slotState } from './reference-ghost.js';
 import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
@@ -310,7 +311,8 @@ function beginPractice() {
 // of its own. The challenge, like the track, is not saved: a new visit starts on the first.
 let gymkhanaOpen = false;
 let gymkhanaOpener = null;
-const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, onChoose: () => showGymkhanaMenu() });
+// Getaway Drift (experimental, R4 research): offered only by getaway-entry.js's switch.
+const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, onChoose: () => showGymkhanaMenu(), extra: getawayExtras() });
 const inGymkhana = () => game.mode === 'gymkhana' && game.state !== 'menu';
 
 function showGymkhanaMenu() {
@@ -955,6 +957,7 @@ function syncScreens() {
   if (inGymkhana()) document.body.dataset.challenge = game.challengeDef.kind;
   else delete document.body.dataset.challenge;
   $('gym-panel').hidden = !inGymkhana();
+  if (!inGymkhana()) hideBust();
   setText('handling-status', practice ? `Practice · ${game.handling.name}` : game.handling.name);
   $('handling-status').title = `Handling: ${game.handling.name}. Change it on the title screen.`;
   $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen || gymkhanaOpen;
@@ -1173,6 +1176,7 @@ function updateHud(now) {
     $('combo-grace-bar').style.transform = `scaleX(${Math.max(0, combo.grace / T.comboGrace)})`;
   }
   if (game.mode === 'gymkhana') gymkhana.updateHud(game);
+  else hideBust();
   updateBanners(now);
   updatePrompt();
   if (debug) updateDebug();
@@ -1210,6 +1214,26 @@ function updateDebug() {
     ['checkpoint', `${laps.next}/${track.gates.length}${laps.valid ? '' : ' VOID'}`],
     ['step', `${(T.simStep * 1000).toFixed(1)} ms`],
   ];
+  // Getaway Drift (experimental): the chase, for the research.
+  const run = game.challenge;
+  if (run?.pursuer) {
+    const p = run.pursuer;
+    rows.push(
+      ['police', `${p.state} ${p.speed.toFixed(1)} m/s`],
+      ['separation', `${run.gap.toFixed(1)} m (min ${Number.isFinite(run.minGap) ? run.minGap.toFixed(1) : '--'})`],
+      ['bust meter', `${Math.round(run.meter * 100)}% (peak ${Math.round(run.peakMeter * 100)}%)`],
+      ['camera', `next ${run.nextCamera + 1 > game.challengeDef.geometry.cameras.length ? 'none' : run.nextCamera + 1}, ${run.nextCamera}/${game.challengeDef.geometry.cameras.length} done${run.missed.some(Boolean) ? ' MISSED' : ''}`],
+      ['banked', String(scoring.score)],
+      ['unbanked', scoring.combo ? String(Math.round(scoring.combo.points * currentMultiplier(scoring.combo))) : '0'],
+      ['overshoots', `${p.overshoots} (recoveries ${p.recoveries})`],
+    );
+    // In town (R4B): how it is navigating, and whether it can see the car.
+    if (game.challengeDef.layout === 'urban') rows.push(
+      ['pursuit', `${game.challengeDef.pursuit}, ${p.sees ? 'sees car' : 'no sight'}, cut-offs ${p.intercepts}`],
+      ['walls', `police ${p.wallHits}, unsticks ${p.unsticks}; car ${run.wallHits}`],
+      ['smashed', `${run.smashes} by car, ${p.smashes} by police`],
+    );
+  }
   setText('debug', rows.map(([k, v]) => `${k.padEnd(12)}${v}`).join('\n'));
 }
 
@@ -1220,6 +1244,21 @@ function contactText(game) {
   const ago = (game.ticks - hit.tick) * TUNING.simStep;
   const hard = hit.impact >= TUNING.barrierSignificantImpact ? ' HARD' : '';
   return `${hit.kind} ${hit.impact.toFixed(1)} m/s${hard}, ${ago.toFixed(1)} s ago`;
+}
+
+// Getaway Drift (experimental, R4C): one smash sound per object the car breaks, in order. The run's
+// smash log has one entry per object, so a broken one can never sound twice; a muted or paused
+// game plays nothing, and nothing is saved up for later.
+let smashHeardRun = null;
+let smashHeard = 0;
+function playSmashSounds() {
+  const run = game.mode === 'gymkhana' ? game.challenge : null;
+  if (!run?.smashLog) return;
+  if (run !== smashHeardRun) { smashHeardRun = run; smashHeard = 0; }
+  while (smashHeard < run.smashLog.length) {
+    audio.smash(run.smashLog[smashHeard].kind);
+    smashHeard += 1;
+  }
 }
 
 // --- Loop ------------------------------------------------------------------
@@ -1243,6 +1282,7 @@ function frame(now) {
     syncScreens();
   }
   audio.update(game, dt);
+  playSmashSounds();
   const alpha = Math.min(1, game.accumulator / TUNING.simStep);
   drawFrame(renderer, game, alpha, dt, debug);
   if (game.state !== 'menu') updateHud(now / 1000);
@@ -1258,5 +1298,6 @@ $('start').focus();
 // A small read-only hook for the browser checks and tuning from the console.
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
   selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode,
-  referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
+  referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial),
+  smashSounds: () => ({ ...audio.smashes }) };
 requestAnimationFrame(frame);
