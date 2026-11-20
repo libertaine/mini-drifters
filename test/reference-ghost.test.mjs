@@ -438,6 +438,7 @@ test('main.js restores the choice without writing it, and saves only what the pl
   assert.match(main, /game\.ghostSource = readGhostPreference\(preferenceStorage\);/);
   assert.equal(main.match(/writeGhostPreference\(/g).length, 1, 'one place saves it');
   assert.match(main, /function selectGhostSource\(id\) \{[\s\S]*?writeGhostPreference\(preferenceStorage, id\)/);
-  // The reference hears every event after the records, as this file's rig does.
-  assert.match(main, /records\.handle\(event\);\s*gymkhanaRecords\.handle\(event\);\s*referenceGhosts\.handle\(event\);/);
+  // The reference hears every event after the records, as this file's rig does. (The Getaway
+  // records keep no laps, so their place between the two changes nothing the reference reads.)
+  assert.match(main, /records\.handle\(event\);\s*gymkhanaRecords\.handle\(event\);\s*getawayRecords\.handle\(event\);\s*referenceGhosts\.handle\(event\);/);
 });

@@ -28,6 +28,7 @@
     "test:environment:browser": "node test/environment-browser.mjs",
     "test:categories:browser": "node test/categories-browser.mjs",
     "test:getaway:browser": "node test/getaway-urban-browser.mjs",
-    "test:showmanship:browser": "node test/getaway-showmanship-browser.mjs"
+    "test:showmanship:browser": "node test/getaway-showmanship-browser.mjs",
+    "test:getaway-records:browser": "node test/getaway-records-browser.mjs"
   }
 }

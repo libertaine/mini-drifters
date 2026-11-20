@@ -69,6 +69,8 @@ jobs:
         run: npm run test:getaway:browser
       - name: Getaway Showmanship and impact audio in Chromium and Firefox
         run: npm run test:showmanship:browser
+      - name: Getaway personal bests, reloads and storage failures in Chromium and Firefox
+        run: npm run test:getaway-records:browser
       - name: Dockyard and Slalom Sprint in Chromium and Firefox
         run: npm run test:dockyard-slalom:browser
       - name: Wheelspin smoke, rubber and engine note in Chromium and Firefox

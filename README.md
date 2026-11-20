@@ -29,7 +29,7 @@ Mini Drifters is an early playable prototype: one car, built to find out whether
 - **An optional driving lesson** and an unscored **practice pad**.
 - **Recorded engine sound** and a **three-station radio** with provisional music.
 
-Gymkhana medals are derived from saved personal bests. Getaway medals and bests last for the current visit.
+Gymkhana and Getaway medals are derived from saved personal bests.
 
 ## Getting started
 
@@ -100,7 +100,7 @@ On the sheet, Left and Right choose the challenge, H changes handling, Enter sta
 
 **Getaway → Get the Footage → Downtown or Industrial.** Hit all four cameras in order, follow the navigation cues and get through the escape gate before time runs out. Lose the cruiser by pulling away or breaking its line of sight.
 
-Showmanship adds 150 per fruit stand and 250 per wooden barricade to banked drift. The breakables preserve a live combo and cost speed. An escape qualifies for a medal. Busts and timeouts end the run without one. See the mission rules, handling targets and reload behavior in [Getaway](docs/GETAWAY.md).
+Showmanship adds 150 per fruit stand and 250 per wooden barricade to banked drift. The breakables preserve a live combo and cost speed. An escape qualifies for a medal. Busts and timeouts end the run without one. Each environment and handling pair keeps its best Showmanship, saved in this browser, with its medal. See the mission rules, handling targets and records in [Getaway](docs/GETAWAY.md).
 
 ## Classic and Power handling
 

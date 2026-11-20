@@ -44,7 +44,7 @@ the old rules.
   and their pad is not a circuit the keeper accepts.
 - Gymkhana challenges never establish any of these records. They keep their own, under
   their own storage key: see [the Gymkhana notes](GYMKHANA.md#records).
-- Getaway medals and bests last for the current page visit. No record or reference ghost is saved by a Getaway run. [Mission rules](GETAWAY.md).
+- Getaway runs never establish any of these records, laps or reference ghosts. Getaway keeps its own bests under their own storage key: see [Getaway records](#getaway-records).
 - The run's handling mode is fixed when it starts. Every event names it, and an event
   naming another mode, run or track than the run's start is ignored.
 - Ties do not improve a record. Zero is a valid score/combo; null means no record.
@@ -212,3 +212,18 @@ the corrected results after the shortcut and voided-lap fixes (#18 and #19). The
 modes (#21) keep them per handling mode, in schema 2. The low-speed scoring fade keeps
 score and combo per scoring version as well, in schema 3, with every earlier record kept
 as legacy scoring.
+
+## Getaway records
+
+Getaway bests (`src/getaway-records.js`) use their own localStorage key, `mini-drifters-getaway-v1`, schema 1:
+
+```json
+{ "version": 1,
+  "missions": { "<missionId>": { "<environmentId>": { "<handlingId>": { "<rulesId>": { "best": 854 } } } } } }
+```
+
+- **Identity.** `missionId` is the mission's id (`get-the-footage`), `environmentId` its environment (`downtown`, `industrial`) and `handlingId` the handling id (`classic`, `revised`; Power is shown for `revised`). Display names are never used. `rulesId` is the environment's rules id plus the drift scoring version (for example `getaway-r4c-downtown-…-recover-120+scoring-2`), as for Gymkhana score challenges, so a later rules or scoring change starts new records instead of reclassifying old ones.
+- **Qualification.** Only the run's own `challenge` event, naming the started run, environment and handling, with `completed: true` (every camera filmed, then the escape gate), can set a record. Its value is the Showmanship (banked drift + destruction bonus).
+- **Best.** The highest whole-number Showmanship from 0 to 1,000,000 is kept (a run can't score above about 51,000). Ties and lower scores write nothing. Zero is a record; `null` is no record.
+- **Medals** are derived from the best with the environment's accepted targets and never stored. A stored medal field would be ignored.
+- **Robustness.** The key is re-read before each comparison, so another tab's bests are kept. Nothing is written on load. Unparseable or shapeless data, or an unknown older version, is ignored and replaced by the next qualifying write. Invalid values (negative, fractional, too large, wrongly typed) are ignored. Missions, environments, modes, rules ids and fields this version doesn't know are carried through every write untouched. An integer version above 1 is never written, shown or claimed as `NEW BEST`. If storage can't be opened, read or written (including quota), play continues and the sheets say improvements can't be saved. No other key is read, written, migrated or cleared.

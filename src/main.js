@@ -17,6 +17,7 @@ import { createGymkhanaRecords } from './gymkhana-records.js';
 import { createGymkhanaUi, hideBust } from './gymkhana-ui.js';
 import { GYMKHANA_CHALLENGES } from './gymkhana.js';
 import { GETAWAY_MISSIONS } from './getaway-missions.js';
+import { createGetawayRecords } from './getaway-records.js';
 import { createGhostStore } from './ghost-store.js';
 import { createReferenceGhosts, slotState } from './reference-ghost.js';
 import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
@@ -33,9 +34,11 @@ const LESSON_TRACK_ID = 'original';
 const LESSON_HANDLING = handlingById('classic');
 
 // Records are kept per track and handling mode (records.js). The gymkhana challenges keep
-// their own, per challenge and handling mode, under their own key (gymkhana-records.js).
+// their own, per challenge and handling mode, under their own key (gymkhana-records.js), and
+// Getaway its own, per mission, environment and handling mode (getaway-records.js).
 const records = createRecords();
 const gymkhanaRecords = createGymkhanaRecords();
+const getawayRecords = createGetawayRecords();
 // The saved reference ghost keeps one flying lap per track and mode under its own key
 // (ghost-store.js). It hears each event after the records, so it can tell whether a lap has
 // just set the fastest-lap record (reference-ghost.js).
@@ -44,6 +47,7 @@ const referenceGhosts = createReferenceGhosts({ store: createGhostStore(),
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
   gymkhanaRecords.handle(event);
+  getawayRecords.handle(event);
   referenceGhosts.handle(event);
   if (event.type === 'start' || event.type === 'ghost') showReference();
   showPersonalBests();
@@ -316,7 +320,7 @@ const PICKER_SHEETS = {
 const CATEGORY_BUTTON = { tracks: 'tracks-open', challenges: 'gymkhana', missions: 'getaway' };
 let picker = null;
 let mission = null;
-const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, onChoose: () => showGymkhanaMenu() });
+const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, onChoose: () => showGymkhanaMenu() });
 const inGymkhana = () => game.mode === 'gymkhana' && game.state !== 'menu';
 const inGetaway = () => inGymkhana() && game.challengeDef.layout === 'urban';
 const challengePicker = () => picker === 'challenges' || picker === 'environments';

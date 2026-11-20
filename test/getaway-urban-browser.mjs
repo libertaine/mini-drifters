@@ -1,6 +1,6 @@
 // Getaway Drift in town (EXPERIMENTAL, v0.7.0 R4B) on the real page, in Chromium and Firefox:
 // The Getaway category opens the mission and its two environments.
-// escape (provisional Bronze), a retry that resets everything (police car, smashed scenery, meter),
+// escape (a saved medal), a retry that resets everything (police car, smashed scenery, meter),
 // pause and resume, a bust, a smash, the BUST RISK meter's states and its place at 1024x600,
 // 1366x768 and 1920x1080, storage isolation, no page errors, and the
 // frame cost against Linked Drift. Only the Gamepad API and the frame clock are mocked.
@@ -109,7 +109,9 @@ async function check(name, engine) {
     assert.equal(await checked(), 'getaway-urban-downtown');
     assert.match(await text('#challenge-brief'), /Tight downtown blocks/);
     assert.deepEqual(await page.locator('#challenge-targets li b').allTextContents(), ['1,600 pts', '600 pts', 'Escape']);
-    assert.match(await text('#gymkhana-records-note'), /Medals and bests last until you reload the page/);
+    assert.equal(await text('#challenge-best-label'), 'Personal best · Showmanship');
+    assert.equal(await text('#challenge-best'), '--', 'a fresh profile has no record, not a zero');
+    assert.equal(await text('#gymkhana-records-note'), '', 'records are saved: nothing to warn about');
     for (const [w, h] of SIZES) {
       await page.setViewportSize({ width: w, height: h });
       await frames(2);
@@ -138,12 +140,13 @@ async function check(name, engine) {
     const escape = await value(() => window.__drive('grip', 130));
     assert.equal(escape.phase, 'complete', `escaped (${JSON.stringify(escape)})`);
     assert.equal(await text('#gr-title'), 'Getaway complete');
-    assert.match(await text('#gr-medal'), /(Bronze|Silver|Gold) medal \(provisional\)/);
+    assert.match(await text('#gr-medal'), /^[BSG](Bronze|Silver|Gold) medal · NEW MEDAL$/, 'the first escape saves its medal');
+    assert.equal(await shown('#gr-new'), true);
     const rows = await page.locator('#gr-stats dt').allTextContents();
     assert.deepEqual(rows.slice(-7), ['Footage', 'Best combo', 'Closest call', 'Bust risk peak', 'Smashed', 'Spinouts', 'Time']);
     assert.match(await text('#gr-stats'), /4 of 4 cameras/);
     await page.screenshot({ path: shot(`${name}-escaped`) });
-    ok(`Enter starts Downtown; BUST RISK shows Clear at the start; a grip escape in ${escape.time.toFixed(1)} s earns a provisional medal`);
+    ok(`Enter starts Downtown; BUST RISK shows Clear at the start; a grip escape in ${escape.time.toFixed(1)} s earns and saves a medal`);
 
     // --- 4. Retry: a fresh run, police car on its mark, scenery whole --------------------------------
     await key('KeyR');

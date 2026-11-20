@@ -7,6 +7,7 @@ import {
   medalTargets, missedTargetBy, needsMillisecondDisplay, nextMedal,
 } from './medals.js';
 import { cueForGame, cueText, turnBearing } from './getaway-nav.js';
+import { getawayMedal } from './getaway-records.js';
 
 const MPH_PER_MS = 2.23694;
 const DEG = 180 / Math.PI;
@@ -21,14 +22,10 @@ function setText(el, text) {
   if (el.textContent !== text) el.textContent = text;
 }
 
-// Getaway bests stay in this page and each environment supplies its own medal targets.
+// Getaway bests are kept by getaway-records.js and each environment supplies its own medal targets.
 const isGetaway = (def) => def?.layout === 'urban';
 const chaseTargets = (def, handlingId) => def.medalTargets?.[handlingId] ?? null;
-function chaseMedal(def, handlingId, value) {
-  const targets = chaseTargets(def, handlingId);
-  if (!targets || !Number.isFinite(value) || value < 0) return null;
-  return MEDALS.find((medal) => Math.round(value) >= targets[medal]) ?? null;
-}
+const chaseMedal = getawayMedal;
 const medalOf = (def, handlingId, value) => (isGetaway(def) ? chaseMedal(def, handlingId, value) : medalFor(def, handlingId, value));
 const targetsOf = (def, handlingId) => (isGetaway(def) ? chaseTargets(def, handlingId) : medalTargets(def, handlingId));
 function nextOf(def, handlingId, value) {
@@ -254,20 +251,15 @@ function updateNav(def, run, game) {
   el.dataset.new = run.time < navNewUntil ? 'true' : 'false';
 }
 
-// `records` is the gymkhana records keeper (gymkhana-records.js). `onChoose` is called after
-// the player picks a challenge on the sheet.
-export function createGymkhanaUi({ records, onChoose }) {
+// `records` is the gymkhana records keeper (gymkhana-records.js) and `getawayRecords` the Getaway
+// one (getaway-records.js). `onChoose` is called after the player picks a challenge on the sheet.
+export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
   let choices;
   let inputs = [];
   const remembered = new Map();
   const selected = () => choices[remembered.get(choices) ?? 0];
-  // Getaway bests live until this page is reloaded.
-  const sessionBest = new Map();
-  const sessionKey = (def, handlingId) => `${def.id}|${def.rules}|${handlingId}`;
-  const bestOf = (def, handlingId) => (isGetaway(def) ? sessionBest.get(sessionKey(def, handlingId)) ?? null : records.bestFor(def.id, handlingId));
-  let settledRun = -1;
-  let sessionNew = false;
-  let sessionPrevious = null;
+  const keeper = (def) => (isGetaway(def) ? getawayRecords : records);
+  const bestOf = (def, handlingId) => keeper(def).bestFor(def.id, handlingId);
 
   function choose(index) {
     remembered.set(choices, index);
@@ -300,8 +292,8 @@ export function createGymkhanaUi({ records, onChoose }) {
   }
   setChoices(GYMKHANA_CHALLENGES);
 
-  const recordsNote = () => (!records.available ? 'Record storage unavailable. New improvements cannot be saved.'
-    : records.readOnly ? 'Gymkhana records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.' : '');
+  const recordsNote = (def) => (!keeper(def).available ? 'Record storage unavailable. New improvements cannot be saved.'
+    : keeper(def).readOnly ? `${isGetaway(def) ? 'Getaway' : 'Gymkhana'} records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.` : '');
 
   let shownPrompt = '';
   let shownRows = '';
@@ -330,7 +322,7 @@ export function createGymkhanaUi({ records, onChoose }) {
           return li;
         }));
       }
-      setText($('challenge-best-label'), isGetaway(def) ? 'Best this visit (not saved) · Score' : `Personal best · ${def.kind === 'time' ? 'Time' : 'Score'}`);
+      setText($('challenge-best-label'), `Personal best · ${isGetaway(def) ? 'Showmanship' : def.kind === 'time' ? 'Time' : 'Score'}`);
       const best = bestOf(def, handling.id);
       setText($('challenge-best'), formatValue(def, handling.id, best));
 
@@ -367,8 +359,7 @@ export function createGymkhanaUi({ records, onChoose }) {
       setText($('gymkhana-handling'), device === 'controller'
         ? `${handling.name} handling, chosen on the title screen. Each handling mode keeps its own best.`
         : `${handling.name} handling. Press H to change it. Each handling mode keeps its own best.`);
-      setText($('gymkhana-records-note'), isGetaway(def)
-        ? 'Medals and bests last until you reload the page.' : recordsNote());
+      setText($('gymkhana-records-note'), recordsNote(def));
     },
 
     // The line under the car before the clock starts: what to do, and the keys.
@@ -421,10 +412,10 @@ export function createGymkhanaUi({ records, onChoose }) {
         const up = targets ? ['silver', 'gold'].find((m) => total < targets[m]) : null;
         const tally = def.showmanship ? `Drift ${formatNumber(banked)} · Smash +${formatNumber(smash)}` : `Banked ${formatNumber(banked)}`;
         setText($('gym-best'), `${tally}${up ? ` · ${MEDAL_NAMES[up]} at ${formatNumber(targets[up])}` : targets ? ' · Gold if you escape' : ''}`);
-        setText($('gym-medal'), `Best this visit: ${formatValue(def, game.handling.id, best)}${held ? ` · ${MEDAL_NAMES[held]}` : ''}`);
+        setText($('gym-medal'), `Best: ${formatValue(def, game.handling.id, best)}${held ? ` · ${MEDAL_NAMES[held]}` : ''}`);
         return;
       }
-      setText($('gym-best'), `${isGetaway(def) ? 'Best this visit' : 'Best'}: ${formatValue(def, game.handling.id, best)}`);
+      setText($('gym-best'), `Best: ${formatValue(def, game.handling.id, best)}`);
       // The medal the saved best holds, and the target for the next one up. Never a medal for
       // this run: a time only counts once the gate is crossed and its penalties are added, and a
       // score only once it is banked. So the target names what is measured, and the run itself
@@ -463,17 +454,7 @@ export function createGymkhanaUi({ records, onChoose }) {
       const failed = run.phase === 'failed';
       const handlingId = game.handling.id;
       const exactTime = !failed && !isGetaway(def) && needsMillisecondDisplay(def, handlingId, r.value);
-      // A Getaway run settles its in-memory best once, when its sheet first shows.
-      if (isGetaway(def) && settledRun !== game.runId) {
-        settledRun = game.runId;
-        const key = sessionKey(def, handlingId);
-        const before = sessionBest.get(key) ?? null;
-        sessionNew = !failed && Number.isFinite(r.value) && (before === null || r.value > before);
-        sessionPrevious = before;
-        if (sessionNew) sessionBest.set(key, r.value);
-      }
-      const newBest = isGetaway(def) ? sessionNew : records.newBest;
-      const previousBest = isGetaway(def) ? sessionPrevious : records.previousBest;
+      const { newBest, previousBest } = keeper(def);
       $('gymkhana-results').dataset.outcome = failed ? 'failed' : 'complete';
       $('gymkhana-results').dataset.layout = def.layout;
       setText($('gr-eyebrow'), `${def.name} · ${game.handling.name} handling`);
@@ -513,9 +494,9 @@ export function createGymkhanaUi({ records, onChoose }) {
       line.hidden = failed || !targets;
       if (!line.hidden) {
         const isNew = newBest && medalRank(runMedal) > medalRank(medalOf(def, handlingId, previousBest));
-        const saved = isGetaway(def) || newBest || medalRank(medalOf(def, handlingId, best)) >= medalRank(runMedal);
+        const saved = newBest || medalRank(medalOf(def, handlingId, best)) >= medalRank(runMedal);
         const words = runMedal
-          ? `${MEDAL_NAMES[runMedal]} medal${isGetaway(def) ? ' (provisional)' : ''}${isNew ? ' · NEW MEDAL' : ''}${saved ? '' : ' · not saved'}`
+          ? `${MEDAL_NAMES[runMedal]} medal${isNew ? ' · NEW MEDAL' : ''}${saved ? '' : ' · not saved'}`
           : 'No medal this run';
         showMedal(line, runMedal, words);
         line.dataset.new = isNew ? 'true' : 'false';
@@ -525,11 +506,10 @@ export function createGymkhanaUi({ records, onChoose }) {
       setText($('gr-next'), failed || !targets ? '' : from === null
         ? `${MEDAL_NAMES.bronze} takes ${targetText(def, targets.bronze)}.`
         : nextLine(def, handlingId, from));
-      setText($('gr-best'), isGetaway(def)
-        ? (best === null ? 'No escape yet this visit. Medals and bests reset on reload.' : `Best this visit with ${game.handling.name} handling: ${formatValue(def, handlingId, best)}. Medals and bests reset on reload.`)
-        : best === null ? 'No personal best yet. Only a completed run sets one.'
-          : `Personal best with ${game.handling.name} handling: ${formatMedalValue(def, handlingId, best)}`);
-      setText($('gr-records-note'), isGetaway(def) ? '' : recordsNote());
+      setText($('gr-best'), best === null
+        ? (isGetaway(def) ? 'No personal best yet. Only an escape with every camera\'s footage sets one.' : 'No personal best yet. Only a completed run sets one.')
+        : `Personal best with ${game.handling.name} handling: ${formatValue(def, handlingId, best)}`);
+      setText($('gr-records-note'), recordsNote(def));
     },
   };
 }

@@ -207,15 +207,17 @@ async function run(engine, name) {
     assert.deepEqual(finished, ['escaped', 120, 'recover', 'network']);
     assert.match(await page.locator('#gr-medal').textContent(), /medal/);
     await page.locator('#gymkhana-change').click();
-    assert.notEqual(await page.locator('#challenge-best').textContent(), '--');
+    const getawayBest = await page.locator('#challenge-best').textContent();
+    assert.notEqual(getawayBest, '--');
     assert.deepEqual(await page.evaluate((saves) => Object.fromEntries(Object.keys(saves).map((key) => [key, localStorage.getItem(key)])), featureSaves), featureSaves);
     assert.deepEqual(await page.evaluate((saves) => window.writes.filter((key) => key in saves), featureSaves), []);
+    assert.deepEqual(await page.evaluate(() => window.writes.filter((key) => key === 'mini-drifters-getaway-v1')), ['mini-drifters-getaway-v1'], 'Getaway writes only its own key, once');
     await load();
     assert.equal(await page.evaluate(() => window.__miniDrifters.selectedHandling()), 'revised');
     await page.locator('#getaway').focus();
     await key('Enter');
     await key('Enter');
-    assert.equal(await page.locator('#challenge-best').textContent(), '--');
+    assert.equal(await page.locator('#challenge-best').textContent(), getawayBest, 'the Getaway best survives the reload');
     assert.deepEqual(errors, []);
     console.log(name + ' ' + browser.version() + ': all gameplay choices, keyboard, controller, Back, viewport bounds and reload/storage isolation passed');
   } finally {
