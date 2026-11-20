@@ -40,6 +40,7 @@
       <div id="gym-gates"></div>
       <div id="gym-cones"></div>
       <div id="gym-best"></div>
+      <div id="gym-medal"></div>
     </section>
 
     <section class="panel gauges">
@@ -159,8 +160,10 @@
       <p id="challenge-brief" class="pitch"></p>
       <ul id="challenge-points" class="howto"></ul>
       <dl class="stats">
-        <div class="big"><dt id="challenge-best-label">Personal best</dt><dd id="challenge-best">--</dd></div>
+        <div class="big"><dt id="challenge-best-label">Personal best</dt><dd><span id="challenge-best">--</span> <span id="challenge-medal" class="medal-held"></span></dd></div>
       </dl>
+      <ol id="challenge-targets" class="medal-targets" aria-label="Medal targets"></ol>
+      <p id="challenge-next" class="stats-note medal-next"></p>
       <p id="gymkhana-handling" class="stats-note"></p>
       <p id="gymkhana-records-note" class="records-note" role="status"></p>
       <div class="actions">
@@ -178,6 +181,8 @@
       <dl id="gr-stats" class="stats">
         <div class="big"><dt><span id="gr-label"></span> <span id="gr-new" class="new-best" hidden>NEW BEST</span></dt><dd id="gr-value"></dd></div>
       </dl>
+      <p id="gr-medal" class="medal-result" hidden></p>
+      <p id="gr-next" class="stats-note medal-next"></p>
       <p id="gr-best" class="stats-note"></p>
       <p id="gr-records-note" class="records-note" role="status"></p>
       <div class="actions">
