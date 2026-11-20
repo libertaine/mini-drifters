@@ -11,14 +11,15 @@ layouts.
 | One Drift | Score | The Linked Drift course as a single combo |
 | Slalom Sprint | Time | Seven cones to weave through on alternating sides, then a finish gate |
 
-There are no medals or target times. Whether to add them, and at what marks, waits for
-results from people playing the challenges.
+Each challenge awards Bronze, Silver and Gold medals, separately for each handling mode
+(see [Medals](#medals)).
 
 ## Playing
 
 **Gymkhana** on the title opens a sheet. Left and Right choose the challenge, H changes
 the handling mode as it does on the title, Enter starts and Esc goes back. The sheet
-shows the challenge's rules and its personal best in the selected handling mode. The
+shows the challenge's rules, its personal best and medal in the selected handling mode,
+the three medal targets and what the next medal takes. The
 chosen challenge is remembered for the visit, not between visits.
 
 While driving, R starts the challenge again at any time, P pauses and Esc returns to the
@@ -145,6 +146,41 @@ is never written. Unknown challenges, modes, rules ids and fields are carried th
 every write. If storage is unavailable the challenges still play, and a note says that
 improvements cannot be saved.
 
+## Medals
+
+A medal is worked out from a result, never stored. The personal best above decides the
+medal a challenge holds, so a best saved by any version since v0.4.0 earns its medal as
+soon as this version loads, nothing is written to award one, and a worse run never takes
+one away. A time must meet or beat a target and a score must meet or exceed it, compared
+at the precision a record is saved at: a time to the millisecond, a score in whole points.
+A failed run earns nothing. A completed run that misses Bronze is still a record.
+
+These targets originated as provisional R0 research values (scripted drivers) and were
+owner-approved unchanged for v0.7.0 R1 after human gameplay testing across all four
+challenges:
+
+| Challenge | Classic Gold / Silver / Bronze | Power Gold / Silver / Bronze |
+|---|---|---|
+| Precision 180 | 7.600 s / 8.300 s / 30.000 s | 7.600 s / 8.300 s / 30.000 s |
+| Linked Drift | 850 / 450 / 1 | 950 / 450 / 1 |
+| One Drift | 800 / 400 / 1 | 850 / 400 / 1 |
+| Slalom Sprint | 14.800 s / 18.500 s / 40.000 s | 14.800 s / 18.500 s / 40.000 s |
+
+Bronze for a time challenge is its time limit: any finish within it, penalties included.
+Bronze for a score challenge is 1 point: any completed run that scored. Timed medal
+targets are shown to three decimal places, and timed results within 10 ms of any target
+also display to three decimal places (with the millisecond miss noted when slower) so a
+qualifying time such as `7.604 s` never appears equal to a `7.600 s` Gold target. The
+targets live only in `src/medals.js`, filed by challenge, record rules (with the scoring
+version for a score) and handling mode. A record filed under rules the table does not know
+has no medal.
+
+The sheet marks each challenge's medal on its button, as a disc carrying the medal's
+initial. While driving, the panel shows the medal the saved best holds and the next
+target, never a medal for the run in progress. The results sheet shows the run's medal.
+It says NEW MEDAL only when a saved NEW BEST holds a better medal than the record it
+replaced, and "not saved" when the run's medal could not be kept.
+
 ## How it is built
 
 | Path | Contents |
@@ -153,9 +189,11 @@ improvements cannot be saved.
 | `src/gymkhana-records.js` | Their personal bests |
 | `src/gymkhana-draw.js` | Painting a challenge on its pad and on the minimap |
 | `src/gymkhana-ui.js` | The sheet, the HUD panel and the results sheet |
+| `src/medals.js` | Medal targets, and the medal a result earns |
 | `test/gymkhana.test.mjs`, `test/gymkhana-records.test.mjs` | Rules, sessions and records |
 | `test/slalom.test.mjs` | Slalom Sprint's rules, retries and records, and a v0.4.0 tab's writes |
 | `test/gymkhana-browser.mjs` | The mode on the real page, in Chromium and Firefox |
+| `test/medals.test.mjs`, `test/medals-browser.mjs` | Medals: boundaries, older records, and the page |
 | `test/dockyard-slalom-browser.mjs` | Slalom Sprint on the real page, by keyboard and controller |
 | `test/support/gymkhana-drivers.mjs` | Scripted drivers for all of the above |
 
@@ -169,7 +207,8 @@ one that never saw it.
 
 - Human acceptance of the integrated Precision 180, Linked Drift and One Drift gameplay,
   penalties, scoring, difficulty, records and handling separation passed on November 14,
-  2026. No medal thresholds have been set.
+  2026. Owner human acceptance of v0.7.0 R1 Gymkhana medals and all four challenges'
+  layouts, rules and thresholds passed on November 19, 2026.
 - The car cannot pivot at low speed: a handbrake turn needs about 13 m/s on entry.
   Power can spin up a donut from a standstill and Classic cannot, so challenges built
   on spins would differ between modes more than these do.
@@ -192,6 +231,11 @@ one that never saw it.
 **PASS - November 14, 2026.** The owner approved all five integration acceptance checks:
 Precision 180; Linked Drift; One Drift; Gymkhana records, handling separation and circuit
 record isolation; and physical controller operation with normal circuit gameplay.
+
+**PASS - November 19, 2026 (v0.7.0 R1 medals).** Following human playtesting across all
+four challenges (Gold achieved on Precision 180, Linked Drift and One Drift; Slalom Sprint
+Gold target kept unchanged as approved), the owner approved the existing challenge layouts,
+rules, handling behavior and medal thresholds above.
 The checklist below remains a reference for future changes.
 
 Run `npm start` and open http://127.0.0.1:4190 in desktop Chromium, then Firefox.

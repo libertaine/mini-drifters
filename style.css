@@ -509,6 +509,35 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 #gymkhana-results[data-outcome="failed"] .sheet-title { color: var(--red); }
 #gymkhana-results[data-outcome="failed"] .stats .big dd { color: var(--muted); }
 
+/* ---- Gymkhana medals ---- */
+/* A medal is a disc carrying its initial, always beside its name or on a button whose name
+   says it, so it never depends on colour alone. Racing-plate colours, no animation. */
+:root { --gold: #f3c43d; --silver: #c9ccd3; --bronze: #c8834a; }
+.medal {
+  display: inline-grid; place-items: center;
+  width: 1.45em; height: 1.45em; margin-right: 0.35em; border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+  font: 400 0.82em/1 var(--display); font-style: normal; letter-spacing: 0; color: var(--charcoal);
+  vertical-align: 0.08em;
+}
+.medal[data-medal="gold"] { background: var(--gold); }
+.medal[data-medal="silver"] { background: var(--silver); }
+.medal[data-medal="bronze"] { background: var(--bronze); }
+.challenges .medal-slot { font-style: normal; }
+.challenges .medal-slot .medal { margin: 0 0 0 0.4em; font-size: 0.95em; }
+.medal-held { font: 700 13px var(--body); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); vertical-align: 0.3em; }
+.medal-held .medal { font-size: 15px; }
+.medal-targets { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.medal-targets b { color: var(--ink); font-weight: 700; }
+.medal-targets li[data-held="true"] b { color: var(--green); }
+.medal-targets li[data-held="true"]::after { content: " ✓"; color: var(--green); font-weight: 700; }
+.medal-next { margin-top: 2px; }
+.medal-result { margin: 8px 0 0; font: 700 16px var(--body); letter-spacing: 0.03em; color: var(--ink); }
+.medal-result .medal { font-size: 18px; }
+.medal-result[data-new="true"] { color: var(--amber); }
+#gym-medal { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#gym-medal:empty { display: none; }
+
 /* ---- Options ---- */
 .stations { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .station { position: relative; display: block; cursor: pointer; }
@@ -555,6 +584,19 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
   .handling-summary { margin-bottom: 6px; }
   .personal-bests { margin-bottom: 6px; }
   .records-note { margin-top: 4px; }
+  /* v0.7.0's medal targets and next-medal line on the Gymkhana sheet need this room at
+     1024x600, with a fallback font too (where the rules wrap a line longer). Spacing
+     tightens, and the personal-best figure on this sheet only is set smaller; every control
+     keeps its size. */
+  .stations.challenges { margin-top: 6px; }
+  #gymkhana-menu .stats { margin-top: 2px; }
+  #gymkhana-menu .stats .big dd { font-size: 32px; }
+  #gymkhana-menu .stats-note { margin-top: 2px; }
+  #gymkhana-menu .medal-targets { margin-top: 2px; }
+  #gymkhana-menu .medal-next { margin-top: 0; }
+  #challenge-points { font-size: 13px; }
+  #gymkhana-results .stats-note { margin-top: 4px; }
+  .medal-result { margin-top: 4px; }
 }
 
 @media (max-width: 720px), (max-height: 620px) {
