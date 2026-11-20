@@ -12,7 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     # The image already holds the browsers and their system packages, so the job
     # never downloads from the Ubuntu mirrors. Its version must match the
     # Playwright version installed below. Running as the runner's user lets
