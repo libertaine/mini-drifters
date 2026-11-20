@@ -1,6 +1,7 @@
 # TEMPORARY DIAGNOSTIC COPY. Never merge. Every step runs even after a failure
 # (each keeps its own result, and the job still fails), evidence is always kept,
-# and the deploy job is removed.
+# the job may run 60 minutes, and the push trigger is removed, so the deploy job
+# (whose condition needs a push to main) can never run.
 name: CI and Pages
 
 on:
@@ -13,7 +14,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     # The image already holds the browsers and their system packages, so the job
     # never downloads from the Ubuntu mirrors. Its version must match the
     # Playwright version installed below. Running as the runner's user lets
@@ -111,3 +112,31 @@ jobs:
           path: artifacts/
           retention-days: 30
 
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Assemble the site (only the files the game needs)
+        run: |
+          mkdir -p _site/audio-lab/assets/coyote-local
+          cp -r index.html style.css src radio _site/
+          cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/
+          cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5
