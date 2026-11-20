@@ -495,6 +495,13 @@ async function check(name, engine) {
     await chooseTrack(tabB, 'Switchback');
     await begin(tabB);
     await drive(tabA, 2);
+    // Each tab re-reads the key before it saves, so it keeps every lap it can see. Another tab's
+    // write reaches it asynchronously (Chromium keeps a localStorage copy per renderer process), and
+    // the scripted drives finish within milliseconds of each other, far closer than two players'
+    // laps. Under load, tab B could otherwise read the key before tab A's save arrives and the test
+    // would measure that delivery delay rather than the store. So wait until B can see A's lap.
+    await tabB.waitForFunction((k) => Boolean(JSON.parse(localStorage.getItem(k) ?? '{}').ghosts?.dockyard?.classic),
+      GHOST_STORE_KEY, { polling: 10, timeout: 10000 });
     await drive(tabB, 2);
     const both = JSON.parse(await stored(tabB));
     assert.ok(both.ghosts.dockyard?.classic, 'tab A\'s lap survived tab B\'s write');
