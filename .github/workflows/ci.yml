@@ -1,8 +1,9 @@
+# TEMPORARY DIAGNOSTIC COPY. Never merge. Every step runs even after a failure
+# (each keeps its own result, and the job still fails), evidence is always kept,
+# and the deploy job is removed.
 name: CI and Pages
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -26,89 +27,87 @@ jobs:
         with:
           node-version: 24
       - name: Unit, session and publishing tests
+        if: ${{ !cancelled() }}
         run: npm test
       # The game has no dependencies. Playwright is installed only for this check,
       # at a pinned version, and is not recorded in package.json.
       - name: Install Playwright
+        if: ${{ !cancelled() }}
         run: npm install --no-save --no-package-lock playwright@1.64.1
       - name: Chromium and Firefox check, served as on Pages
+        if: ${{ !cancelled() }}
         run: npm run test:browser
       - name: Development audio lab in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:audio:browser
       - name: Coyote voice in the audio lab
+        if: ${{ !cancelled() }}
         run: npm run test:coyote:browser
       - name: Gameplay audio on the published files, and the fallback
+        if: ${{ !cancelled() }}
         run: npm run test:gameplay-audio:browser
       - name: Previous-lap ghost in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:ghost:browser
       - name: Saved reference ghost, its storage and Options in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:reference-ghost:browser
       - name: Radio in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:radio:browser
       - name: Title screen and menus in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:menus:browser
       - name: Driving tutorial and Return to Title in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:tutorial:browser
       - name: Track choice and Switchback in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:tracks:browser
       - name: Voided-lap warnings and results in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:scoring:browser
       - name: Mocked controller in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:controller:browser
       - name: Local personal records in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:records:browser
       - name: Handling modes and practice pad in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:handling:browser
       - name: Gymkhana challenges and their records in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:gymkhana:browser
       - name: Gymkhana medals in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:medals:browser
       - name: Gameplay categories in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:categories:browser
       - name: Getaway mission in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:getaway:browser
       - name: Getaway Showmanship and impact audio in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:showmanship:browser
       - name: Getaway personal bests, reloads and storage failures in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:getaway-records:browser
       - name: Dockyard and Slalom Sprint in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:dockyard-slalom:browser
       - name: Wheelspin smoke, rubber and engine note in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:wheelspin:browser
       - name: Functional environments and collision messages in Chromium and Firefox
+        if: ${{ !cancelled() }}
         run: npm run test:environment:browser
-      - name: Keep screenshots from a failed run
-        if: failure()
+      - name: Keep every suite's evidence (diagnostic)
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-artifacts
+          name: diagnostic-artifacts
           path: artifacts/
-          retention-days: 7
+          retention-days: 30
 
-  deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      pages: write
-      id-token: write
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v7
-      - name: Assemble the site (only the files the game needs)
-        run: |
-          mkdir -p _site/audio-lab/assets/coyote-local
-          cp -r index.html style.css src radio _site/
-          cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/
-          cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: _site
-      - id: deployment
-        uses: actions/deploy-pages@v5
