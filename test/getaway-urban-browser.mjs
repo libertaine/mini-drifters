@@ -1,9 +1,8 @@
 // Getaway Drift in town (EXPERIMENTAL, v0.7.0 R4B) on the real page, in Chromium and Firefox:
-// without ?getaway the Gymkhana sheet is exactly the four challenges; with it, Getaway · Downtown and
-// Getaway · Industrial follow them, chosen and started by keyboard and by controller. Driven to an
+// The Getaway category opens the mission and its two environments.
 // escape (provisional Bronze), a retry that resets everything (police car, smashed scenery, meter),
 // pause and resume, a bust, a smash, the BUST RISK meter's states and its place at 1024x600,
-// 1366x768 and 1920x1080, the debug rows, nothing written to storage, no page errors, and the
+// 1366x768 and 1920x1080, storage isolation, no page errors, and the
 // frame cost against Linked Drift. Only the Gamepad API and the frame clock are mocked.
 //   node test/getaway-urban-browser.mjs /path/to/playwright/index.mjs
 import assert from 'node:assert/strict';
@@ -15,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
 const root = new URL('../', import.meta.url);
 await mkdir(new URL('artifacts/screens-r4b/', root), { recursive: true });
+await mkdir(new URL('artifacts/results/', root), { recursive: true });
 const shot = (name) => fileURLToPath(new URL(`artifacts/screens-r4b/browser-${name}.png`, root));
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' };
 const server = http.createServer(async (req, res) => {
@@ -88,27 +88,28 @@ async function check(name, engine) {
     const names = () => page.locator('#challenges .station > span').evaluateAll((spans) => spans.map((s) => s.childNodes[0].textContent));
     const checked = () => page.locator('#challenges input:checked').getAttribute('value');
     const saves = () => value(() => window.__writes).then((w) => w.filter((k) => /^mini-drifters-(gymkhana|records|ghosts)/.test(k)));
-    const openSheet = async () => { await page.click('#gymkhana'); await frames(2); };
+    const openSheet = async (getaway = true) => {
+      await page.click(getaway ? '#getaway' : '#gymkhana');
+      if (getaway) await page.click('#get-the-footage');
+      await frames(2);
+    };
     const run = () => value(() => { const c = window.__miniDrifters.game.challenge; return c && { phase: c.phase, time: c.time, meter: c.meter, level: c.level, broken: c.broken, smashes: c.smashes, police: [c.pursuer.x, c.pursuer.y], start: [c.pursuer.prevX, c.pursuer.prevY], next: c.nextCamera, gap: c.gap }; });
     const box = (sel) => page.locator(sel).boundingBox();
 
-    // --- 1. Without the switch: the four challenges only ----------------------------------------
-    await load();
-    await openSheet();
+    // The old URL flags cannot add challenges or change the production mission.
+    await load('?getaway&pursuit=trail&tier=r4&miss=strict&time=90');
+    await openSheet(false);
     assert.deepEqual(await names(), ['Precision 180', 'Linked Drift', 'One Drift', 'Slalom Sprint']);
-    assert.equal(await page.locator('.experimental-tag').count(), 0);
-    ok('without ?getaway: the four challenges only');
-
-    // --- 2. With it: Downtown and Industrial follow, chosen by keyboard --------------------------
-    await load('?getaway');
+    await key('Escape');
     await openSheet();
-    assert.deepEqual(await names(), ['Precision 180', 'Linked Drift', 'One Drift', 'Slalom Sprint', 'Getaway · Downtown', 'Getaway · Industrial']);
-    assert.equal(await page.locator('.experimental-tag').count(), 2);
-    for (let i = 0; i < 4; i++) await key('ArrowRight');
-    assert.equal(await checked(), 'getaway-urban-downtown', 'four presses of Right reach Downtown');
+    assert.deepEqual(await names(), ['Downtown', 'Industrial']);
+    await key('ArrowRight');
+    assert.equal(await checked(), 'getaway-urban-industrial');
+    await key('ArrowLeft');
+    assert.equal(await checked(), 'getaway-urban-downtown');
     assert.match(await text('#challenge-brief'), /Tight downtown blocks/);
     assert.deepEqual(await page.locator('#challenge-targets li b').allTextContents(), ['1,600 pts', '600 pts', 'Escape']);
-    assert.match(await text('#gymkhana-records-note'), /Experimental research build \(downtown, network police, recover cameras, 120 s limit, Showmanship scoring\)/);
+    assert.match(await text('#gymkhana-records-note'), /Medals and bests last until you reload the page/);
     for (const [w, h] of SIZES) {
       await page.setViewportSize({ width: w, height: h });
       await frames(2);
@@ -116,22 +117,23 @@ async function check(name, engine) {
         const sheet = document.querySelector('#gymkhana-menu .sheet').getBoundingClientRect();
         return labels.every((l) => { const r = l.getBoundingClientRect(); return r.left >= sheet.left - 1 && r.right <= sheet.right + 1 && r.bottom <= window.innerHeight; });
       });
-      assert.equal(fits, true, `all six entries fit at ${w}x${h}`);
+      assert.equal(fits, true, `both environments fit at ${w}x${h}`);
       await page.screenshot({ path: shot(`${name}-sheet-${w}x${h}`) });
     }
     await page.setViewportSize({ width: 1366, height: 768 });
     await frames(2);
-    ok('with ?getaway: Downtown and Industrial follow the four, tagged Exp; Right x4 selects Downtown; the sheet fits at 1024x600, 1366x768, 1920x1080');
+    ok('the production mission opens Downtown and Industrial; keyboard selection and three viewport sizes pass');
 
     // --- 3. Enter starts; BUST RISK shows; a grip escape is a provisional Bronze -----------------
     await key('Enter');
     assert.equal(await value(() => window.__miniDrifters.game.challengeDef.id), 'getaway-urban-downtown');
+    assert.deepEqual(await value(() => { const d = window.__miniDrifters.game.challengeDef; return [d.pursuit, d.tier, d.missPolicy, d.timeLimit]; }),
+      ['network', 'standard', 'recover', 120]);
     assert.equal(await shown('#bust'), true, 'BUST RISK shows');
     assert.equal(await text('#bust-state'), 'Clear');
     assert.equal(await text('#bust-detail'), 'Police car waiting at the start');
     assert.match(await text('#gym-gates'), /^Footage ○○○○ 0\/4 · escape gate locked$/);
     assert.match(await text('#gym-best'), /^Drift 0 · Smash \+0 · Silver at 600$/);
-    assert.equal(await shown('#gym-heat'), false, 'R4\'s small meter is not shown in town');
     await page.screenshot({ path: shot(`${name}-ready`) });
     const escape = await value(() => window.__drive('grip', 130));
     assert.equal(escape.phase, 'complete', `escaped (${JSON.stringify(escape)})`);
@@ -226,20 +228,10 @@ async function check(name, engine) {
     await page.screenshot({ path: shot(`${name}-busted`) });
     ok('a car that stops is busted: BUST RISK goes Police close -> Critical -> Busted, and the result explains it');
 
-    // --- 8. Debug rows -------------------------------------------------------------------------------
+    // Return from an active run to its environment picker, then use the controller.
     await key('KeyR');
-    await value(() => window.__drive('grip', 4));
-    await key('KeyD');
-    assert.match(await text('#debug'), /pursuit\s+network/);
-    assert.match(await text('#debug'), /smashed/);
-    await key('KeyD');
-    ok('the debug panel names the police car\'s pursuit mode, its walls and the smashes');
-
-    // --- 9. Industrial, chosen by controller ---------------------------------------------------------
     await key('Escape');
-    await frames(10);
-    if (await value(() => window.__miniDrifters.game.state) !== 'menu') { await key('Escape'); await frames(10); }
-    await openSheet();
+    assert.ok(await shown('#gymkhana-menu'));
     await value(() => { window.__pads = [window.__newPad()]; window.__frames(4); });
     const press = async (i) => {
       await value((b) => { window.__pads[0].buttons[b] = { value: 1, pressed: true }; window.__frames(2); }, i);
@@ -260,9 +252,9 @@ async function check(name, engine) {
 
     // --- 10. Frame cost against Linked Drift -----------------------------------------------------------
     perf[name] = {};
-    for (const [id, query] of [['linked-drift', ''], ['getaway-urban-downtown', '?getaway'], ['getaway-urban-industrial', '?getaway']]) {
-      await load(query);
-      await openSheet();
+    for (const id of ['linked-drift', 'getaway-urban-downtown', 'getaway-urban-industrial']) {
+      await load();
+      await openSheet(id !== 'linked-drift');
       await page.locator(`#challenges input[value="${id}"]`).evaluate((el) => el.click());
       await frames(2);
       await page.click('#gymkhana-start');

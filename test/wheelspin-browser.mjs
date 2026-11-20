@@ -1,3 +1,5 @@
+import { chooseTracks } from './support/track-menu.mjs';
+import { openTracks } from './support/track-menu.mjs';
 // v0.5.0 R2 wheelspin feedback in Chromium and Firefox, on the real page with real key presses and
 // real Web Audio: Power's wheelspin raises smoke, rubber and an engine flare; Classic's picture has
 // none of it; the effects stay inside their caps however long the car is driven; pause, focus loss,
@@ -87,7 +89,7 @@ async function check(name, engine) {
   };
   const toPad = async (handling) => {
     while ((await value(() => window.__miniDrifters.selectedHandling())) !== handling) await page.keyboard.press('KeyH');
-    await page.locator('#practice').click();
+    await openTracks(page); await page.locator('#practice').click();
     await frames(4);
     const g = await game();
     assert.deepEqual([g.mode, g.handling, g.state], ['practice', handling, 'ready']);
@@ -228,6 +230,7 @@ async function check(name, engine) {
 
     // --- 8. Power on Dockyard with the drift driver, then finish at the title ---------------
     while ((await value(() => window.__miniDrifters.selectedHandling())) !== 'revised') await page.keyboard.press('KeyH');
+    await chooseTracks(page);
     while ((await value(() => window.__miniDrifters.selectedTrack())) !== 'dockyard') await page.keyboard.press('ArrowRight');
     await page.keyboard.press('Enter');
     await frames(2);

@@ -1,3 +1,4 @@
+import { openTracks } from './support/track-menu.mjs';
 // What the player is told when a lap won't count, in real browsers, served the same way as on
 // GitHub Pages: the warning the moment a checkpoint is missed, what the voided line cost, and
 // the note on the results screen. Needs Playwright:
@@ -78,7 +79,7 @@ async function check(name, engine) {
   await frames(page);
 
   try {
-    await page.locator('#start').click();
+    await openTracks(page); await page.locator('#start').click();
     await page.waitForFunction(() => window.__miniDrifters.game.state === 'ready');
     await frames(page);
 

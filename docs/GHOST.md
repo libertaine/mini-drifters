@@ -7,7 +7,7 @@ It's an experiment. The question is in the [playtesting checklist](#playtesting-
 ## Try it
 
 1. On Windows, double-click **`Start Game.cmd`** in this checkout. Elsewhere, run `node server.mjs` and open <http://127.0.0.1:4190>.
-2. Press Enter, then drive a clean first lap. There's no ghost yet.
+2. Open **Tracks**, select a circuit and start. Drive a clean first lap. There's no ghost yet.
 3. Cross the line. The ghost fades in as your second lap starts, and a blue dot joins the minimap.
 4. Press **G** at any time during a run to hide or show the ghost. The small tag under the Sound button shows the current setting.
 
@@ -88,7 +88,7 @@ From v0.7.0, **Options → Ghost** chooses which ghost a circuit run shows:
 | Saved reference | Your best recorded flying lap on this circuit in this handling mode, kept between visits |
 | Off | No ghost |
 
-The choice is remembered (`mini-drifters-ghost-mode`), and is only written when you change it. **G** (or X on a controller) still only shows or hides the chosen ghost. Lessons, the practice pad and Gymkhana never show either ghost.
+The choice is remembered (`mini-drifters-ghost-mode`), and is only written when you change it. **G** (or X on a controller) still only shows or hides the chosen ghost. Circuit runs are the only sessions with ghosts.
 
 ### Which laps are saved
 
@@ -126,7 +126,7 @@ Rules: nothing is written on load; the key is re-read before every write, and ev
 
 ### Compatibility
 
-`GHOST_COMPATIBILITY` in `src/ghost-store.js` is an explicit, hand-raised version. **Raise it, in the same change, whenever anything can move the car or change how a lap is timed or judged**: `physics.js`, tuning or handling values, surfaces, barriers, obstacles and scenery collision, track geometry, lap timing or validation, or the simulation step. Saved laps from any other version are then never shown, and the next qualifying flying lap replaces them.
+`GHOST_COMPATIBILITY` in `src/ghost-store.js` is an explicit, hand-raised version. **Raise it, in the same change, whenever anything can change the circuit car’s motion or how a lap is timed or judged**: `physics.js`, tuning or handling values, surfaces, barriers, obstacles and scenery collision, track geometry, lap timing or validation, or the simulation step. Saved laps from any other version are then never shown, and the next qualifying flying lap replaces them.
 
 The fingerprints alone aren't enough: they were identical between v0.5.0 and v0.6.0, yet v0.6.0's Dockyard drives up to 119 m differently. Version 1 is v0.6.0's physics and environments.
 

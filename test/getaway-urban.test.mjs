@@ -15,7 +15,7 @@ import {
   CITY_LAYOUTS, buildCity, locate, route, routeToGate, lineOfSight, onPavement, streetClearance, segmentHitsBox, insideRect,
 } from '../src/getaway-city.js';
 import { createUrbanChallenge, cityFor, URBAN_PURSUER, URBAN_TIERS, PURSUIT_MODES, BREAKABLE, SHOWMANSHIP } from '../src/getaway-urban.js';
-import { getawayExtras, URBAN_DEFAULT_TIME } from '../src/getaway-entry.js';
+import { GETAWAY_MISSIONS } from '../src/getaway-missions.js';
 import { driveUrban, urbanGrip, urbanDrift, urbanStall, urbanBank } from './support/urban-drivers.mjs';
 
 const CLASSIC = handlingById('classic');
@@ -330,7 +330,7 @@ test('time limit: the run fails when it runs out', () => {
   startRun(game, { mode: 'gymkhana', ghost: false, handling: CLASSIC, challenge: def });
   for (let k = 0; k < Math.round(61 / DT) && game.state !== 'finished'; k += 1) tick(game, { up: k < 5, down: false, left: false, right: false, handbrake: false });
   assert.equal(game.challenge.reason, 'out of time');
-  assert.equal(URBAN_DEFAULT_TIME, 120);
+  assert.ok(GETAWAY_MISSIONS[0].environments.every((def) => def.timeLimit === 120));
 });
 
 // --- Scoring in town --------------------------------------------------------------------------------
@@ -585,23 +585,19 @@ test('chases are deterministic: the same inputs give the same run', () => {
 
 // --- Isolation ------------------------------------------------------------------------------------
 
-test('isolation: the four challenges are untouched, a city run is never a record, and the switch is off unless asked for', () => {
+test('isolation: the four challenges are untouched, a city run is never a record, and the production mission uses the accepted urban rules', () => {
   assert.deepEqual(GYMKHANA_CHALLENGES.map((c) => c.id), ['precision-180', 'linked-drift', 'one-drift', 'slalom-sprint']);
   for (const c of GYMKHANA_CHALLENGES) assert.deepEqual(obstaclesFor(c.track), [], `${c.id}: no solids`);
   assert.deepEqual(obstaclesFor(padTrack()), []);
-  for (const file of ['getaway-city.js', 'getaway-urban.js', 'getaway-urban-draw.js', 'getaway-entry.js']) {
+  for (const file of ['getaway-city.js', 'getaway-urban.js', 'getaway-urban-draw.js', 'getaway-missions.js']) {
     const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|setItem/, file);
   }
-  assert.deepEqual(getawayExtras(''), []);
-  const two = getawayExtras('?getaway');
-  assert.deepEqual(two.map((d) => [d.id, d.shortName, d.experimental, d.pursuit, d.tier, d.missPolicy, d.timeLimit]),
-    [['getaway-urban-downtown', 'Getaway · Downtown', true, 'network', 'standard', 'recover', 120],
-      ['getaway-urban-industrial', 'Getaway · Industrial', true, 'network', 'standard', 'recover', 120]]);
-  const other = getawayExtras('?getaway&pursuit=trail&tier=r4&miss=strict&time=90');
-  assert.deepEqual([other[0].pursuit, other[0].tier, other[0].missPolicy, other[0].timeLimit], ['trail', 'r4', 'strict', 90]);
-  const junk = getawayExtras('?getaway&pursuit=x&tier=../y&miss=1&time=5');
-  assert.deepEqual([junk[0].pursuit, junk[0].tier, junk[0].missPolicy, junk[0].timeLimit], ['network', 'standard', 'recover', 120]);
+  assert.deepEqual(GETAWAY_MISSIONS.map(({ id, title }) => [id, title]), [['get-the-footage', 'Get the Footage']]);
+  const [{ environments }] = GETAWAY_MISSIONS;
+  assert.deepEqual(environments.map((d) => [d.id, d.shortName, d.pursuit, d.tier, d.missPolicy, d.timeLimit, d.showmanship, d.geometry.cameras.length]),
+    [['getaway-urban-downtown', 'Downtown', 'network', 'standard', 'recover', 120, true, 4],
+      ['getaway-urban-industrial', 'Industrial', 'network', 'standard', 'recover', 120, true, 4]]);
   assert.deepEqual(Object.keys(URBAN_TIERS), ['standard', 'r4']);
   assert.equal(URBAN_PURSUER.vMax, 35, 'top speed is R4\'s');
 });

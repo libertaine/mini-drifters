@@ -1,3 +1,4 @@
+import { openTracks } from './support/track-menu.mjs';
 // Gymkhana on the real page, in Chromium and Firefox: the title button and the challenge
 // sheet by keyboard and by a mocked controller; each challenge driven to a result by the
 // scripted drivers; failure, cone penalties, retry and restart; the results sheet; the mode's
@@ -140,22 +141,21 @@ async function check(name, engine) {
 
     // --- 1. The title --------------------------------------------------------------------
     await p.load();
-    assert.deepEqual(await menuWords(), ['Start driving', 'Practice pad', 'Gymkhana', 'How to play', 'Options']);
+    assert.deepEqual(await menuWords(), ['Tracks', 'Gymkhana', 'Getaway', 'How to play', 'Options']);
     for (const sel of ['#gymkhana-menu', '#gymkhana-results', '#gym-panel']) assert.equal(await shown(sel), false, `${sel} is not showing on the title`);
-    assert.equal(await focused(), 'start');
+    assert.equal(await focused(), 'tracks-open');
     assert.equal(await value((k) => localStorage.getItem(k), KEY), null, 'nothing is written on load');
-    await p.sizes('the title menu', ['#start', '#practice', '#gymkhana', '#how-to-play', '.title-menu .options-open', '#controller-note', '.title'], 'title');
+    await p.sizes('the title menu', ['#tracks-open', '#gymkhana', '#getaway', '#how-to-play', '.title-menu .options-open', '#controller-note', '.title'], 'title');
     // No leftover development switch: the old query parameter is just a query parameter.
     await page.goto(`${base}?gymkhana=180`);
     await page.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
     await frames();
     assert.equal((await status()).state, 'menu');
-    assert.deepEqual(await menuWords(), ['Start driving', 'Practice pad', 'Gymkhana', 'How to play', 'Options']);
+    assert.deepEqual(await menuWords(), ['Tracks', 'Gymkhana', 'Getaway', 'How to play', 'Options']);
     await p.load();
-    ok('title: Gymkhana sits beside Practice pad, fits from 1024x600 to 1920x1080, and nothing else of the mode shows');
+    ok('title: Gymkhana is a primary category, fits from 1024x600 to 1920x1080, and nothing else of the mode shows');
 
     // --- 2. The sheet, by keyboard -------------------------------------------------------
-    await key('ArrowDown');
     await key('ArrowDown');
     assert.equal(await focused(), 'gymkhana');
     await key('Enter');
@@ -506,7 +506,7 @@ async function check(name, engine) {
     ok('controller: A opens the sheet and starts, D-pad chooses, RT drives, X retries, Menu pauses, A/B work the results');
 
     // --- 10. A normal run afterwards, and the practice pad -------------------------------
-    await page.locator('#start').click();
+    await openTracks(page); await page.locator('#start').click();
     await frames();
     s = await status();
     assert.equal(s.kind, 'normal');
@@ -524,14 +524,14 @@ async function check(name, engine) {
     await key('KeyP');
     await page.locator('#paused .return-title').click();
     await frames();
-    assert.equal(await focused(), 'start', 'leaving a circuit run lands on Start, as before');
-    await page.locator('#practice').click();
+    assert.equal(await focused(), 'tracks-open', 'leaving a circuit run lands on Start, as before');
+    await openTracks(page); await page.locator('#practice').click();
     await frames();
     s = await status();
     assert.equal(s.kind, 'practice');
     assert.equal(await shown('#gym-panel'), false);
     await key('Escape');
-    assert.equal(await focused(), 'start');
+    assert.equal(await focused(), 'tracks-open');
     ok('afterwards a circuit run and the practice pad are as they were: laps, ghost, HUD, prompt and where focus lands');
 
     // --- 11. A reload -------------------------------------------------------------------

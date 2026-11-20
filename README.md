@@ -8,7 +8,9 @@ A small top-down arcade drifting game for the browser. Throw a muscle car sidewa
 
 It runs in a desktop browser with a keyboard or a standard-mapped controller. There's nothing to install and no account to create.
 
-**Current version: [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0).** Earlier versions and their changes are on the [Releases page](https://github.com/libertaine/mini-drifters/releases).
+**Current public release: [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0).** Earlier versions and their changes are on the [Releases page](https://github.com/libertaine/mini-drifters/releases).
+
+This branch is the local v0.7.0 release candidate for owner review. The images below show the public release.
 
 ![Mini Drifters title screen](docs/media/title-screen-v0.6.0.png)
 
@@ -22,16 +24,17 @@ Mini Drifters is an early playable prototype: one car, built to find out whether
 - **Four Gymkhana challenges:** Precision 180, Linked Drift, One Drift and Slalom Sprint.
 - **Two handling modes:** forgiving Classic, and Power, where the throttle can break the rear loose.
 - **Personal bests** for every track and handling pair, and for every challenge, kept in your browser.
-- **A ghost** of your previous valid lap to race.
+- **Circuit ghosts** with Previous Lap, Saved Reference and Off choices.
+- **Getaway: Get the Footage**, a four-camera mission in Downtown and Industrial.
 - **An optional driving lesson** and an unscored **practice pad**.
 - **Recorded engine sound** and a **three-station radio** with provisional music.
 
-There are no online leaderboards, multiplayer, medals or saved ghosts.
+Gymkhana medals are derived from saved personal bests. Getaway medals and bests last for the current visit.
 
 ## Getting started
 
-1. Open the [game](https://libertaine.github.io/mini-drifters/) in a desktop browser.
-2. Choose a track and a handling mode on the title screen, then press Enter.
+1. Start the candidate [locally](#run-it-locally) and open it in a desktop browser.
+2. Choose Classic or Power, then open **Tracks**, **Gymkhana** or **Getaway**. Select the circuit, challenge or mission you want to play.
 3. New to it? **How to Play** has the controls and scoring, and its **Try It** button starts a short lesson.
 
 ### Keyboard
@@ -46,13 +49,13 @@ There are no online leaderboards, multiplayer, medals or saved ghosts.
 | P | Pause |
 | G | Show or hide the ghost |
 | N | Next radio station |
-| O | Options, from the title, pause or results screen |
-| H | Next handling mode, on the title (Shift+H goes back) |
+| O | Options, from the title, selection, pause or circuit results screen |
+| H | Next handling mode, on the title or selection sheets (Shift+H goes back) |
 | D | Debug display |
 
-Enter also starts a run from the title and results screens, and tries a Gymkhana challenge again from its results.
+Enter activates a menu action, starts the selected run or retries from results.
 
-On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. Up from **Start driving** reaches the handling choice. Esc goes back.
+On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. Up from **Tracks** reaches the handling choice. Esc goes back one selection level.
 
 **Return to Title** is on the pause and results screens.
 
@@ -68,11 +71,11 @@ The longer you pull, the bigger the slide. A very short tap only unsettles the c
 
 **Try It** starts an optional five-step lesson: accelerate, steer, start a slide, countersteer and bank the points. It's the real car, track and scoring, there's no time limit, and each step waits until you've really done it. The lesson always drives Original with Classic handling, because it teaches the handbrake technique, and leaves your chosen track and handling as they were. Esc leaves it, R goes back to the grid and keeps your place, and P pauses. The pause screen can also skip a step. A lesson records no ghost, and nothing from it carries into your next run.
 
-**Practice pad** on the title opens a square of open asphalt with a few cones: a ring to circle, a figure-eight, a gate to turn back through and a slalom. It uses the chosen handling. There are no laps, score, ghost or records, and nothing is timed or saved. R puts the car back, P pauses, and Esc goes back to the title.
+**Tracks → Practice Pad** opens a square of open asphalt with a few cones: a ring to circle, a figure-eight, a gate to turn back through and a slalom. It uses the chosen handling. There are no laps, score, ghost or records, and nothing is timed or saved. R puts the car back, P pauses, and Esc goes back to the title.
 
 ## Tracks
 
-The title screen has a **Track** choice under the tagline. Press Left or Right to change it, or click one.
+Open **Tracks** from the title screen. Press Left or Right to select a circuit, or click one, then choose **Start**. The sheet shows the selected circuit’s personal bests for your handling mode.
 
 - **Original:** long bends and a hairpin at a club-racing circuit, with paddock, garages, race control and grandstands.
 - **Switchback:** linked medium corners and one tight right on a wooded hillside, with pines, boulders, retaining walls and guardrails. See [the Switchback notes](docs/SWITCHBACK.md).
@@ -91,18 +94,24 @@ A new visit starts on Original, and the track choice isn't saved. Restart and Dr
 - **One Drift** (scored): the same course as a single combo. The run ends when your first combo banks, and fails if it's lost.
 - **Slalom Sprint** (timed): weave through seven cones, left of the first and then alternating, and cross the finish gate. Each cone you touch adds 2 seconds. Passing a cone on the wrong side, leaving the painted lane or missing the finish gate fails the run.
 
-On the sheet, Left and Right choose the challenge, H changes handling, Enter starts and Esc goes back. While driving, R starts again, P pauses and Esc returns to the title. When a run ends, Enter or R tries again. There are no medals or target times yet. See [the Gymkhana notes](docs/GYMKHANA.md) for the full rules and records.
+On the sheet, Left and Right choose the challenge, H changes handling, Enter starts and Esc goes back. While driving, R starts again, P pauses and Esc returns to the title. When a run ends, Enter or R tries again. Bronze, Silver and Gold use the sheet’s time or score targets for the selected handling. See [the Gymkhana notes](docs/GYMKHANA.md) for the full rules and records.
+
+## Getaway
+
+**Getaway → Get the Footage → Downtown or Industrial.** Hit all four cameras in order, follow the navigation cues and get through the escape gate before time runs out. Lose the cruiser by pulling away or breaking its line of sight.
+
+Showmanship adds 150 per fruit stand and 250 per wooden barricade to banked drift. The breakables preserve a live combo and cost speed. An escape qualifies for a medal. Busts and timeouts end the run without one. See the mission rules, handling targets and reload behavior in [Getaway](docs/GETAWAY.md).
 
 ## Classic and Power handling
 
-Under the track is a **Handling** choice. Neither is the "right" one: they are two ways to drive the same car.
+Use **Handling** on the title screen. Neither is the "right" one: they are two ways to drive the same car.
 
 - **Classic:** familiar, handbrake-focused drifting with forgiving handling. This is the handling of v0.2.0 and earlier, unchanged.
 - **Power:** break rear traction with throttle. More control, more consequences. At lower speeds the throttle can spin the rear wheels and start a slide, and the pedal sets the angle; the handbrake still works too.
 
 In Power, spinning rear wheels give themselves away: the tyres smoke, leave rubber on the road and rev the engine. Classic has no wheelspin and shows none of this. See [the wheelspin notes](docs/WHEELSPIN.md).
 
-Press **H** (Shift+H goes back), click one, or press Up from **Start driving** and then Left or Right. On a controller, D-pad Up from Start driving reaches it.
+Press **H** (Shift+H goes back), click one, or press Up from **Tracks** and then Left or Right. On a controller, use D-pad Up from Tracks.
 
 - A first visit starts on Classic. After that the game remembers the handling you chose last, in this browser.
 - A run keeps its handling through Restart and Drive Again. Use **Return to Title** to change it.
@@ -123,13 +132,13 @@ Press **H** (Shift+H goes back), click one, or press Up from **Start driving** a
 
 ### Ghost
 
-After your first valid lap, a translucent blue car replays your previous valid lap so you can race it. It can't touch you and doesn't affect your score or lap times, and G hides it. The ghost lives only in memory: a restart, a reload or a change of track clears it, and it is never saved. See [the ghost notes](docs/GHOST.md).
+Open **Options → Ghost** to choose **Previous Lap** (default), **Saved Reference** or **Off**. A saved reference is the fastest recorded valid flying lap for that circuit and handling mode. It survives reloads and joins from lap two. **G** or controller **X** shows or hides the selected ghost. See [the ghost notes](docs/GHOST.md).
 
 ### Personal bests
 
 Each track and handling pair (for example Dockyard with Power) keeps three local records: the highest final score and best banked combo from a completed three-lap run, counting only the laps that counted, and the fastest valid lap. A valid lap is saved as it finishes, even if you later restart or leave the run. Voided and incomplete laps never count, abandoned runs don't set score or combo records, and the lesson and practice pad never set any. Gymkhana challenges keep [records of their own](docs/GYMKHANA.md#records), and never change these.
 
-The title shows the saved bests for the selected track and handling (`--` until set), and results mark saved improvements with `NEW BEST`.
+The Tracks sheet shows the saved bests for the selected track and handling (`--` until set), and results mark saved improvements with `NEW BEST`.
 
 - Records saved by v0.2.0 appear under Classic.
 - Scores and combos set before slow slides started paying less are shown as **legacy scoring** records, in one small line under the current bests. They aren't comparable with current scores, and no run competes with them. Fastest laps aren't affected by scoring, so each track and handling pair keeps one fastest lap, old or new.
@@ -158,10 +167,10 @@ Standard-mapped Xbox-style controllers are the initial target. PlayStation contr
 | Left stick | Analog steering |
 | RT / LT | Analog accelerator / Brake, then reverse |
 | A | Handbrake while driving; Confirm in menus |
-| B | Back / Close; Resume from Pause; Title from Results |
+| B | Back or close; resume from Pause; return to Environments from Getaway |
 | Menu / Start | Pause / Resume |
-| D-pad | Menu navigation; Left/Right selects track (or handling, when it's focused) or chooses a focused Gymkhana challenge or adjusts Options |
-| X / Y | Toggle ghost / Next radio station while driving. In a Gymkhana challenge, X starts it again |
+| D-pad | Menu navigation; Left/Right changes the selected circuit, challenge or environment, or adjusts the focused handling or Options control |
+| X / Y | Toggle ghost / Next radio station while driving. In Gymkhana and Getaway, X retries |
 
 Use the pause menu for Restart, Return to Title and lesson Skip. Keyboard driving keys take priority while held; release the controller to neutral before taking over. Release all controller controls between screens and before resuming. Losing the driving controller pauses, and reconnecting never resumes automatically. An unused controller's disconnection leaves keyboard driving alone.
 
@@ -192,7 +201,8 @@ npm test
 | [GYMKHANA](docs/GYMKHANA.md) | Challenge rules, records and acceptance steps |
 | [WHEELSPIN](docs/WHEELSPIN.md) | Power's smoke, rubber and engine feedback |
 | [RECORDS](docs/RECORDS.md) | Personal bests: qualification, storage schema and acceptance steps |
-| [GHOST](docs/GHOST.md) | The previous-lap ghost |
+| [GHOST](docs/GHOST.md) | Circuit ghost choices, playback and storage |
+| [GETAWAY](docs/GETAWAY.md) | Get the Footage rules and medals |
 | [CONTROLLERS](docs/CONTROLLERS.md) | Controller mapping, input policy and physical testing |
 | [GAMEPLAY-AUDIO](docs/GAMEPLAY-AUDIO.md), [AUDIO-LAB](docs/AUDIO-LAB.md) | How the game sounds, and the development listening bench |
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |

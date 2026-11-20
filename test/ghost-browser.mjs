@@ -1,3 +1,4 @@
+import { startTrackWithEnter } from './support/track-menu.mjs';
 // The previous-lap ghost in real browsers: real keys, real frames and real pixels,
 // served the same way as on GitHub Pages. Needs Playwright, like the main browser check:
 //   node test/ghost-browser.mjs [/path/to/playwright/index.mjs]
@@ -164,7 +165,7 @@ async function check(name, engine) {
     assert.equal(await visible(page, 'ghost-status'), false);
     step('How to Play lists G, and G does nothing before a run');
 
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     assert.equal(await page.locator('#ghost-status').textContent(), 'Ghost On');
     assert.ok(await visible(page, 'ghost-status'));
     await page.keyboard.press('KeyG');
@@ -462,7 +463,7 @@ async function check(name, engine) {
       };
     });
     await start(page);
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await page.keyboard.down('ArrowUp');
     await page.waitForTimeout(200);
     await driveLaps(page, 1);

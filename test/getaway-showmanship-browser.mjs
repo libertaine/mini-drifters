@@ -7,9 +7,10 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 const {chromium,firefox}=await import(process.argv[2]?pathToFileURL(process.argv[2]):'playwright');
 const root=new URL('../',import.meta.url),dir=new URL('artifacts/screens-r4c/',root);
 await mkdir(dir,{recursive:true});
+await mkdir(new URL('artifacts/results/', root), { recursive: true });
 const types={'.js':'text/javascript','.mjs':'text/javascript','.html':'text/html','.css':'text/css','.wav':'audio/wav','.mp3':'audio/mpeg'};
 const server=http.createServer(async(req,res)=>{const p=new URL(req.url,'http://localhost').pathname;const f=p==='/'?'index.html':p.slice(1);if(!/^(index\.html|style\.css|src\/[\w-]+\.js|test\/support\/[\w-]+\.mjs|(?:audio-lab\/assets|radio)\/[\w/.-]+)$/.test(f)||f.includes('..')){res.writeHead(404);res.end();return;}try{res.writeHead(200,{'Content-Type':types[extname(f)]});res.end(await readFile(new URL(f,root)));}catch{res.writeHead(404);res.end();}});
-await new Promise(r=>server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${server.address().port}/?getaway`;
+await new Promise(r=>server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${server.address().port}/`;
 const evidence=[];
 function harness(){
  localStorage.setItem('mini-drifters-sound','off');window.__writes=[];
@@ -37,7 +38,7 @@ for(const [name,engine]of [['chromium',chromium],['firefox',firefox]].filter(([n
  const ctx=await browser.newContext({viewport:{width:1366,height:768}});await ctx.addInitScript(harness);const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  const frames=()=>page.evaluate(()=>window.__frames(2));
  const key=async k=>{await page.keyboard.press(k);await frames();};
- const open=async(variant='downtown',mode='classic')=>{await page.goto(base);await page.waitForFunction(()=>window.__miniDrifters,null,{polling:50});await frames();await page.click('#gymkhana');await frames();await page.locator(`#challenges input[value="getaway-urban-${variant}"]`).evaluate(e=>e.click());await frames();if(await page.evaluate(()=>window.__miniDrifters.selectedHandling())!==mode)await key('KeyH');await page.click('#gymkhana-start');await frames();};
+ const open=async(variant='downtown',mode='classic')=>{await page.goto(base);await page.waitForFunction(()=>window.__miniDrifters,null,{polling:50});await frames();await page.click('#getaway');await page.click('#get-the-footage');await frames();await page.locator(`#challenges input[value="getaway-urban-${variant}"]`).evaluate(e=>e.click());await frames();if(await page.evaluate(()=>window.__miniDrifters.selectedHandling())!==mode)await key('KeyH');await page.click('#gymkhana-start');await frames();};
  const shot=async label=>page.screenshot({path:fileURLToPath(new URL(`${name}-${label}.png`,dir))});
  const bounds=async state=>page.evaluate(state=>{
   const g=window.__miniDrifters.game,W=innerWidth,H=innerHeight;

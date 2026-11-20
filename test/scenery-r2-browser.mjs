@@ -1,3 +1,4 @@
+import { chooseTracks } from './support/track-menu.mjs';
 // v0.6.0 R2 rendering qualification, in Chromium and Firefox, against a reference tree (the R1
 // prototype by default, whose Original and Switchback are v0.5.0's pixel for pixel):
 //   1. Original and Switchback: the road, curbs, markings and start line are pixel-identical to the
@@ -259,6 +260,7 @@ try {
           await rp.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
           await frames(2);
           let guard = 0;
+          await chooseTracks(page);
           while ((await value(() => window.__miniDrifters.selectedTrack())) !== id && guard++ < 6) await key('ArrowRight');
           guard = 0;
           while ((await value(() => window.__miniDrifters.selectedHandling())) !== handling && guard++ < 4) await key('KeyH');

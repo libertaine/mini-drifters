@@ -94,3 +94,12 @@ Medal thresholds and online leaderboards remain outside this version.
 ## Prototype 0.6: Functional environments (complete)
 
 Version 0.6.0 adds solid environmental scenery to all three circuits: a club-racing setting for Original, a wooded hillside for Switchback, and paved concrete recovery ground at Dockyard. The existing track layouts and Classic/Power handling remain. Record identities are retained. Dockyard's chicane shortcut remains an explicitly accepted TODO. See [the release notes](RELEASE-v0.6.0.md).
+
+## Upcoming versions
+
+- **v0.7.0** integrates Gymkhana medals, persistent reference ghosts and Get the Footage, reorganizes the menus and prepares the release.
+- **v0.8.0** prototypes and evaluates Getaway Driver.
+- **v0.9.0** plans approximately two additional racing tracks.
+- **v0.10.0** focuses on technical cleanup, code review and project direction.
+
+Gymkhana unlock progression is deferred. It is outside the automatic v0.8.0 scope.

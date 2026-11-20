@@ -61,6 +61,14 @@ jobs:
         run: npm run test:handling:browser
       - name: Gymkhana challenges and their records in Chromium and Firefox
         run: npm run test:gymkhana:browser
+      - name: Gymkhana medals in Chromium and Firefox
+        run: npm run test:medals:browser
+      - name: Gameplay categories in Chromium and Firefox
+        run: npm run test:categories:browser
+      - name: Getaway mission in Chromium and Firefox
+        run: npm run test:getaway:browser
+      - name: Getaway Showmanship and impact audio in Chromium and Firefox
+        run: npm run test:showmanship:browser
       - name: Dockyard and Slalom Sprint in Chromium and Firefox
         run: npm run test:dockyard-slalom:browser
       - name: Wheelspin smoke, rubber and engine note in Chromium and Firefox

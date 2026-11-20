@@ -1,3 +1,4 @@
+import { chooseTracks } from './support/track-menu.mjs';
 // The saved reference ghost in real browsers: the Options choice by mouse, keyboard and
 // controller, real localStorage across reloads, tabs and failures, what is drawn and when, and
 // the sheet's fit. Every context is a fresh, disposable profile on a random local port, so no real
@@ -137,8 +138,8 @@ async function check(name, engine) {
   const tag = (page) => page.locator('#ghost-status').textContent();
   const ref = (page) => page.evaluate(() => window.__miniDrifters.referenceGhost());
   const stored = (page, key = GHOST_STORE_KEY) => page.evaluate((k) => localStorage.getItem(k), key);
-  const chooseTrack = (page, track) => page.locator('#tracks label', { hasText: track }).click();
-  const begin = async (page) => { await page.locator('#start').click(); await page.waitForTimeout(50); };
+  const chooseTrack = async (page, track) => { await chooseTracks(page); await page.locator('#tracks label', { hasText: track }).click(); };
+  const begin = async (page) => { await chooseTracks(page); await page.locator('#start').click(); await page.waitForTimeout(50); };
   const drive = (page, laps) => page.evaluate((n) => window.__rt.drive(n), laps);
   const optionsGhost = async (page, label) => {
     await page.keyboard.press('KeyO');
@@ -332,7 +333,7 @@ async function check(name, engine) {
 
     // --- 10. No ghost in Gymkhana, practice or the lesson -----------------------------------
     for (const [label, opener] of [
-      ['Practice', async () => page.locator('#practice').click()],
+      ['Practice', async () => { await chooseTracks(page); await page.locator('#practice').click(); }],
       ['Gymkhana', async () => { await page.locator('#gymkhana').click(); await page.locator('#gymkhana-start').click(); }],
     ]) {
       await toTitle();

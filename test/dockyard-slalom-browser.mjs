@@ -1,3 +1,4 @@
+import { chooseTracks } from './support/track-menu.mjs';
 // Dockyard and Slalom Sprint on the real page, in Chromium and Firefox: Dockyard chosen and
 // driven for three laps by keyboard-level input, in Classic and Power; restart, pause and return
 // to title; Slalom Sprint chosen, completed, penalised, failed and retried; a mocked controller
@@ -218,12 +219,12 @@ async function check(name, engine) {
     assert.deepEqual(await page.locator('#tracks label').allInnerTexts().then((t) => t.map((x) => x.trim().toUpperCase())), ['ORIGINAL', 'SWITCHBACK', 'DOCKYARD']);
     let s = await status();
     assert.equal(s.selected, 'revised', 'the saved handling choice (Power) is read');
-    await page.locator('#start').focus();
+    await sizes('the category title', ['.title', '#handlings', '#tracks-open', '#gymkhana', '#getaway', '.release-version'], 'title');
+    await chooseTracks(page);
     await key('KeyH');
     assert.equal((await status()).selected, 'classic');
     assert.ok(await value(() => document.querySelector('.personal-bests').textContent.includes('99,999')), 'the saved Original record is shown');
-    await sizes('the title with three circuits', ['.title', '#tracks', '#handlings', '#start', '#practice', '#gymkhana', '.release-version'], 'title');
-    await fitsWithFonts('the title with three circuits', ['.title', '.tagline', '.track-select', '#tracks label', '.handling-select', '.title-menu button', '#controller-note'], ['.track-select', '#tracks label']);
+    await fitsWithFonts('the three circuits', ['#tracks-title', '.track-select', '#tracks label', '#tracks-menu .actions button'], ['.track-select', '#tracks label']);
     for (const [w, h] of SIZES) {
       await page.setViewportSize({ width: w, height: h });
       await value(() => window.dispatchEvent(new Event('resize')));
@@ -243,7 +244,7 @@ async function check(name, engine) {
     ok('title: a click chooses each of the three circuits');
 
     // --- Dockyard, Classic, three laps ---------------------------------------------------------
-    await page.locator('#start').focus();
+    await chooseTracks(page);
     await key('ArrowRight');
     await key('ArrowRight');
     assert.equal((await status()).chosenTrack, 'dockyard');
@@ -296,7 +297,7 @@ async function check(name, engine) {
     ok('Dockyard: drive again, restart mid-run, pause and return to title');
 
     // --- Dockyard, Power -----------------------------------------------------------------------
-    await page.locator('#start').focus();
+    await chooseTracks(page);
     await key('KeyH');
     assert.equal((await status()).selected, 'revised');
     await key('Enter');
@@ -314,7 +315,8 @@ async function check(name, engine) {
 
     // --- Dockyard by controller ----------------------------------------------------------------
     await value(() => { window.__pads = [window.__newPad()]; window.__frames(3); });
-    await page.locator('#start').focus();
+    await chooseTracks(page);
+    await frames(2);
     // D-pad Left and Right walk the three circuits and wrap, as Left and Right do on the keyboard.
     const walked = [];
     for (const button of [15, 15, 15, 14, 14, 14]) { await press(button); walked.push((await status()).chosenTrack); }
@@ -451,7 +453,7 @@ async function check(name, engine) {
     await page.locator('#gymkhana-results .return-title').click();
     await frames(3);
     assert.equal((await status()).state, 'menu');
-    await page.locator('#start').focus();
+    await chooseTracks(page);
     await key('ArrowLeft');
     await key('ArrowLeft');
     assert.equal((await status()).chosenTrack, 'original');
@@ -476,12 +478,14 @@ async function check(name, engine) {
     const records = await saved('mini-drifters-records-v3');
     assert.equal(records.version, 3);
     assert.deepEqual(originalKept(records.tracks), V040_ORIGINAL_KEPT, 'the v0.4.0 Original record is exactly as it was');
+    await chooseTracks(page);
     await page.locator('#tracks label', { hasText: /original/i }).click();
     await key('KeyH');
     assert.deepEqual([(await status()).chosenTrack, (await status()).selected], ['original', 'classic']);
     assert.ok(await value(() => document.querySelector('.personal-bests').textContent.includes('99,999')), 'and still shown');
     await key('KeyH');
     assert.deepEqual(Object.keys(records.tracks.dockyard).sort(), ['classic', 'revised']);
+    await key('Escape');
     const challenges = await saved('mini-drifters-gymkhana-v1');
     assert.equal(challenges.version, 1);
     assert.deepEqual(challenges.challenges['precision-180'], V040_PRECISION, 'the v0.4.0 Precision 180 record is exactly as it was');

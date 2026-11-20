@@ -240,7 +240,7 @@ The checklist below remains a reference for future changes.
 
 Run `npm start` and open http://127.0.0.1:4190 in desktop Chromium, then Firefox.
 
-1. On the title, check **Gymkhana** sits beside **Practice pad**, and that the title
+1. On the title, check **Gymkhana** opens its own four challenges, and that the title
    still fits the window.
 2. Open it. Check the three challenges, their rules, `--` for each best, and that Left,
    Right, H, Enter and Esc do what the sheet says.

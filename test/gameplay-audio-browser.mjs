@@ -1,3 +1,5 @@
+import { startTrackWithEnter } from './support/track-menu.mjs';
+import { openTracks } from './support/track-menu.mjs';
 // Gameplay audio in real browsers, using real key presses and real Web Audio. It
 // measures the graph's output level. That proves signal or silence reached the
 // destination; it does not prove anything sounded good, and no human listened here.
@@ -157,7 +159,7 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
     assert.equal((await tap()).contexts, 0);
     step('the menu makes no sound and creates no audio context');
 
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     assert.equal((await game()).state, 'ready');
     assert.equal((await tap()).contexts, 1);
     await page.waitForFunction(() => {
@@ -253,7 +255,7 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
     assert.equal((await sound()).mode, 'silent', 'a restart does not unmute');
     assert.equal(await page.evaluate(() => localStorage.getItem('mini-drifters-sound')), 'off');
     await page.locator('#sound').focus();
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     assert.equal(await page.locator('#sound').textContent(), 'Sound On');
     assert.equal(await page.evaluate(() => document.activeElement === document.getElementById('sound')), true, 'keyboard focus stays for another press');
     assert.equal((await game()).state, 'ready', 'Enter on the toggle does nothing else');
@@ -355,7 +357,7 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
     await page.reload();
     await page.waitForFunction(() => window.__miniDrifters);
     assert.equal(await page.locator('#sound').textContent(), 'Sound Off');
-    await page.locator('#start').click();
+    await openTracks(page); await page.locator('#start').click();
     assert.equal((await game()).state, 'ready');
     await page.waitForTimeout(150);
     assert.equal((await tap()).contexts, 0, 'muted runs open no context');
@@ -422,7 +424,7 @@ async function runFailures(browser, browserName, base) {
   // Missing tire recording.
   {
     const { page, errors } = await open((p) => p.route('**/tire-foley.mp3', (r) => r.fulfill({ status: 404, body: 'gone' })));
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await settled(page);
     const s = await page.evaluate(() => window.__miniDrifters.audio());
     if (!s.failure) {
@@ -437,7 +439,7 @@ async function runFailures(browser, browserName, base) {
   // Corrupt tire recording.
   {
     const { page, errors } = await open((p) => p.route('**/tire-foley.mp3', (r) => r.fulfill({ status: 200, contentType: 'audio/mpeg', body: 'not audio' })));
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await settled(page);
     const s = await page.evaluate(() => window.__miniDrifters.audio());
     if (!s.failure) assert.equal(s.tire, 'unavailable');
@@ -450,7 +452,7 @@ async function runFailures(browser, browserName, base) {
     const { page, errors } = await open((p) => p.addInitScript(() => {
       window.AudioContext = class { constructor() { throw new DOMException('blocked', 'NotAllowedError'); } };
     }));
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     assert.equal(await page.locator('#sound').textContent(), 'Sound Unavailable');
     assert.match(await page.locator('#sound').getAttribute('title'), /blocked/);
     await drivable(page, errors);
@@ -462,7 +464,7 @@ async function runFailures(browser, browserName, base) {
     const { page, errors } = await open((p) => p.addInitScript(() => {
       AudioContext.prototype.resume = () => Promise.reject(new DOMException('no permission', 'NotAllowedError'));
     }));
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await page.waitForFunction(() => window.__miniDrifters.audio().failure);
     assert.equal(await page.locator('#sound').textContent(), 'Sound Unavailable');
     await drivable(page, errors);
@@ -475,7 +477,7 @@ async function runFailures(browser, browserName, base) {
   // No Web Audio at all.
   {
     const { page, errors } = await open((p) => p.addInitScript(() => { delete window.AudioContext; }));
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     assert.equal(await page.locator('#sound').textContent(), 'Sound Unavailable');
     await drivable(page, errors);
     await page.close();
@@ -490,7 +492,7 @@ async function runFailures(browser, browserName, base) {
     assert.equal(await page.locator('#sound').textContent(), 'Sound Off');
     await page.locator('#sound').click();
     assert.equal(await page.locator('#sound').textContent(), 'Sound On');
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await drivable(page, errors);
     await page.close();
     results.push('no local storage: the toggle still works for this visit');
@@ -515,7 +517,7 @@ async function runCoyoteFailures(browser, browserName, base) {
     await page.route('**/coyote-local/*.wav', fulfill);
     await page.goto(base);
     await page.waitForFunction(() => window.__miniDrifters);
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await page.waitForFunction(() => {
       const a = window.__miniDrifters.audio();
       return a.engine !== 'none' || a.failure;

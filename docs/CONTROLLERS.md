@@ -20,12 +20,12 @@ Unmapped devices, wheels and unusual adapters are not supported.
 | RT | Proportional accelerator | — |
 | LT | Proportional brake, then reverse | — |
 | A (bottom face button) | Handbrake | Confirm |
-| B (right face button) | — | Back; resume from Pause; title from Results |
-| X (left face button) | Toggle ghost (outside lesson). In a Gymkhana challenge, which has no ghost: start the challenge again | — |
+| B (right face button) | Return to Environments in Getaway | Back one selection level; resume from Pause; Environments from Getaway results; title from other results |
+| X (left face button) | Toggle ghost (outside lesson). In Gymkhana and Getaway: retry | — |
 | Y (top face button) | Next radio station | — |
 | Menu / Start | Pause | Resume from Pause |
 | D-pad Up / Down | — | Move focus (one step per press) |
-| D-pad Left / Right | — | Choose track on title (or handling, Classic or Power, when it has the focus: D-pad Up from Start driving); choose a challenge when its radio group has focus in Gymkhana; change station, volume or ghost (Previous lap / Saved reference / Off) in Options; move between other actions |
+| D-pad Left / Right | — | Choose a circuit, Gymkhana challenge or Getaway environment on its sheet; change Classic or Power on the title (D-pad Up from Tracks); change station, volume or ghost (Previous lap / Saved reference / Off) in Options; move between other actions |
 
 Restart, Return to Title, lesson Skip, Resume and Sound are reachable through menu
 focus. The five tutorial concepts still require real movement, slides, countersteering
