@@ -121,9 +121,32 @@ const instrument = () => {
 
 const report = { note: 'Measured output levels and lifecycle only. No human listening.', runs: [] };
 
+// Startup evidence. A module script that fails to load raises no page error: the document still
+// reaches 'load', and the game never starts. So every page records its failed requests and console
+// errors from the moment it opens, and a startup that never reaches the game says what it saw.
+// Observation only: the wait, its timeout and its polling are unchanged.
+const startupNotes = new WeakMap();
+async function newGamePage(browser) {
+  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const notes = [];
+  page.on('requestfailed', (r) => notes.push(`request failed ${new URL(r.url()).pathname}: ${r.failure()?.errorText}`));
+  page.on('console', (m) => { if (m.type() === 'error') notes.push(`console error: ${m.text()}`); });
+  startupNotes.set(page, notes);
+  return page;
+}
+async function waitForGame(page) {
+  try {
+    await page.waitForFunction(() => window.__miniDrifters);
+  } catch (error) {
+    const state = await page.evaluate(() => `readyState ${document.readyState}, handling buttons ${document.querySelectorAll('#handlings input').length}`).catch(() => 'page unavailable');
+    const notes = startupNotes.get(page) ?? [];
+    throw new Error(`${error.message} (game never started: ${state}; ${notes.length ? notes.join(' | ') : 'no failed requests or console errors'})`);
+  }
+}
+
 async function runPass(browser, browserName, passName, base, setup = async () => {}) {
   console.log(`  ${passName}:`);
-  const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const page = await newGamePage(browser);
   const errors = [];
   const requests = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -152,7 +175,7 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
 
   try {
     await page.goto(base);
-    await page.waitForFunction(() => window.__miniDrifters);
+    await waitForGame(page);
     assert.equal((await tap()).contexts, 0);
     assert.equal(await page.locator('#sound').textContent(), 'Sound On');
     await page.waitForTimeout(200);
@@ -355,7 +378,7 @@ async function runPass(browser, browserName, passName, base, setup = async () =>
     // --- A new visit remembers a muted choice, and Start by button.
     await page.locator('#sound').click();
     await page.reload();
-    await page.waitForFunction(() => window.__miniDrifters);
+    await waitForGame(page);
     assert.equal(await page.locator('#sound').textContent(), 'Sound Off');
     await openTracks(page); await page.locator('#start').click();
     assert.equal((await game()).state, 'ready');
@@ -400,13 +423,13 @@ async function runFailures(browser, browserName, base) {
   console.log('  failures:');
   const results = [];
   const open = async (setup) => {
-    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+    const page = await newGamePage(browser);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.addInitScript(instrument);
     await setup(page);
     await page.goto(base);
-    await page.waitForFunction(() => window.__miniDrifters);
+    await waitForGame(page);
     return { page, errors };
   };
   const drivable = async (page, errors) => {
@@ -510,13 +533,13 @@ async function runCoyoteFailures(browser, browserName, base) {
     ['corrupt mid layer', (r) => r.fulfill({ status: 200, contentType: 'audio/wav', body: r.request().url().includes('mid.wav') ? 'bad wav data' : fixtureWav(180) })],
     ['all layers missing', (r) => r.fulfill({ status: 404, body: 'gone' })],
   ]) {
-    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+    const page = await newGamePage(browser);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.addInitScript(instrument);
     await page.route('**/coyote-local/*.wav', fulfill);
     await page.goto(base);
-    await page.waitForFunction(() => window.__miniDrifters);
+    await waitForGame(page);
     await startTrackWithEnter(page);
     await page.waitForFunction(() => {
       const a = window.__miniDrifters.audio();
