@@ -91,7 +91,9 @@ async function open(browser, { saved, muted, before } = {}) {
   }
   await before?.(page);
   await page.goto(BASE);
-  await page.waitForFunction(() => window.__miniDrifters);
+  // The entry module runs before load. Read readiness directly so a render-frame wait
+  // cannot hide a startup error or obscure which failure fixture was being opened.
+  assert.ok(await page.evaluate(() => Boolean(window.__miniDrifters)), 'Radio test page failed to start: ' + errors.join(' | '));
   const helpers = {
     page, context, errors, requests,
     sound: () => page.evaluate(() => window.__miniDrifters.audio()),
@@ -613,7 +615,8 @@ async function run(browser, browserName) {
     ['corrupt', (route) => route.fulfill({ status: 200, contentType: 'audio/wav', body: 'not audio' })],
     ['refused', (route) => route.abort()],
   ]) {
-    const t = await open(browser, { saved: settings('garage-rock'), before: (page) => page.route('**/radio/**', fulfill) });
+    const t = await open(browser, { saved: settings('garage-rock'), before: (page) => page.route('**/radio/**', fulfill) })
+      .catch((error) => { throw new Error('Opening the ' + label + ' radio fixture', { cause: error }); });
     const { page } = t;
     await startTrackWithEnter(page);
     await page.waitForFunction(() => window.__miniDrifters.audio().radio.status === 'unavailable', null, { timeout: 15000 });
@@ -707,7 +710,8 @@ try {
       report.runs.push(await run(browser, name));
     } catch (error) {
       console.error(`  FAILED: ${error.message}`);
-      report.runs.push({ browser: name, version: browser.version(), passed: false, error: error.message });
+      if (error.cause) console.error(error.cause.stack);
+      report.runs.push({ browser: name, version: browser.version(), passed: false, error: error.stack });
     } finally {
       await browser.close();
     }

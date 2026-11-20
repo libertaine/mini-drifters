@@ -260,7 +260,7 @@ try {
           await rp.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
           await frames(2);
           let guard = 0;
-          await chooseTracks(page);
+          await chooseTracks(rp);
           while ((await value(() => window.__miniDrifters.selectedTrack())) !== id && guard++ < 6) await key('ArrowRight');
           guard = 0;
           while ((await value(() => window.__miniDrifters.selectedHandling())) !== handling && guard++ < 4) await key('KeyH');
