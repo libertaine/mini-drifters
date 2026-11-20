@@ -323,7 +323,7 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
   /* Track markings: the same dashed centre line as the road. */
   background: repeating-linear-gradient(90deg, var(--amber) 0 26px, transparent 26px 44px) left bottom / 100% 3px no-repeat;
 }
-/* The circuit for the next run. Left and Right change it from anywhere on the title. */
+/* The circuit for the next run. Left and Right change it on the Tracks sheet. */
 .track-select { display: flex; align-items: center; gap: 14px; margin: 0 0 clamp(10px, 2vh, 22px) 0.6vw; }
 .track-label { font: 400 clamp(16px, 2.2vh, 24px)/1 var(--poster); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
 .track-label span { margin-left: 6px; padding: 2px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); font: 700 11px var(--body); letter-spacing: 0; color: var(--muted); vertical-align: middle; }
@@ -352,7 +352,6 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 /* With a wide fallback font the three modes may not fit one line: they wrap rather than spill
    out of the title column (fitTitle then shrinks the logo to keep everything on screen). */
 .handling-select #handlings { flex-wrap: wrap; row-gap: 6px; min-width: 0; }
-.track-select:has(+ .handling-select) { margin-bottom: clamp(6px, 1.1vh, 12px); }
 .mode { position: relative; display: block; cursor: pointer; transform: skewX(-10deg); }
 .mode input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .mode span {
@@ -391,10 +390,13 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
   font-size: clamp(24px, 3.6vh, 38px);
 }
 .title-menu button:focus-visible { outline-color: var(--ink); outline-offset: 3px; }
-/* Practice pad and Gymkhana share one row, so the menu is no taller than it was without
-   Gymkhana and the logo keeps its size. Up and Down still step through them one at a time. */
-.menu-pair { display: flex; gap: 20px; width: min(100%, 25vw + 90px); margin: 0 0 0 0.6vw; }
-.title-menu .menu-pair button { flex: 1 1 auto; width: auto; margin: 0; padding: 4px 12px; justify-content: center; white-space: nowrap; font-size: clamp(19px, 2.9vh, 30px); }
+.menu-pair { display: flex; gap: 12px; width: min(100%, 25vw + 90px); margin-left: 0.6vw; }
+.title-menu .menu-pair button { flex: 1 1 auto; width: auto; margin: 0; padding: 4px 10px; gap: 8px; justify-content: center; font-size: clamp(18px, 2.6vh, 28px); }
+#tracks-menu .track-select, #tracks-menu .personal-bests { margin-left: 0; }
+#tracks-menu .track-label { min-width: 0; }
+#gymkhana-menu[data-category="getaway"] .sheet { width: min(600px, 100%); }
+#getaway-missions { margin-top: 14px; }
+#getaway-missions .pitch { margin-top: 8px; }
 
 /* The Sound button sits under the score while driving, but there's no score here. */
 body[data-screen="title"] #sound { top: 16px; }
@@ -537,15 +539,6 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 .medal-result[data-new="true"] { color: var(--amber); }
 #gym-medal { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 /* Getaway Drift (experimental, R4): the bust meter, and the tag on its entries in the sheet. */
-.gym-heat { margin-top: 6px; }
-.gym-heat[hidden] { display: none; }
-.gym-heat-bar { position: relative; display: block; height: 10px; overflow: hidden; border-radius: 5px; background: rgba(246,241,228,0.14); }
-.gym-heat-bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--heat, 0%); background: var(--amber); }
-.gym-heat[data-level="high"] .gym-heat-bar::after { background: var(--red); }
-#gym-heat-text { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
-.gym-heat[data-level="high"] #gym-heat-text { color: var(--red); }
-.stations.challenges > .station:has(.experimental-tag) { min-width: 0; }
-.challenges .experimental-tag { margin-left: 0.4em; padding: 0 3px; border: 1px solid var(--amber); border-radius: 3px; font: 700 9px var(--body); font-style: normal; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); vertical-align: 0.2em; }
 #gym-medal:empty { display: none; }
 /* Getaway Drift in town (experimental, R4B): BUST RISK, bottom centre between the gauges and the map. */
 .bust { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: clamp(280px, 32vw, 440px);
@@ -634,6 +627,8 @@ body[data-bust='busted'] #bust-vignette { opacity: 0.8; }
 .stats-note { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
 
 @media (max-height: 620px) {
+  #gymkhana-menu[data-category="getaway"] { padding-block: 12px; }
+  #gymkhana-menu[data-category="getaway"] .howto li + li { margin-top: 2px; }
   .title { font-size: min(10.2vw, 16vh); }
   .tagline { margin: 1vh 0; }
   .controller-note { margin-top: 6px; }
@@ -641,7 +636,6 @@ body[data-bust='busted'] #bust-vignette { opacity: 0.8; }
      storage note at 1024x600, and v0.5.0's third circuit wraps the Track row to two lines
      there. Only spacing tightens; every control keeps its size. */
   .title-menu { gap: 5px; }
-  .track-select:has(+ .handling-select) { margin-bottom: 4px; }
   .track-select #tracks { row-gap: 3px; }
   .handling-select #handlings { row-gap: 4px; }
   .handling-summary { margin-bottom: 6px; }

@@ -1,7 +1,7 @@
 // Getaway Drift in town: Downtown and Industrial. EXPERIMENTAL (v0.7.0 R4B research), not a
 // shipped challenge.
 //
-// R4's chase (getaway.js) moved onto city streets: buildings, hard corners, a dead end, a police
+// R4's chase (getaway-pursuer.js) moved onto city streets: buildings, hard corners, a dead end, a police
 // blockade, two kinds of flimsy scenery to smash through, and a police car that knows the streets.
 // It is a gymkhana challenge object, so game.js runs it unchanged:
 //   - the car, the handling modes and the drift scoring are the game's own. The scoring is fed as
@@ -22,7 +22,7 @@ import { padTrack } from './practice-pad.js';
 import { updateDerived } from './physics.js';
 import { resolveObstacles } from './obstacles.js';
 import { updateScoring, bankCombo, loseCombo } from './scoring.js';
-import { PURSUER, CAPTURE_MODELS, captureRate, createPursuer } from './getaway.js';
+import { PURSUER, CAPTURE_MODELS, captureRate, createPursuer } from './getaway-pursuer.js';
 import { CITY_LAYOUTS, buildCity, locate, lineOfSight, route, segmentHitsBox, roundCorners } from './getaway-city.js';
 import { NAV, planGuide, shortcutFor } from './getaway-nav.js';
 
@@ -31,7 +31,7 @@ const angleTo = (from, to) => Math.atan2(Math.sin(to - from), Math.cos(to - from
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // --- The police car in town ----------------------------------------------------------------------
-// R4's car model (getaway.js PURSUER: top speed, acceleration, braking, a cornering grip that caps
+// R4's car model (getaway-pursuer.js PURSUER: top speed, acceleration, braking, a cornering grip that caps
 // its yaw rate, a smallest turning circle), unchanged, with what a city adds:
 //   - it collides with the buildings and props exactly as the player's car does (obstacles.js),
 //     so it can run wide into a wall, slide along it and lose speed;
@@ -474,7 +474,7 @@ export function cityFor(variant) {
 
 // `variant` 'downtown' or 'industrial'; `pursuit` a PURSUIT_MODES entry; `missPolicy` 'recover'
 // (a skipped camera stays the next one) or 'strict' (crossing a later camera first fails the run);
-// `capture` a getaway.js CAPTURE_MODELS key; `tier` a URBAN_TIERS key; `pursuer` overrides single
+// `capture` a getaway-pursuer.js CAPTURE_MODELS key; `tier` a URBAN_TIERS key; `pursuer` overrides single
 // numbers (the research harness's jitter); `timeLimit` seconds.
 // `showmanship` true (R4C, the default): smashes keep the combo and earn the destruction bonus;
 // false: R4B's rules exactly (a smash is an impact to the scoring, and scores nothing), kept for the
@@ -734,8 +734,7 @@ export function createUrbanChallenge({ variant = 'downtown', pursuit = 'network'
   return Object.freeze({
     id: `getaway-urban-${variant}`,
     name,
-    shortName: `Getaway · ${city.name}`,
-    experimental: true,
+    shortName: city.name,
     kind: 'score',
     rules,
     layout: 'urban',

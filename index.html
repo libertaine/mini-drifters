@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mini Drifters v0.6.0</title>
+  <title>Mini Drifters v0.7.0</title>
   <link rel="stylesheet" href="style.css">
   <meta name="mini-drifters-engine" content="coyote-local">
 </head>
@@ -32,14 +32,14 @@
 
     <div id="banner" class="banner" hidden></div>
 
-    <!-- Getaway Drift in town (experimental, R4B): BUST RISK, and the red edge of the screen at CRITICAL. -->
+    <!-- Getaway: BUST RISK, and the red edge of the screen at CRITICAL. -->
     <div id="bust-vignette" aria-hidden="true"></div>
     <section id="bust" class="bust" hidden data-level="clear">
       <div class="bust-head"><span class="bust-label">Bust risk</span><strong id="bust-state">Clear</strong><span id="bust-pct">0%</span></div>
       <div class="bust-track" aria-hidden="true"><div class="bust-fill"></div></div>
       <div id="bust-detail"></div>
     </section>
-    <!-- Getaway Drift in town (experimental, R4C): the next turn and the objective, docked on the minimap. -->
+    <!-- Getaway: the next turn and the objective, docked on the minimap. -->
     <section id="nav" class="nav-chip" hidden data-glyph="straight" data-goal="camera">
       <svg class="nav-glyph" viewBox="-12 -12 24 24" aria-hidden="true">
         <g class="g-straight"><path d="M0 10V-3"/><polygon points="0,-11 -6.5,-3 6.5,-3"/></g>
@@ -58,7 +58,6 @@
       <div id="gym-stage"></div>
       <div id="gym-gates"></div>
       <div id="gym-cones"></div>
-      <div id="gym-heat" class="gym-heat" hidden><span class="gym-heat-bar" aria-hidden="true"></span><span id="gym-heat-text"></span></div>
       <div id="gym-best"></div>
       <div id="gym-medal"></div>
     </section>
@@ -85,19 +84,35 @@
   <div id="prompt" class="prompt" aria-live="polite" hidden></div>
 
   <section id="menu" class="overlay title-screen">
-    <span class="release-version">v0.6.0</span>
+    <span class="release-version">v0.7.0</span>
     <div class="title-panel">
       <h1 class="title"><span>MINI</span> <span>DRIFTERS</span></h1>
       <p class="tagline">ONE OVERPOWERED CAR. ZERO GOOD IDEAS.</p>
-      <div class="track-select">
-        <span id="track-label" class="track-label">Track <span>&larr; &rarr;</span></span>
-        <div id="tracks" class="tracks" role="radiogroup" aria-labelledby="track-label"></div>
-      </div>
       <div class="handling-select">
         <span id="handling-label" class="track-label">Handling <span>H</span></span>
         <div id="handlings" class="tracks" role="radiogroup" aria-labelledby="handling-label"></div>
       </div>
       <p id="handling-summary" class="handling-summary"></p>
+      <nav class="title-menu" aria-label="Main menu">
+        <button id="tracks-open" type="button">Tracks</button>
+        <button id="gymkhana" type="button">Gymkhana</button>
+        <button id="getaway" type="button">Getaway</button>
+        <div class="menu-pair">
+          <button id="how-to-play" class="quiet" type="button">How to play</button>
+          <button class="options-open quiet" type="button">Options <span>O</span></button>
+        </div>
+      </nav>
+      <p id="controller-note" class="controller-note" role="status">Controller: press a button to connect.</p>
+    </div>
+  </section>
+
+  <section id="tracks-menu" class="overlay" role="dialog" aria-labelledby="tracks-title" hidden>
+    <div class="sheet small">
+      <h2 id="tracks-title" class="sheet-title">Tracks</h2>
+      <div class="track-select">
+        <span id="track-label" class="track-label">Track <span>&larr; &rarr;</span></span>
+        <div id="tracks" class="tracks" role="radiogroup" aria-labelledby="track-label"></div>
+      </div>
       <section class="personal-bests" aria-labelledby="records-heading" aria-live="polite">
         <h2 id="records-heading">Original — Personal bests</h2>
         <dl>
@@ -108,16 +123,22 @@
         <p id="pb-legacy" class="records-legacy" title="Set under the earlier scoring rules. Kept for reference; not comparable with current scores."></p>
         <p id="records-note" class="records-note"></p>
       </section>
-      <nav class="title-menu" aria-label="Main menu">
-        <button id="start" type="button">Start driving <span>Enter</span></button>
-        <div class="menu-pair">
-          <button id="practice" class="quiet" type="button">Practice pad</button>
-          <button id="gymkhana" class="quiet" type="button">Gymkhana</button>
-        </div>
-        <button id="how-to-play" class="quiet" type="button">How to play</button>
-        <button class="options-open quiet" type="button">Options <span>O</span></button>
-      </nav>
-      <p id="controller-note" class="controller-note" role="status">Controller: press a button to connect.</p>
+      <p id="tracks-handling" class="stats-note"></p>
+      <div class="actions">
+        <button id="start" type="button">Start <span>Enter</span></button>
+        <button id="practice" class="quiet" type="button">Practice Pad</button>
+        <button id="tracks-back" class="quiet" type="button">Back <span>Esc</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="getaway-menu" class="overlay" role="dialog" aria-labelledby="getaway-title" hidden>
+    <div class="sheet small">
+      <h2 id="getaway-title" class="sheet-title">Getaway</h2>
+      <div id="getaway-missions"></div>
+      <div class="actions">
+        <button id="getaway-back" class="quiet" type="button">Back <span>Esc</span></button>
+      </div>
     </div>
   </section>
 
@@ -154,11 +175,11 @@
         <section>
           <h3>Other keys</h3>
           <table id="help-keys" class="keys">
-            <tr><td><kbd>Enter</kbd></td><td>Start, or drive again</td></tr>
+            <tr><td><kbd>Enter</kbd></td><td>Select, start or drive again</td></tr>
             <tr><td><kbd>R</kbd> / <kbd>P</kbd></td><td>Restart / Pause</td></tr>
             <tr><td><kbd>G</kbd> / <kbd>N</kbd></td><td>Ghost / Next radio station</td></tr>
             <tr><td><kbd>O</kbd></td><td>Options, from a menu</td></tr>
-            <tr><td><kbd>H</kbd></td><td>Handling, on the title</td></tr>
+            <tr><td><kbd>H</kbd></td><td>Handling, on gameplay menus</td></tr>
             <tr><td><kbd>D</kbd></td><td>Debug display</td></tr>
           </table>
           <p class="controller-help">Controller: D-pad move &middot; A select &middot; B back<br>Menu pause &middot; X ghost &middot; Y radio</p>
@@ -174,7 +195,7 @@
 
   <section id="gymkhana-menu" class="overlay" role="dialog" aria-labelledby="gymkhana-title" hidden>
     <div class="sheet small">
-      <p class="eyebrow">Short challenges on open asphalt</p>
+      <p id="challenge-category" class="eyebrow">Short challenges on open asphalt</p>
       <h2 id="gymkhana-title" class="sheet-title">Gymkhana</h2>
       <div id="challenges" class="stations challenges" role="radiogroup" aria-label="Challenge"></div>
       <p id="challenge-brief" class="pitch"></p>

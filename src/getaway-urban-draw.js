@@ -844,22 +844,3 @@ export function drawUrbanMap(ctx, game, px) {
   ctx.closePath();
   ctx.fill();
 }
-
-// Debug only: the police car's planned line, its aim and its state.
-export function drawUrbanDebug(ctx, run) {
-  const p = run.pursuer;
-  if (p.path) {
-    ctx.strokeStyle = 'rgba(52,224,255,0.6)';
-    ctx.lineWidth = 0.3;
-    ctx.beginPath();
-    p.path.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.stroke();
-  }
-  if (p.reckoned) {
-    ctx.strokeStyle = CYAN;
-    ctx.lineWidth = 0.3;
-    ctx.beginPath();
-    ctx.arc(p.reckoned[0], p.reckoned[1], 1.5, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-}

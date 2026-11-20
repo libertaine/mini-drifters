@@ -8,8 +8,7 @@ import { TYRE_FX, createTyreEffectState, resetTyreEffectState, tyreEmission } fr
 import { buildDockyardScenery, drawDockyardGround, drawDockyardScenery } from './dockyard-scenery.js';
 import { sceneryFor } from './scenery.js';
 import { buildLandscape, drawLandscapeBelow, drawLandscapeAbove } from './scenery-draw.js';
-import { drawGetawayDebug } from './getaway-draw.js';
-import { drawUrbanAbove, drawUrbanDebug, blockadeCars } from './getaway-urban-draw.js';
+import { drawUrbanAbove, blockadeCars } from './getaway-urban-draw.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -47,7 +46,7 @@ const GHOST_COLORS = {
   outline: '#f2fdff',
 };
 const GHOST_WHEELS = { wheelAngle: 0, brake: 0, handbrake: false };
-// Getaway Drift's police car (experimental, R4): the same artwork in black and white.
+// Getaway Drift's police car: the same artwork in black and white.
 const POLICE_COLORS = {
   ...COLORS,
   body: '#f2f2ee',
@@ -753,7 +752,7 @@ function drawDebugContact(ctx, game, pose) {
 function drawMinimap(r, car, ghost, game) {
   const { ctx, track } = r;
   const { bounds } = track;
-  // Getaway Drift in town (experimental, R4C): a larger map, with the HUD's navigation chip on it.
+  // Getaway Drift in town: a larger map, with the HUD's navigation chip on it.
   const urban = game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban';
   const maxW = urban ? 210 : 170;
   const scale = Math.min(maxW / (bounds.maxX - bounds.minX), (urban ? 150 : 130) / (bounds.maxY - bounds.minY));
@@ -948,7 +947,7 @@ function drawTitleScene(r, step) {
   ctx.restore();
 }
 
-// Getaway Drift (experimental, R4): the police car, drawn between its last two steps like the car,
+// Getaway Drift: the police car, drawn between its last two steps like the car,
 // with a light bar that flashes red and blue once the chase is on.
 function drawPolice(ctx, p, alpha, live) {
   const x = p.prevX + (p.x - p.prevX) * alpha;
@@ -1072,7 +1071,7 @@ export function drawFrame(r, game, alpha, dt, debug) {
   drawSkids(r);
   if (!land && !(game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban')) drawWall(r); // a landscape draws its own perimeter, under its scenery
   if (ghost) drawGhost(r, ghost);
-  // Getaway Drift in town (experimental, R4B): the parked police cars of a blockade, lights on.
+  // Getaway Drift in town: the parked police cars of a blockade, lights on.
   const urban = game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban' && game.challenge ? game.challengeDef : null;
   if (urban) for (const c of blockadeCars(urban.geometry.city)) drawPolice(ctx, { prevX: c.x, x: c.x, prevY: c.y, y: c.y, prevHeading: c.heading, heading: c.heading }, 1, true);
   if (game.challenge?.pursuer) drawPolice(ctx, game.challenge.pursuer, blend, game.state === 'racing' && !game.paused);
@@ -1082,8 +1081,6 @@ export function drawFrame(r, game, alpha, dt, debug) {
   else if (land) drawLandscapeAbove(ctx, land, view);
   else if (!yard) drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
-  if (debug && game.challenge?.pursuer) drawGetawayDebug(ctx, game.challenge);
-  if (debug && urban) drawUrbanDebug(ctx, game.challenge);
   ctx.restore();
   if (game.challenge?.pursuer) drawPoliceMarker(r, game.challenge, pose, urban ? 96 : 0);
   drawMinimap(r, car, ghost, game);

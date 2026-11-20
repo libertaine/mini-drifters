@@ -6,7 +6,6 @@ import {
   MEDALS, MEDAL_NAMES, formatMedalTime, formatMedalValue, medalFor, medalRank,
   medalTargets, missedTargetBy, needsMillisecondDisplay, nextMedal,
 } from './medals.js';
-import { getawayMedal, getawayTargets, GETAWAY_MEDALS } from './getaway.js';
 import { cueForGame, cueText, turnBearing } from './getaway-nav.js';
 
 const MPH_PER_MS = 2.23694;
@@ -22,19 +21,13 @@ function setText(el, text) {
   if (el.textContent !== text) el.textContent = text;
 }
 
-// --- Experimental challenges (Getaway Drift, R4 research) -------------------------------------
-// They are offered only when main.js passes them in (the page's ?getaway switch). Their medals
-// are getaway.js's own table, and their bests live in this page's memory only: nothing about
-// them is ever saved, so no record, key or schema is touched.
-// Getaway Drift in town (R4B) is layout 'urban' and carries its own provisional targets.
-const isGetaway = (def) => def?.layout === 'getaway' || def?.layout === 'urban';
-const isUrban = (def) => def?.layout === 'urban';
-const chaseTargets = (def, handlingId) => (isUrban(def) ? def.medalTargets?.[handlingId] ?? null : getawayTargets(def, handlingId));
+// Getaway bests stay in this page and each environment supplies its own medal targets.
+const isGetaway = (def) => def?.layout === 'urban';
+const chaseTargets = (def, handlingId) => def.medalTargets?.[handlingId] ?? null;
 function chaseMedal(def, handlingId, value) {
-  if (!isUrban(def)) return getawayMedal(def, handlingId, value);
   const targets = chaseTargets(def, handlingId);
-  if (!targets || value === null || value === undefined || !Number.isFinite(value) || value < 0) return null;
-  return GETAWAY_MEDALS.find((m) => Math.round(value) >= targets[m]) ?? null;
+  if (!targets || !Number.isFinite(value) || value < 0) return null;
+  return MEDALS.find((medal) => Math.round(value) >= targets[medal]) ?? null;
 }
 const medalOf = (def, handlingId, value) => (isGetaway(def) ? chaseMedal(def, handlingId, value) : medalFor(def, handlingId, value));
 const targetsOf = (def, handlingId) => (isGetaway(def) ? chaseTargets(def, handlingId) : medalTargets(def, handlingId));
@@ -43,7 +36,7 @@ function nextOf(def, handlingId, value) {
   const targets = chaseTargets(def, handlingId);
   if (!targets) return null;
   const rank = medalRank(chaseMedal(def, handlingId, value));
-  const medal = [...GETAWAY_MEDALS].reverse().find((m) => medalRank(m) > rank);
+  const medal = [...MEDALS].reverse().find((m) => medalRank(m) > rank);
   return medal ? { medal, target: targets[medal] } : null;
 }
 const formatValue = (def, handlingId, value) => (isGetaway(def) ? (value === null || value === undefined ? '--' : formatNumber(value)) : formatMedalValue(def, handlingId, value));
@@ -61,8 +54,7 @@ function medalBadge(medal) {
 }
 // "7.600 s total or faster" / "850 points or more": what a target asks for.
 const targetText = (def, target) => (isGetaway(def) && target === 0 ? 'escape with every camera\'s footage'
-  : isUrban(def) && def.showmanship ? `escape with ${formatNumber(target)} Showmanship (drift + smash)`
-  : isGetaway(def) ? `escape with ${formatNumber(target)} points banked`
+  : isGetaway(def) && def.showmanship ? `escape with ${formatNumber(target)} Showmanship (drift + smash)`
     : def.kind === 'time' ? `${formatMedalTime(target)} total or faster` : `${formatNumber(target)} ${target === 1 ? 'point' : 'points'} or more`);
 // When a timed result misses a target by less than a hundredth of a second, spell out the
 // millisecond gap to match the three-decimal display of both result and target.
@@ -192,26 +184,12 @@ function urbanRows(r, failed) {
   ];
 }
 
-function getawayRows(r, failed) {
-  return [
-    ...(failed ? [['Banked, not counted', formatNumber(r.score)]] : []),
-    ['Footage', `${r.footage} of ${r.cameras} cameras${r.shotsDrifted ? `, ${r.shotsDrifted} sideways` : ''}`],
-    ['Best combo', r.bestCombo ? `${formatNumber(r.bestCombo)} (×${r.bestMultiplier})` : 'None'],
-    ['Closest call', r.minGap === null ? '--' : `${r.minGap.toFixed(1)} m`],
-    ['Bust meter peak', `${Math.round(r.peakMeter * 100)}%`],
-    ['Spinouts', String(r.spinouts)],
-    ['Time', `${r.time.toFixed(1)} s`],
-  ];
-}
-
-// BUST RISK (R4B): the big meter for Getaway Drift in town. Four states: CLEAR (no police near),
-// POLICE CLOSE (within 25 m, or the meter not yet empty), CRITICAL (over 60%), BUSTED.
 const BUST_WORDS = { clear: 'Clear', close: 'Police close', critical: 'Critical', busted: 'Busted', waiting: 'Clear' };
 let lastMeter = 0;
 function updateBust(def, run, game) {
   const el = $('bust');
   if (!el) return;
-  const on = isUrban(def) && game.state !== 'menu';
+  const on = isGetaway(def) && game.state !== 'menu';
   el.hidden = !on;
   const level = !on ? '' : run.phase === 'failed' && run.reason === 'busted' ? 'busted'
     : run.time < def.pursuerTuning.delay ? 'waiting' : run.phase === 'running' ? run.level : 'clear';
@@ -245,7 +223,7 @@ let navNewUntil = 0;
 function updateNav(def, run, game) {
   const el = $('nav');
   if (!el) return;
-  const on = isUrban(def) && game.state !== 'menu' && run.phase === 'running';
+  const on = isGetaway(def) && game.state !== 'menu' && run.phase === 'running';
   el.hidden = !on;
   if (!on) return;
   const { bounds, cameras } = def.geometry;
@@ -278,54 +256,49 @@ function updateNav(def, run, game) {
 
 // `records` is the gymkhana records keeper (gymkhana-records.js). `onChoose` is called after
 // the player picks a challenge on the sheet.
-export function createGymkhanaUi({ records, onChoose, extra = [] }) {
-  const LIST = [...GYMKHANA_CHALLENGES, ...extra];
-  let index = 0;
-  const selected = () => LIST[index];
-  // Experimental bests: this page's memory only, never written anywhere.
+export function createGymkhanaUi({ records, onChoose }) {
+  let choices;
+  let inputs = [];
+  const remembered = new Map();
+  const selected = () => choices[remembered.get(choices) ?? 0];
+  // Getaway bests live until this page is reloaded.
   const sessionBest = new Map();
   const sessionKey = (def, handlingId) => `${def.id}|${def.rules}|${handlingId}`;
-  const bestOf = (def, handlingId) => (def.experimental ? sessionBest.get(sessionKey(def, handlingId)) ?? null : records.bestFor(def.id, handlingId));
+  const bestOf = (def, handlingId) => (isGetaway(def) ? sessionBest.get(sessionKey(def, handlingId)) ?? null : records.bestFor(def.id, handlingId));
   let settledRun = -1;
   let sessionNew = false;
   let sessionPrevious = null;
 
-  function choose(which) {
-    const i = typeof which === 'number' ? which : LIST.findIndex((c) => c.id === which);
-    if (i < 0 || i >= LIST.length) return false;
-    index = i;
+  function choose(index) {
+    remembered.set(choices, index);
     for (const input of inputs) input.checked = input.value === selected().id;
-    return true;
   }
 
-  // The challenges, as a radio group built the way the tracks and radio stations are.
-  const inputs = LIST.map((def) => {
-    const label = document.createElement('label');
-    label.className = 'station';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = 'challenge';
-    input.value = def.id;
-    input.setAttribute('aria-describedby', 'challenge-brief');
-    const name = document.createElement('span');
-    name.textContent = def.shortName ?? def.name;
-    if (def.experimental) {
-      const tag = document.createElement('i');
-      tag.className = 'experimental-tag';
-      tag.textContent = 'Exp';
-      tag.title = 'Experimental research build: not saved';
-      name.append(tag);
-    }
-    // The medal held in the selected handling mode, filled in by showMenu.
-    const held = document.createElement('i');
-    held.className = 'medal-slot';
-    name.append(held);
-    label.append(input, name);
-    $('challenges').append(label);
-    input.addEventListener('change', () => { choose(def.id); onChoose(); });
-    return input;
-  });
-  choose(0);
+  function setChoices(list) {
+    if (list === choices) return;
+    choices = list;
+    const labels = choices.map((def, index) => {
+      const label = document.createElement('label');
+      label.className = 'station';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'challenge';
+      input.value = def.id;
+      input.setAttribute('aria-describedby', 'challenge-brief');
+      const name = document.createElement('span');
+      name.textContent = def.shortName ?? def.name;
+      const held = document.createElement('i');
+      held.className = 'medal-slot';
+      name.append(held);
+      label.append(input, name);
+      input.addEventListener('change', () => { choose(index); onChoose(); });
+      return label;
+    });
+    inputs = labels.map((label) => label.firstElementChild);
+    $('challenges').replaceChildren(...labels);
+    choose(remembered.get(choices) ?? 0);
+  }
+  setChoices(GYMKHANA_CHALLENGES);
 
   const recordsNote = () => (!records.available ? 'Record storage unavailable. New improvements cannot be saved.'
     : records.readOnly ? 'Gymkhana records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.' : '');
@@ -334,17 +307,18 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
   let shownRows = '';
 
   return {
-    inputs,
+    get inputs() { return inputs; },
     selected,
-    choose,
+    setChoices,
     // Left and Right on the sheet, wrapping.
     step(direction) {
-      choose((index + direction + LIST.length) % LIST.length);
+      choose((choices.indexOf(selected()) + direction + choices.length) % choices.length);
     },
 
     // The sheet: the selected challenge, its rules and its record in the selected handling mode.
     showMenu(handling, device) {
       const def = selected();
+      $('challenges').setAttribute('aria-label', isGetaway(def) ? 'Environment' : 'Challenge');
       setText($('challenge-brief'), def.brief);
       const points = def.points.join('|');
       const list = $('challenge-points');
@@ -356,16 +330,16 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
           return li;
         }));
       }
-      setText($('challenge-best-label'), def.experimental ? 'Best this visit (not saved) · Score' : `Personal best · ${def.kind === 'time' ? 'Time' : 'Score'}`);
+      setText($('challenge-best-label'), isGetaway(def) ? 'Best this visit (not saved) · Score' : `Personal best · ${def.kind === 'time' ? 'Time' : 'Score'}`);
       const best = bestOf(def, handling.id);
       setText($('challenge-best'), formatValue(def, handling.id, best));
 
       // Medals: the one each challenge's best holds in this handling mode, on its button; this
       // challenge's three targets, the ones held marked; and what the next one takes.
-      LIST.forEach((c, i) => {
+      choices.forEach((c, i) => {
         const medal = medalOf(c, handling.id, bestOf(c, handling.id));
         showMedal(inputs[i].parentElement.querySelector('.medal-slot'), medal, '');
-        const label = `${medal ? `${c.name}, ${MEDAL_NAMES[medal]} medal` : c.name}${c.experimental ? ' (experimental)' : ''}`;
+        const label = `${medal ? `${c.name}, ${MEDAL_NAMES[medal]} medal` : c.name}`;
         if (inputs[i].getAttribute('aria-label') !== label) inputs[i].setAttribute('aria-label', label);
       });
       const medal = medalOf(def, handling.id, best);
@@ -393,11 +367,8 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
       setText($('gymkhana-handling'), device === 'controller'
         ? `${handling.name} handling, chosen on the title screen. Each handling mode keeps its own best.`
         : `${handling.name} handling. Press H to change it. Each handling mode keeps its own best.`);
-      setText($('gymkhana-records-note'), isUrban(def)
-        ? `Experimental research build (${def.variant}, ${def.pursuit} police, ${def.missPolicy} cameras, ${def.timeLimit} s limit${def.showmanship ? ', Showmanship scoring' : ''}). Medal targets are R4's, provisional; nothing is saved.`
-        : def.experimental
-        ? `Experimental research build (${def.variant} layout, ${def.tier} pursuer, ${def.captureModel.id} capture, ${def.missPolicy} cameras). Medal targets are provisional; nothing is saved.`
-        : recordsNote());
+      setText($('gymkhana-records-note'), isGetaway(def)
+        ? 'Medals and bests last until you reload the page.' : recordsNote());
     },
 
     // The line under the car before the clock starts: what to do, and the keys.
@@ -407,7 +378,7 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
       if (!show) return;
       const def = game.challengeDef;
       const text = `${def.brief} ${device === 'controller' ? 'RT to go.' : '↑ to go.'}`;
-      const keys = device === 'controller' ? 'X retry · Menu pause' : 'R retry · P pause · Esc title';
+      const keys = device === 'controller' ? 'X retry · Menu pause' : 'R retry · P pause · ' + (isGetaway(def) ? 'Esc environments' : 'Esc title');
       el.dataset.kind = 'gymkhana';
       const key = `${text}|${keys}`;
       if (key === shownPrompt && el.childElementCount) return;
@@ -430,27 +401,17 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
       setText($('gym-stage'), run.phase === 'running' ? `Next: ${run.stage}` : run.stage);
       setText($('gym-gates'), def.layout === 'course' ? `Gates ${run.gates.filter(Boolean).length}/${run.gates.length}`
         : def.layout === 'slalom' ? `Cones ${run.next}/${def.geometry.count}`
-          : isUrban(def) ? `Footage ${def.geometry.cameras.map((_, i) => (run.cameras[i] ? '●' : '○')).join('')} ${run.nextCamera}/${def.geometry.cameras.length} · escape gate ${run.exitOpen ? 'open' : 'locked'}`
-          : isGetaway(def) ? `Footage ${run.nextCamera}/${def.geometry.cameras.length} · escape gate ${run.exitOpen ? 'open' : 'locked'}` : '');
+          : isGetaway(def) ? `Footage ${def.geometry.cameras.map((_, i) => (run.cameras[i] ? '●' : '○')).join('')} ${run.nextCamera}/${def.geometry.cameras.length} · escape gate ${run.exitOpen ? 'open' : 'locked'}`
+          : '');
       updateBust(def, run, game);
       updateNav(def, run, game);
-      const heat = $('gym-heat');
-      if (heat) {
-        heat.hidden = !isGetaway(def) || isUrban(def);
-        if (isGetaway(def) && !isUrban(def)) {
-          const pct = Math.round(run.meter * 100);
-          heat.style.setProperty('--heat', `${pct}%`);
-          heat.dataset.level = run.meter >= 0.66 ? 'high' : run.meter > 0 ? 'rising' : 'clear';
-          setText($('gym-heat-text'), `${run.time < def.pursuerTuning.delay ? 'Cop waiting' : `Cop ${Math.round(run.gap)} m`} · bust ${pct}%`);
-        }
-      }
-      const left = isUrban(def) ? def.timeLimit - run.time : Infinity;
-      setText($('gym-cones'), isUrban(def) ? (run.phase === 'running' && left <= 30 ? `${Math.ceil(left)} s left` : '')
+      const left = isGetaway(def) ? def.timeLimit - run.time : Infinity;
+      setText($('gym-cones'), isGetaway(def) ? (run.phase === 'running' && left <= 30 ? `${Math.ceil(left)} s left` : '')
         : !run.conesHit ? '' : def.kind === 'time'
           ? `${plural(run.conesHit, 'cone')} · +${run.conesHit * def.geometry.conePenalty} s` : `${plural(run.conesHit, 'cone')} hit`);
       const best = bestOf(def, game.handling.id);
       const held = medalOf(def, game.handling.id, best);
-      if (isUrban(def)) {
+      if (isGetaway(def)) {
         // What is banked this run, the destruction bonus so far (both provisional until an escape),
         // and what their total would earn on an escape now.
         const targets = chaseTargets(def, game.handling.id);
@@ -463,7 +424,7 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
         setText($('gym-medal'), `Best this visit: ${formatValue(def, game.handling.id, best)}${held ? ` · ${MEDAL_NAMES[held]}` : ''}`);
         return;
       }
-      setText($('gym-best'), `${def.experimental ? 'Best this visit' : 'Best'}: ${formatValue(def, game.handling.id, best)}`);
+      setText($('gym-best'), `${isGetaway(def) ? 'Best this visit' : 'Best'}: ${formatValue(def, game.handling.id, best)}`);
       // The medal the saved best holds, and the target for the next one up. Never a medal for
       // this run: a time only counts once the gate is crossed and its penalties are added, and a
       // score only once it is banked. So the target names what is measured, and the run itself
@@ -476,7 +437,7 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
 
     // What the banner says about a run's event: a cone has fallen.
     banner(def, event) {
-      if (isUrban(def)) {
+      if (isGetaway(def)) {
         if (event.type === 'missed') return { kind: 'lost', text: `CAM ${event.crossed} TOO SOON · GO BACK FOR CAM ${event.camera}` };
         if (event.type === 'wrongway') return { kind: 'penalty', text: `WRONG WAY · CAM ${event.camera} FILMS THE OTHER WAY` };
         if (event.type === 'smash') {
@@ -490,16 +451,6 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
             : `FOOTAGE ${event.camera}/${def.geometry.cameras.length}${event.drifting ? ' SIDEWAYS' : ''} · NEXT: CAM ${event.camera + 1}` };
         }
       }
-      if (isGetaway(def)) {
-        if (event.type === 'rolling') return { kind: 'lap', text: `CAM ${event.camera} · CAMERA ROLLING` };
-        if (event.type === 'shot') return { kind: 'banked', text: event.all ? 'GOT THE SHOT · ALL FOOTAGE · GET OUT' : `GOT THE SHOT${event.drifting ? ' · SIDEWAYS' : ''}` };
-        if (event.type === 'missed') return { kind: 'lost', text: `MISSED THE SHOT · GO BACK FOR CAM ${event.camera}` };
-        if (event.type === 'cancelled') return { kind: 'lost', text: 'MISSED THE SHOT · UPLOAD CANCELLED' };
-        if (event.type === 'locked') return { kind: 'penalty', text: `NO FOOTAGE, NO GLORY · ${event.footage}/${event.cameras} SHOTS` };
-        if (event.type === 'escaped') return { kind: 'banked', text: 'ESCAPED · THAT\'S GOING ONLINE' };
-        if (event.type === 'busted') return { kind: 'lost', text: 'BUSTED' };
-        return null;
-      }
       if (event.type !== 'cone') return null;
       return { kind: 'penalty', text: def.kind === 'time' ? `CONE +${event.penalty} S` : 'CONE HIT' };
     },
@@ -512,8 +463,8 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
       const failed = run.phase === 'failed';
       const handlingId = game.handling.id;
       const exactTime = !failed && !isGetaway(def) && needsMillisecondDisplay(def, handlingId, r.value);
-      // An experimental run settles its in-memory best once, when its sheet first shows.
-      if (def.experimental && settledRun !== game.runId) {
+      // A Getaway run settles its in-memory best once, when its sheet first shows.
+      if (isGetaway(def) && settledRun !== game.runId) {
         settledRun = game.runId;
         const key = sessionKey(def, handlingId);
         const before = sessionBest.get(key) ?? null;
@@ -521,20 +472,20 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
         sessionPrevious = before;
         if (sessionNew) sessionBest.set(key, r.value);
       }
-      const newBest = def.experimental ? sessionNew : records.newBest;
-      const previousBest = def.experimental ? sessionPrevious : records.previousBest;
+      const newBest = isGetaway(def) ? sessionNew : records.newBest;
+      const previousBest = isGetaway(def) ? sessionPrevious : records.previousBest;
       $('gymkhana-results').dataset.outcome = failed ? 'failed' : 'complete';
       $('gymkhana-results').dataset.layout = def.layout;
       setText($('gr-eyebrow'), `${def.name} · ${game.handling.name} handling`);
       setText($('gr-title'), isGetaway(def)
-        ? (failed ? (run.reason === 'busted' ? 'Busted' : /^missed camera/.test(run.reason) ? 'Upload cancelled' : 'Run failed') : isUrban(def) && def.showmanship ? 'Getaway complete' : 'Escaped')
+        ? (failed ? (run.reason === 'busted' ? 'Busted' : /^missed camera/.test(run.reason) ? 'Upload cancelled' : 'Run failed') : isGetaway(def) && def.showmanship ? 'Getaway complete' : 'Escaped')
         : failed ? 'Run failed' : r.ended === 'banked' ? 'Drift banked' : 'Complete');
-      setText($('gr-reason'), failed ? (isUrban(def) && def.showmanship && run.reason === 'busted'
+      setText($('gr-reason'), failed ? (isGetaway(def) && def.showmanship && run.reason === 'busted'
         ? `Upload cancelled: no medal and no score without an escape. ${failure(run.reason).replace(/^Busted\. /, '')}` : failure(run.reason)) : remark(def, r));
-      setText($('gr-label'), isUrban(def) && def.showmanship ? 'Showmanship' : def.kind === 'time' ? 'Time' : 'Score');
+      setText($('gr-label'), isGetaway(def) && def.showmanship ? 'Showmanship' : def.kind === 'time' ? 'Time' : 'Score');
       setText($('gr-value'), formatValue(def, handlingId, failed ? null : r.value));
       $('gr-new').hidden = !newBest;
-      const rows = isUrban(def) ? urbanRows(r, failed) : isGetaway(def) ? getawayRows(r, failed) : def.layout === 'slalom' ? slalomRows(r, failed, exactTime) : def.kind === 'time' ? precisionRows(r, exactTime) : courseRows(r, failed);
+      const rows = isGetaway(def) ? urbanRows(r, failed) : def.layout === 'slalom' ? slalomRows(r, failed, exactTime) : def.kind === 'time' ? precisionRows(r, exactTime) : courseRows(r, failed);
       const key = rows.map((row) => row.join('=')).join('|');
       if (key !== shownRows) {
         shownRows = key;
@@ -562,9 +513,9 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
       line.hidden = failed || !targets;
       if (!line.hidden) {
         const isNew = newBest && medalRank(runMedal) > medalRank(medalOf(def, handlingId, previousBest));
-        const saved = def.experimental || newBest || medalRank(medalOf(def, handlingId, best)) >= medalRank(runMedal);
+        const saved = isGetaway(def) || newBest || medalRank(medalOf(def, handlingId, best)) >= medalRank(runMedal);
         const words = runMedal
-          ? `${MEDAL_NAMES[runMedal]} medal${def.experimental ? ' (provisional)' : ''}${isNew ? ' · NEW MEDAL' : ''}${saved ? '' : ' · not saved'}`
+          ? `${MEDAL_NAMES[runMedal]} medal${isGetaway(def) ? ' (provisional)' : ''}${isNew ? ' · NEW MEDAL' : ''}${saved ? '' : ' · not saved'}`
           : 'No medal this run';
         showMedal(line, runMedal, words);
         line.dataset.new = isNew ? 'true' : 'false';
@@ -574,11 +525,11 @@ export function createGymkhanaUi({ records, onChoose, extra = [] }) {
       setText($('gr-next'), failed || !targets ? '' : from === null
         ? `${MEDAL_NAMES.bronze} takes ${targetText(def, targets.bronze)}.`
         : nextLine(def, handlingId, from));
-      setText($('gr-best'), def.experimental
-        ? (best === null ? 'No escape yet this visit. Experimental: nothing is saved.' : `Best this visit with ${game.handling.name} handling: ${formatValue(def, handlingId, best)}. Experimental: not saved.`)
+      setText($('gr-best'), isGetaway(def)
+        ? (best === null ? 'No escape yet this visit. Medals and bests reset on reload.' : `Best this visit with ${game.handling.name} handling: ${formatValue(def, handlingId, best)}. Medals and bests reset on reload.`)
         : best === null ? 'No personal best yet. Only a completed run sets one.'
           : `Personal best with ${game.handling.name} handling: ${formatMedalValue(def, handlingId, best)}`);
-      setText($('gr-records-note'), def.experimental ? '' : recordsNote());
+      setText($('gr-records-note'), isGetaway(def) ? '' : recordsNote());
     },
   };
 }
