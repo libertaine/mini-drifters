@@ -691,4 +691,7 @@ body[data-bust='busted'] #bust-vignette { opacity: 0.8; }
   #gymkhana-results[data-layout='urban'] .stats { gap: 6px 18px; }
   #gymkhana-results[data-layout='urban'] .stats .big dd { font-size: 32px; }
   #gymkhana-results[data-layout='urban'] .pitch { font-size: 16px; }
+  /* Where a wide font wraps Return to title onto a second row (hosted Firefox), each row's
+     top margin counts twice; this keeps the escaped sheet inside 600 px. */
+  #gymkhana-results[data-layout='urban'] .actions button { margin-top: 12px; }
 }
