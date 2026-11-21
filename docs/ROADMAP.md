@@ -95,9 +95,19 @@ Medal thresholds and online leaderboards remain outside this version.
 
 Version 0.6.0 adds solid environmental scenery to all three circuits: a club-racing setting for Original, a wooded hillside for Switchback, and paved concrete recovery ground at Dockyard. The existing track layouts and Classic/Power handling remain. Record identities are retained. Dockyard's chicane shortcut remains an explicitly accepted TODO. See [the release notes](RELEASE-v0.6.0.md).
 
+## Prototype 0.7: Medals, reference ghosts and Getaway (complete)
+
+Version 0.7.0 contains:
+
+- Bronze, Silver and Gold medals for all four Gymkhana challenges, separately for each handling mode, worked out from the saved personal bests. See [the Gymkhana notes](GYMKHANA.md#medals).
+- A saved reference ghost: the fastest recorded flying lap for each circuit and handling mode, kept between visits. **Options → Ghost** chooses Previous Lap, Saved Reference or Off. See [the ghost notes](GHOST.md#the-saved-reference).
+- Getaway: **Get the Footage** in Downtown and Industrial. Film four cameras, escape one pursuing cruiser and score Showmanship, with a saved best and medal for each environment and handling mode. See [the Getaway notes](GETAWAY.md).
+- A title menu reorganized into Tracks, Gymkhana and Getaway.
+
+Physics, handling and scoring are unchanged from v0.6.0. Existing circuit and Gymkhana records keep their formats and identities. See [the release notes](RELEASE-v0.7.0.md).
+
 ## Upcoming versions
 
-- **v0.7.0** integrates Gymkhana medals, persistent reference ghosts and Get the Footage, reorganizes the menus and prepares the release.
 - **v0.8.0** prototypes and evaluates Getaway Driver.
 - **v0.9.0** plans approximately two additional racing tracks.
 - **v0.10.0** focuses on technical cleanup, code review and project direction.
