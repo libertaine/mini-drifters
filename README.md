@@ -8,11 +8,9 @@ A small top-down arcade drifting game for the browser. Throw a muscle car sidewa
 
 It runs in a desktop browser with a keyboard or a standard-mapped controller. There's nothing to install and no account to create.
 
-**Current public release: [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0).** Earlier versions and their changes are on the [Releases page](https://github.com/libertaine/mini-drifters/releases).
+**Current version: v0.7.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
 
-This branch is the local v0.7.0 release candidate for owner review. The images below show the public release.
-
-![Mini Drifters title screen](docs/media/title-screen-v0.6.0.png)
+![Mini Drifters v0.7.0 title screen, with Tracks, Gymkhana and Getaway](docs/media/title-screen-v0.7.0.png)
 
 ![Mini Drifters gameplay: a drift combo through Switchback](docs/media/gameplay.gif)
 
@@ -33,7 +31,7 @@ Gymkhana and Getaway medals are derived from saved personal bests.
 
 ## Getting started
 
-1. Start the candidate [locally](#run-it-locally) and open it in a desktop browser.
+1. Open [the game](https://libertaine.github.io/mini-drifters/) in a desktop browser. To run it from a copy of this repository instead, see [Run it locally](#run-it-locally).
 2. Choose Classic or Power, then open **Tracks**, **Gymkhana** or **Getaway**. Select the circuit, challenge or mission you want to play.
 3. New to it? **How to Play** has the controls and scoring, and its **Try It** button starts a short lesson.
 
@@ -142,7 +140,7 @@ The Tracks sheet shows the saved bests for the selected track and handling (`--`
 
 - Records saved by v0.2.0 appear under Classic.
 - Scores and combos set before slow slides started paying less are shown as **legacy scoring** records, in one small line under the current bests. They aren't comparable with current scores, and no run competes with them. Fastest laps aren't affected by scoring, so each track and handling pair keeps one fastest lap, old or new.
-- v0.6.0 keeps the existing record identities, including Dockyard. Older bests remain until beaten through the normal saving process; handling modes stay separate.
+- v0.6.0 and v0.7.0 keep the existing record identities, including Dockyard. Older bests remain until beaten through the normal saving process; handling modes stay separate.
 - Records live in this browser's localStorage. They survive reloads and restarts, but clearing browser storage removes them, and they don't sync between browsers or devices.
 - If storage is unavailable or full, driving continues and a note explains that new improvements can't be saved. The displayed records stay at the last saved values.
 
@@ -192,6 +190,20 @@ npm test
 
 [The development notes](docs/DEVELOPMENT.md) cover the browser checks, the project layout, how the car model works and which tuning values matter.
 
+## Releases
+
+| Version | Highlights |
+|---|---|
+| [v0.7.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.7.0) | Gymkhana medals, saved reference ghosts, Getaway: Get the Footage, and Tracks, Gymkhana and Getaway menus |
+| [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0) | Functional environments: solid scenery on all three circuits |
+| [v0.5.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.5.0) | Dockyard, Slalom Sprint and Power wheelspin feedback |
+| [v0.4.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.4.0) | Gymkhana: Precision 180, Linked Drift and One Drift |
+| [v0.3.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.3.0) | Classic and Power handling, the practice pad and slower slides paying less |
+| [v0.2.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.2.0) | Switchback, controller support and local personal bests |
+| [v0.1.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.1.0) | First release: handbrake drifting, combos and the Original circuit |
+
+Full notes for every version are on the [Releases page](https://github.com/libertaine/mini-drifters/releases). [The roadmap](docs/ROADMAP.md) lists what each version contained.
+
 ## Documentation
 
 | Document | About |
@@ -207,6 +219,7 @@ npm test
 | [GAMEPLAY-AUDIO](docs/GAMEPLAY-AUDIO.md), [AUDIO-LAB](docs/AUDIO-LAB.md) | How the game sounds, and the development listening bench |
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |
 | [ROADMAP](docs/ROADMAP.md) | What each version contained, and what might come next |
+| [v0.7.0 release notes](docs/RELEASE-v0.7.0.md) | Medals, reference ghosts, Getaway and menus: compatibility and known limits |
 | [v0.6.0 release notes](docs/RELEASE-v0.6.0.md) | Functional environments, compatibility and known limits |
 | [R3-REVIEW](docs/R3-REVIEW.md) | The v0.5.0 scenery review and qualification record |
 
@@ -222,7 +235,7 @@ npm test
 - The track choice isn't saved. The handling choice and personal records stay local to this browser.
 - Records are saved to a new storage key from v0.3.0. If an older version is opened, it shows only the records it saved itself. Nothing is lost, and the newer version shows both.
 - Scoring was tuned for Classic. Power uses the same scoring rules, so its scores aren't comparable with Classic's, and each keeps its own records.
-- The Gymkhana challenges were sized from scripted test drives and have no medals or target times yet. Linked Drift has a higher scoring ceiling in Power than in Classic.
+- The Gymkhana challenges were sized from scripted test drives. Linked Drift has a higher scoring ceiling in Power than in Classic.
 - The Try It lesson teaches Classic only. A lesson for Power's throttle technique may come later.
 - Owner review covered controller driving and drifting on Original and Switchback; not every physical disconnect/reconnect scenario was explicitly verified.
 
