@@ -63,12 +63,12 @@ test('each challenge\'s layout and rules are pinned to its rules id', () => {
 });
 
 test('no development switch ships: the mode has no URL parameter or host check', () => {
-  for (const file of ['main.js', 'gymkhana.js', 'gymkhana-ui.js', 'gymkhana-draw.js', 'gymkhana-records.js']) {
+  for (const file of ['main.js', 'gymkhana.js', 'gymkhana-ui.js', 'gymkhana-draw.js', 'gymkhana-records.js', 'getaway-missions.js', 'getaway-urban.js']) {
     const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /URLSearchParams|location\.search|hostname|localhost|127\.0\.0\.1/, file);
   }
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /<button id="gymkhana" class="quiet" type="button">Gymkhana<\/button>/);
+  assert.match(html, /<button id="gymkhana" type="button">Gymkhana<\/button>/);
 });
 
 // --- Precision 180 ---------------------------------------------------------------------------

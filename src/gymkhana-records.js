@@ -90,6 +90,7 @@ export function createGymkhanaRecords(storageProvider = () => globalThis.localSt
   let readOnly = false;
   let session = null;
   let newBest = false;
+  let previousBest = null; // what a NEW BEST replaced: the saved best just before the write
 
   function load() {
     const store = readGymkhanaStore(storage.getItem(GYMKHANA_RECORDS_KEY));
@@ -112,12 +113,14 @@ export function createGymkhanaRecords(storageProvider = () => globalThis.localSt
     let store;
     try { store = load(); } catch { available = false; return; }
     if (readOnly) return; // a later version's data: never overwritten, never a NEW BEST
-    if (!improves(def, value, table[def.id][handlingId])) return;
+    const before = table[def.id][handlingId];
+    if (!improves(def, value, before)) return;
     try {
       storage.setItem(GYMKHANA_RECORDS_KEY, JSON.stringify(serializeGymkhana(store, def, handlingId, value)));
       table = { ...table, [def.id]: { ...table[def.id], [handlingId]: value } };
       available = true;
       newBest = true;
+      previousBest = before;
     } catch { available = false; }
   }
 
@@ -126,6 +129,9 @@ export function createGymkhanaRecords(storageProvider = () => globalThis.localSt
     get readOnly() { return readOnly; },
     // True if the run just driven saved an improvement.
     get newBest() { return newBest; },
+    // When newBest is true, the best it replaced (null if it was the first). Medals compare the
+    // two to tell a medal newly earned from one the saved record already held (medals.js).
+    get previousBest() { return newBest ? previousBest : null; },
     // The record a run competes with: seconds or points, or null for none.
     bestFor(challengeId, handlingId) {
       return known(challengeId, handlingId) ? table[challengeId][handlingId] : null;

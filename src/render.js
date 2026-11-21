@@ -8,6 +8,7 @@ import { TYRE_FX, createTyreEffectState, resetTyreEffectState, tyreEmission } fr
 import { buildDockyardScenery, drawDockyardGround, drawDockyardScenery } from './dockyard-scenery.js';
 import { sceneryFor } from './scenery.js';
 import { buildLandscape, drawLandscapeBelow, drawLandscapeAbove } from './scenery-draw.js';
+import { drawUrbanAbove, blockadeCars } from './getaway-urban-draw.js';
 
 const COLORS = {
   grass: '#3f9a47',
@@ -45,6 +46,16 @@ const GHOST_COLORS = {
   outline: '#f2fdff',
 };
 const GHOST_WHEELS = { wheelAngle: 0, brake: 0, handbrake: false };
+// Getaway Drift's police car: the same artwork in black and white.
+const POLICE_COLORS = {
+  ...COLORS,
+  body: '#f2f2ee',
+  bodyShade: '#1a1c22',
+  stripe: '#15171c',
+  glass: '#1d2c3b',
+  roof: '#f2f2ee',
+  outline: '#15171c',
+};
 const GHOST_SPRITE_SCALE = 44; // pixels per metre of the car's artwork
 
 // The title screen's poster: the real hairpin and the real car on a night-time palette.
@@ -741,8 +752,10 @@ function drawDebugContact(ctx, game, pose) {
 function drawMinimap(r, car, ghost, game) {
   const { ctx, track } = r;
   const { bounds } = track;
-  const maxW = 170;
-  const scale = Math.min(maxW / (bounds.maxX - bounds.minX), 130 / (bounds.maxY - bounds.minY));
+  // Getaway Drift in town: a larger map, with the HUD's navigation chip on it.
+  const urban = game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban';
+  const maxW = urban ? 210 : 170;
+  const scale = Math.min(maxW / (bounds.maxX - bounds.minX), (urban ? 150 : 130) / (bounds.maxY - bounds.minY));
   const w = (bounds.maxX - bounds.minX) * scale;
   const h = (bounds.maxY - bounds.minY) * scale;
   const ox = r.width - w - 16;
@@ -934,11 +947,86 @@ function drawTitleScene(r, step) {
   ctx.restore();
 }
 
+// Getaway Drift: the police car, drawn between its last two steps like the car,
+// with a light bar that flashes red and blue once the chase is on.
+function drawPolice(ctx, p, alpha, live) {
+  const x = p.prevX + (p.x - p.prevX) * alpha;
+  const y = p.prevY + (p.y - p.prevY) * alpha;
+  const heading = p.prevHeading + Math.atan2(Math.sin(p.heading - p.prevHeading), Math.cos(p.heading - p.prevHeading)) * alpha;
+  const L = CAR.length;
+  const W = CAR.width;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(CAR.drawScale, CAR.drawScale);
+  ctx.save();
+  ctx.translate(0.28, 0.38);
+  ctx.rotate(heading);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  roundedRect(ctx, -L / 2, -W / 2, L, W, 0.55);
+  ctx.fill();
+  ctx.restore();
+  ctx.rotate(heading);
+  drawCarBody(ctx, GHOST_WHEELS, POLICE_COLORS);
+  const flash = live && Math.floor(performance.now() / 160) % 2 === 0;
+  ctx.fillStyle = flash ? '#ff2b2b' : '#5a1414';
+  ctx.fillRect(-0.62, -W * 0.34, 0.42, W * 0.32);
+  ctx.fillStyle = flash || !live ? '#1b2f63' : '#2d6bff';
+  ctx.fillRect(-0.62, W * 0.02, 0.42, W * 0.32);
+  ctx.restore();
+}
+
+// When the police car is off screen, an arrow at the edge of the view points at it with its
+// distance, so a bust never comes out of nowhere.
+// `bottom` keeps the arrow clear of a panel along the bottom edge (R4B's BUST RISK meter).
+function drawPoliceMarker(r, run, pose, bottom = 0) {
+  if (run.phase !== 'running') return;
+  const { ctx, cam } = r;
+  const p = run.pursuer;
+  const sx = r.width / 2 + (p.x - cam.x) * cam.zoom;
+  const sy = r.height / 2 + (p.y - cam.y) * cam.zoom;
+  const margin = 34;
+  if (sx > margin && sx < r.width - margin && sy > margin && sy < r.height - margin - bottom) return;
+  const cx = r.width / 2;
+  const cy = (r.height - bottom) / 2;
+  const a = Math.atan2(sy - cy, sx - cx);
+  const k = Math.min(Math.abs((cx - margin) / Math.cos(a) || Infinity), Math.abs((cy - margin) / Math.sin(a) || Infinity));
+  const ex = cx + Math.cos(a) * k;
+  const ey = cy + Math.sin(a) * k;
+  const gap = Math.hypot(p.x - pose.x, p.y - pose.y);
+  ctx.save();
+  ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
+  ctx.translate(ex, ey);
+  ctx.fillStyle = gap < 30 ? '#ff5a4f' : 'rgba(255,90,79,0.7)';
+  ctx.save();
+  ctx.rotate(a);
+  ctx.beginPath();
+  ctx.moveTo(14, 0);
+  ctx.lineTo(-6, -9);
+  ctx.lineTo(-6, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.font = '700 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f6f1e4';
+  ctx.fillText(`COP ${Math.round(gap)} m`, -Math.cos(a) * 30, -Math.sin(a) * 18);
+  ctx.restore();
+}
+
 // The player's car is drawn one step behind the simulation, blending toward its
 // latest position by `alpha`, so the ghost is sampled at that same moment.
+// The selected ghost: the previous lap, the saved reference, or none. Both run on the same lap
+// clock. The reference is a flying lap, timed from the line, so it waits for the first line
+// crossing rather than racing a standing start from the grid.
 function ghostForFrame(game, pose, alpha) {
-  if (!game.ghost || !game.ghostVisible || game.state !== 'racing') return null;
-  return ghostDisplay(game.ghost, game.ghost.lapTick - 1 + alpha, pose.x, pose.y);
+  if (!game.ghost || !game.ghostVisible || game.state !== 'racing' || game.ghostSource === 'off') return null;
+  const tick = game.ghost.lapTick - 1 + alpha;
+  if (game.ghostSource === 'reference') {
+    if (game.laps.completed + game.laps.voided === 0) return null;
+    return ghostDisplay(game.ghost, tick, pose.x, pose.y, game.ghostReference);
+  }
+  return ghostDisplay(game.ghost, tick, pose.x, pose.y);
 }
 
 // Draw one frame. `alpha` blends between the last two physics steps.
@@ -981,13 +1069,19 @@ export function drawFrame(r, game, alpha, dt, debug) {
   // A gymkhana challenge paints its gates, zones and cones on its pad.
   if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game);
   drawSkids(r);
-  if (!land) drawWall(r); // a landscape draws its own perimeter, under its scenery
+  if (!land && !(game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban')) drawWall(r); // a landscape draws its own perimeter, under its scenery
   if (ghost) drawGhost(r, ghost);
+  // Getaway Drift in town: the parked police cars of a blockade, lights on.
+  const urban = game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban' && game.challenge ? game.challengeDef : null;
+  if (urban) for (const c of blockadeCars(urban.geometry.city)) drawPolice(ctx, { prevX: c.x, x: c.x, prevY: c.y, y: c.y, prevHeading: c.heading, heading: c.heading }, 1, true);
+  if (game.challenge?.pursuer) drawPolice(ctx, game.challenge.pursuer, blend, game.state === 'racing' && !game.paused);
   drawCar(ctx, car, pose);
   drawSmoke(r);
-  if (land) drawLandscapeAbove(ctx, land, view);
+  if (urban) drawUrbanAbove(ctx, urban, game.challenge, view, performance.now() / 1000);
+  else if (land) drawLandscapeAbove(ctx, land, view);
   else if (!yard) drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
+  if (game.challenge?.pursuer) drawPoliceMarker(r, game.challenge, pose, urban ? 96 : 0);
   drawMinimap(r, car, ghost, game);
 }

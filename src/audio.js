@@ -14,6 +14,7 @@ import { AUDIO_TUNING, createAudioState, engineParams, readTelemetry, resetAudio
 import { cleanVolume, readAudioPreferences, volumeGain, writeAudioPreferences, writeMuted } from './audio-preferences.js';
 import { MUSIC_FADE_MS, MUSIC_LEVEL, RadioPlayer, loadTrack } from './radio.js';
 import { RADIO_OFF, STATIONS, stationById } from './radio-stations.js';
+import { SMASH_SFX, playSmash } from './getaway-sfx.js';
 
 const RESUME_DEADLINE_MS = 8000;
 const LOAD_DEADLINE_MS = 12000;
@@ -68,6 +69,28 @@ export class GameAudio {
     this.audioState = createAudioState(tuning);
     this.sinceApply = Infinity;
     this.applied = null;
+    this.smashes = { played: 0, dropped: 0, silent: 0 };
+  }
+
+  // Getaway Drift (experimental, R4C): one short synthesized smash for a broken fruit stand or
+  // barricade (getaway-sfx.js). It goes into the master bus, so the gate (mute, pause, focus, the
+  // finish fade, a restart's dip) and the effects volume apply to it as to the engine. Only while
+  // live; at most SMASH_SFX.maxVoices sound at once, and another is dropped, never queued.
+  smash(kind) {
+    this.guard(() => {
+      const s = this.session;
+      if (!s || this.mode !== 'live' || s.ctx.state !== 'running' || this.effectsVolume === 0 || !SMASH_SFX[kind]) { this.smashes.silent += 1; return; }
+      const now = s.ctx.currentTime;
+      s.smashVoices = (s.smashVoices ?? []).filter((v) => v.end > now);
+      if (s.smashVoices.length >= SMASH_SFX.maxVoices) { this.smashes.dropped += 1; return; }
+      s.smashVoices.push(playSmash(s.ctx, s.master, kind));
+      this.smashes.played += 1;
+    });
+  }
+
+  stopSmashes(s = this.session) {
+    for (const voice of s?.smashVoices ?? []) voice.stop();
+    if (s) s.smashVoices = [];
   }
 
   // --- What the game calls --------------------------------------------------
@@ -96,6 +119,7 @@ export class GameAudio {
   // A new run, from Enter, the Start button or R. Also a user gesture.
   newRun(game) {
     this.guard(() => {
+      this.stopSmashes();
       resetAudioState(this.audioState, this.tuning);
       this.applied = null;
       this.sinceApply = Infinity;
@@ -308,6 +332,7 @@ export class GameAudio {
     this.mode = next;
     const s = this.session;
     if (!s) return;
+    if (changed && next !== 'live') this.stopSmashes(s);
     if (next === 'live' || this.musicWanted()) {
       this.clearSuspend(s);
       // A context made inside a gesture may already be running, so the first
@@ -480,6 +505,7 @@ export class GameAudio {
   }
 
   teardown(s) {
+    this.stopSmashes(s);
     this.session = null; // invalidates every asynchronous completion still pending
     s.abort.abort();
     this.clearSuspend(s);

@@ -1,3 +1,5 @@
+import { startTrackWithEnter } from './support/track-menu.mjs';
+import { openTracks } from './support/track-menu.mjs';
 // Real-browser check using real key presses. The game has no dependencies; this
 // check needs Playwright, either installed here or at a path you pass in:
 //   npm install --no-save --no-package-lock playwright@1.64.1 && npm run test:browser
@@ -120,7 +122,7 @@ async function check(name, engine) {
       window.addEventListener('keydown', (e) => { window.__prevented[e.code] = e.defaultPrevented; });
     });
 
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     assert.equal((await snapshot(page)).state, 'ready');
     assert.ok(await visible(page, 'hud'));
     await page.waitForTimeout(600);
@@ -298,6 +300,7 @@ async function check(name, engine) {
     await page.setViewportSize({ width: 1024, height: 600 });
     await page.reload();
     await page.waitForFunction(() => window.__miniDrifters);
+    await openTracks(page);
     await page.locator('#start').scrollIntoViewIfNeeded();
     assert.ok(await page.locator('#start').isVisible());
     await page.locator('#start').click();

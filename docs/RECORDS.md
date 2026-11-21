@@ -25,7 +25,7 @@ not: scoring changes leave the car, the circuits and lap validity alone.
 The current id is `SCORING_VERSION` in `src/scoring.js`. Any change to the points a
 drive earns needs a new id there, never new numbers under an old one. Runs only ever
 compete with records from their own scoring version: legacy scores and combos are
-read-only history. The title shows them in one small line under the current bests
+read-only history. The Tracks sheet shows them in one small line under the current bests
 ("Legacy scoring: score 15,420 · combo 2,400") when there are any; they are never
 labelled NEW BEST and no run can beat or change them. There is no option to play with
 the old rules.
@@ -44,6 +44,7 @@ the old rules.
   and their pad is not a circuit the keeper accepts.
 - Gymkhana challenges never establish any of these records. They keep their own, under
   their own storage key: see [the Gymkhana notes](GYMKHANA.md#records).
+- Getaway runs never establish any of these records, laps or reference ghosts. Getaway keeps its own bests under their own storage key: see [Getaway records](#getaway-records).
 - The run's handling mode is fixed when it starts. Every event names it, and an event
   naming another mode, run or track than the run's start is ignored.
 - Ties do not improve a record. Zero is a valid score/combo; null means no record.
@@ -154,9 +155,14 @@ write. If initial access/read fails, storage is unavailable for that page visit.
 Later read/write failures leave saved data intact and can retry at another record
 boundary. If a write fails,
 the previous saved snapshot stays visible and the improvement is not marked NEW BEST;
-a later qualifying improvement can retry. A note on the title/results explains the
+a later qualifying improvement can retry. A note on the Tracks or results sheet explains the
 failure. Gameplay continues; no temporary records are presented as saved.
 Existing sound and radio preference keys are untouched.
+
+The saved reference ghost (v0.7.0) keeps its recordings under a key of its own,
+`mini-drifters-ghosts-v1`, and never reads or writes any records key. A lap is saved there
+only after this keeper has handled the same lap, and is labelled a personal best only if it
+set the fastest-lap record. See [the ghost notes](GHOST.md#the-saved-reference).
 
 ## Human acceptance
 
@@ -171,7 +177,7 @@ save appears under Classic.
 1. On Original, confirm all three bests show --. Press Right to Switchback, check
    its heading/placeholders, then Left back. Repeat with a standard-mapped controller's
    D-pad after connecting, focusing the page, pressing a button and releasing controls.
-2. Start using Enter or controller A. Drive normally with arrows/Space or stick/RT/LT/A.
+2. Open Tracks and start the selected circuit using Enter or controller A. Drive normally with arrows/Space or stick/RT/LT/A.
    Finish three valid laps with banked drift points. Check existing results and remark
    remain present; all three first records have NEW BEST. Note the exact result values.
 3. Return to Title (controller B or the button). Check the three saved values. Reload,
@@ -206,3 +212,18 @@ the corrected results after the shortcut and voided-lap fixes (#18 and #19). The
 modes (#21) keep them per handling mode, in schema 2. The low-speed scoring fade keeps
 score and combo per scoring version as well, in schema 3, with every earlier record kept
 as legacy scoring.
+
+## Getaway records
+
+Getaway bests (`src/getaway-records.js`) use their own localStorage key, `mini-drifters-getaway-v1`, schema 1:
+
+```json
+{ "version": 1,
+  "missions": { "<missionId>": { "<environmentId>": { "<handlingId>": { "<rulesId>": { "best": 854 } } } } } }
+```
+
+- **Identity.** `missionId` is the mission's id (`get-the-footage`), `environmentId` its environment (`downtown`, `industrial`) and `handlingId` the handling id (`classic`, `revised`; Power is shown for `revised`). Display names are never used. `rulesId` is the environment's rules id plus the drift scoring version (for example `getaway-r4c-downtown-…-recover-120+scoring-2`), as for Gymkhana score challenges, so a later rules or scoring change starts new records instead of reclassifying old ones.
+- **Qualification.** Only the run's own `challenge` event, naming the started run, environment and handling, with `completed: true` (every camera filmed, then the escape gate), can set a record. Its value is the Showmanship (banked drift + destruction bonus).
+- **Best.** The highest whole-number Showmanship from 0 to 1,000,000 is kept (a run can't score above about 51,000). Ties and lower scores write nothing. Zero is a record; `null` is no record.
+- **Medals** are derived from the best with the environment's accepted targets and never stored. A stored medal field would be ignored.
+- **Robustness.** The key is re-read before each comparison, so another tab's bests are kept. Nothing is written on load. Unparseable or shapeless data, or an unknown older version, is ignored and replaced by the next qualifying write. Invalid values (negative, fractional, too large, wrongly typed) are ignored. Missions, environments, modes, rules ids and fields this version doesn't know are carried through every write untouched. An integer version above 1 is never written, shown or claimed as `NEW BEST`. If storage can't be opened, read or written (including quota), play continues and the sheets say improvements can't be saved. No other key is read, written, migrated or cleared.

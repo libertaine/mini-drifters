@@ -1,3 +1,4 @@
+import { openTracks, startTrackWithEnter } from './support/track-menu.mjs';
 // The title screen, How to Play and the shared menus in real browsers: real keys, real
 // clicks and real pixels, served the same way as on GitHub Pages. Needs Playwright:
 //   node test/menus-browser.mjs [/path/to/playwright/index.mjs]
@@ -36,7 +37,7 @@ const ORIGIN = new URL(BASE).origin;
 
 const SIZES = [[1920, 1080], [1366, 768], [1024, 600]];
 const NO_KEYS = { up: false, down: false, left: false, right: false, handbrake: false };
-const TITLE_CONTROLS = ['#start', '#practice', '#gymkhana', '#how-to-play', '#menu .options-open'];
+const TITLE_CONTROLS = ['#tracks-open', '#gymkhana', '#getaway', '#how-to-play', '#menu .options-open'];
 
 const visible = (page, id) => page.locator(`#${id}`).isVisible();
 const game = (page) => page.evaluate(() => {
@@ -164,7 +165,7 @@ async function check(name, engine) {
     assert.equal((await page.locator('.title').textContent()).replace(/\s+/g, ' '), 'MINI DRIFTERS');
     assert.equal(await page.locator('.tagline').textContent(), 'ONE OVERPOWERED CAR. ZERO GOOD IDEAS.');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'GYMKHANA', 'HOW TO PLAY', 'OPTIONS']);
+    assert.deepEqual(words, ['TRACKS', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']);
     // Personal bests add lap/combo names, not driving instructions. Verify that
     // panel explicitly, then retain the original instruction checks everywhere else.
     assert.deepEqual(await page.locator('.personal-bests dt').allTextContents(), ['Best score', 'Fastest lap', 'Best combo']);
@@ -177,7 +178,6 @@ async function check(name, engine) {
     assert.doesNotMatch(summary, /\blaps?\b/i);
     const shown = await page.locator('#menu').evaluate((menu) => {
       const title = menu.cloneNode(true);
-      title.querySelector('.personal-bests').remove();
       title.querySelector('#handling-summary').remove();
       return title.textContent;
     });
@@ -198,8 +198,8 @@ async function check(name, engine) {
         assert.ok(button.reachable, `${button.selector} is covered at ${width}x${height}`);
         assert.equal(overlaps(button, layout.sound), false, `${button.selector} meets Sound`);
       }
-      assert.equal(overlaps(layout.buttons[1], layout.buttons[2]), false, 'Practice pad and Gymkhana have separate bounds');
-      assert.ok(Math.abs(layout.buttons[1].top - layout.buttons[2].top) < 1, 'Practice pad and Gymkhana share a row');
+      assert.equal(overlaps(layout.buttons[3], layout.buttons[4]), false, 'How to Play and Options have separate bounds');
+      assert.ok(Math.abs(layout.buttons[3].top - layout.buttons[4].top) < 1, 'How to Play and Options share a row');
       assert.ok(layout.buttons[0].top >= layout.tagline.bottom, 'the menu sits under the title');
       assert.ok(layout.buttons.every((b) => b.right <= width * 0.5), 'the menu stays on the left');
       // The car is the focal point: whole, clear of the panel and large in the frame. Its
@@ -215,13 +215,13 @@ async function check(name, engine) {
     step('at 1920x1080, 1366x768 and 1024x600 nothing clips, overlaps or scrolls, and the whole car is the focal point');
 
     // --- Focus and keys on the title ------------------------------------------------
-    assert.equal(await focused(page), 'start', 'Start is selected from the first frame');
+    assert.equal(await focused(page), 'tracks-open', 'Start is selected from the first frame');
     assert.ok(await focusRing(page), 'and shows it');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'practice');
+    assert.equal(await focused(page), 'gymkhana');
     assert.ok(await focusRing(page), 'the selection shows while walking the menu');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'gymkhana', 'Gymkhana shares Practice pad\'s row and is the next stop');
+    assert.equal(await focused(page), 'getaway');
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('ArrowDown');
@@ -231,7 +231,7 @@ async function check(name, engine) {
     assert.equal(await focusedHandling(page), 'classic', 'Down wraps to the top: the handling choice');
     assert.ok(await focusRing(page), 'with a visible focus');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'start');
+    assert.equal(await focused(page), 'tracks-open');
     await page.keyboard.press('ArrowUp');
     assert.equal(await focusedHandling(page), 'classic', 'Up from Start reaches the handling choice');
     await page.keyboard.press('ArrowUp');
@@ -240,13 +240,13 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
-    assert.equal(await focused(page), 'start');
+    assert.equal(await focused(page), 'tracks-open');
     assert.deepEqual((await game(page)).input, NO_KEYS, 'menu arrows are not pedals');
 
     await page.keyboard.press('Tab');
-    assert.equal(await focused(page), 'practice');
-    await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'gymkhana');
+    await page.keyboard.press('Tab');
+    assert.equal(await focused(page), 'getaway');
     await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('Tab');
@@ -259,11 +259,11 @@ async function check(name, engine) {
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
-    assert.equal(await focused(page), 'start');
+    assert.equal(await focused(page), 'tracks-open');
     await page.keyboard.press('Shift+Tab');
     assert.equal(await focusedHandling(page), 'classic', 'Shift+Tab from Start reaches the handling choice');
     await page.keyboard.press('Tab');
-    assert.equal(await focused(page), 'start');
+    assert.equal(await focused(page), 'tracks-open');
     for (const key of ['KeyR', 'KeyP', 'KeyG', 'KeyD', 'ArrowLeft', 'ArrowRight']) await page.keyboard.press(key);
     const idle = await game(page);
     assert.equal(idle.state, 'menu');
@@ -271,6 +271,8 @@ async function check(name, engine) {
     assert.equal(idle.ticks, 0);
     assert.deepEqual(idle.input, NO_KEYS);
     step('Up, Down and Tab walk the menu with a visible focus, and game keys do nothing here');
+
+    await page.locator('#tracks-open').focus();
 
     // --- How to Play --------------------------------------------------------------------
     await page.keyboard.press('ArrowDown');
@@ -372,7 +374,7 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowDown');
     assert.equal(await focusedHandling(page), 'classic');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'start');
+    assert.equal(await focused(page), 'tracks-open');
     step('Options opens from the title and closes back to the button it came from');
 
     await page.keyboard.press('KeyN');
@@ -387,9 +389,9 @@ async function check(name, engine) {
 
     // --- Every way to start a run ------------------------------------------------------
     for (const [how, press] of Object.entries({
-      'Enter': (p) => p.keyboard.press('Enter'),
-      'Space on the focused button': (p) => p.keyboard.press('Space'),
-      'the mouse': (p) => p.locator('#start').click(),
+      'Enter': (p) => startTrackWithEnter(p),
+      'Space on the focused button': async (p) => { await p.keyboard.press('Space'); await p.keyboard.press('Space'); },
+      'the mouse': async (p) => { await openTracks(p); await p.locator('#start').click(); },
     })) {
       page = await open();
       await press(page);
@@ -413,7 +415,7 @@ async function check(name, engine) {
 
     // --- Pause and results ---------------------------------------------------------------
     page = await open();
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await page.keyboard.press('KeyP');
     assert.ok(await visible(page, 'paused'));
     assert.match(await page.locator('#paused').innerText(), /carry on/);

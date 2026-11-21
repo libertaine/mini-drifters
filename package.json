@@ -1,6 +1,6 @@
 {
   "name": "mini-drifters",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "A tiny browser-based arcade drifting game. Slide through corners, chain drifts, and chase your best score.",
@@ -14,6 +14,7 @@
     "test:coyote:browser": "node test/coyote-browser.mjs",
     "test:gameplay-audio:browser": "node test/gameplay-audio-browser.mjs",
     "test:ghost:browser": "node test/ghost-browser.mjs",
+    "test:reference-ghost:browser": "node test/reference-ghost-browser.mjs",
     "test:menus:browser": "node test/menus-browser.mjs",
     "test:radio:browser": "node test/radio-browser.mjs",
     "test:tutorial:browser": "node test/tutorial-browser.mjs",
@@ -21,8 +22,13 @@
     "test:scoring:browser": "node test/scoring-browser.mjs",
     "test:handling:browser": "node test/handling-browser.mjs",
     "test:gymkhana:browser": "node test/gymkhana-browser.mjs",
+    "test:medals:browser": "node test/medals-browser.mjs",
     "test:dockyard-slalom:browser": "node test/dockyard-slalom-browser.mjs",
     "test:wheelspin:browser": "node test/wheelspin-browser.mjs",
-    "test:environment:browser": "node test/environment-browser.mjs"
+    "test:environment:browser": "node test/environment-browser.mjs",
+    "test:categories:browser": "node test/categories-browser.mjs",
+    "test:getaway:browser": "node test/getaway-urban-browser.mjs",
+    "test:showmanship:browser": "node test/getaway-showmanship-browser.mjs",
+    "test:getaway-records:browser": "node test/getaway-records-browser.mjs"
   }
 }

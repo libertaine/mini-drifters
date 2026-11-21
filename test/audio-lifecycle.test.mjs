@@ -591,7 +591,8 @@ test('audio holds a read-only view of the game: any write would throw', () => {
 });
 
 test('audio code does not import the simulation or its tuning', () => {
-  const files = ['audio.js', 'audio-preferences.js', 'audio-telemetry.js', 'audio-voices.js', 'coyote.js', 'coyote-model.js', 'radio.js', 'radio-stations.js'];
+  // getaway-sfx.js: Getaway Drift's synthesized smash sounds (experimental, R4C), an audio module.
+  const files = ['audio.js', 'audio-preferences.js', 'audio-telemetry.js', 'audio-voices.js', 'coyote.js', 'coyote-model.js', 'radio.js', 'radio-stations.js', 'getaway-sfx.js'];
   const banned = /from '\.\/(tuning|physics|scoring|laps|track|game|render|main)\.js'/;
   for (const file of files) assert.doesNotMatch(readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8'), banned, file);
   // The simulation knows nothing about audio, and game.js has no browser audio.
@@ -603,4 +604,53 @@ test('audio code does not import the simulation or its tuning', () => {
 
 test('physics tuning has no audio values and audio tuning is separate', () => {
   assert.equal(Object.keys(TUNING).some((key) => /audio|rpm|squeal/i.test(key)), false);
+});
+
+// R4C: the effects share the existing gate and volume path, and are cancelled rather
+// than frozen for replay when that gate closes.
+test('smash effects: distinct finite recipes finish and disconnect every generated node', async () => {
+  const {SMASH_SFX,playSmash,smashLength}=await import('../src/getaway-sfx.js');
+  assert.notDeepEqual(SMASH_SFX.fruit,SMASH_SFX.barricade);
+  for(const kind of ['fruit','barricade']) {
+    const ctx=new FakeContext();ctx.currentTime=5;
+    const voice=playSmash(ctx,ctx.destination,kind);
+    assert.equal(voice.end,5+smashLength(kind));assert.ok(voice.end<5.5);
+    assert.equal(ctx.nodes.filter(n=>n.started).length,SMASH_SFX[kind].length);
+    for(const n of ctx.nodes.filter(n=>n.started))n.onended?.();
+    assert.ok(ctx.nodes.every(n=>n.disconnected>0),'all source, envelope, filter and output nodes disconnect');
+    voice.stop();voice.stop();
+  }
+});
+test('smash effects: voices are capped, expire without a queue, and leave engine and tire voices alone', async () => {
+  const env=await startDriving(setup());const {audio,contexts}=env,ctx=contexts[0];
+  const persistent=audio.snapshot().sourceCount;
+  for(let i=0;i<12;i++)audio.smash(i%2?'fruit':'barricade');
+  assert.equal(audio.smashes.played,3);assert.equal(audio.smashes.dropped,9);assert.equal(audio.session.smashVoices.length,3);
+  assert.equal(audio.snapshot().sourceCount,persistent);
+  ctx.currentTime+=1;audio.smash('fruit');assert.equal(audio.smashes.played,4);assert.equal(audio.session.smashVoices.length,1);
+  audio.dispose();
+});
+test('smash effects: pause, mute, page hide, restart, finish and disposal cancel every old voice', async () => {
+  for(const transition of ['pause','mute','hidden','restart','finish','dispose']) {
+    const env=await startDriving(setup());const {audio,game}=env;
+    audio.smash('fruit');const s=audio.session;
+    const nodes=s.ctx.nodes.slice(-21).filter(n=>n.started); // fruit source nodes are among the latest graph nodes
+    assert.equal(s.smashVoices.length,1);
+    if(transition==='pause'){game.paused=true;audio.update(game,1/60);}
+    if(transition==='mute')audio.setMuted(true,game);
+    if(transition==='hidden')audio.setPageActive(false,game);
+    if(transition==='restart')audio.newRun(game);
+    if(transition==='finish'){game.state='finished';audio.update(game,1/60);}
+    if(transition==='dispose')audio.dispose();
+    assert.equal(s.smashVoices.length,0,transition);assert.ok(nodes.every(n=>n.disconnected>0),transition);
+    assert.equal(audio.smashes.played,1,'nothing queued for resume');audio.dispose();
+  }
+});
+test('smash effects: mute and zero effects volume create no impact nodes; volume uses existing effects bus', async () => {
+  const env=await startDriving(setup());const {audio,game}=env,ctx=audio.session.ctx;
+  audio.setEffectsVolume(25);assert.equal(audio.session.effects.gain.value,0.0625);
+  audio.smash('fruit');assert.equal(audio.smashes.played,1);
+  audio.setEffectsVolume(0);const n=ctx.nodes.length;audio.smash('barricade');assert.equal(ctx.nodes.length,n);
+  audio.setMuted(true,game);audio.smash('fruit');assert.equal(ctx.nodes.length,n);
+  assert.equal(audio.smashes.silent,2);audio.dispose();
 });

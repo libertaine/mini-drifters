@@ -1,3 +1,4 @@
+import { openTracks, chooseTracks, startTrackWithEnter } from './support/track-menu.mjs';
 // Handling modes and the practice pad in Chromium and Firefox, on the real page: the two public
 // modes (Classic, and Power with the stable id `revised`); choosing a mode with keyboard, mouse
 // and a mocked controller; the last choice remembered across reloads, and anything else falling
@@ -32,6 +33,9 @@ const base = `http://127.0.0.1:${server.address().port}/`;
 // Records are written to schema 3 only: score and combo by scoring version, a shared lap. The
 // older keys (schema 2 and v0.2.0's) are only read; their scores and combos are legacy scoring.
 const KEY = 'mini-drifters-records-v3';
+// From v0.7.0 a circuit run's flying laps also save the reference ghost, under its own key.
+const GHOST_KEY = 'mini-drifters-ghosts-v1';
+const RUN_KEYS = [GHOST_KEY, KEY].sort();
 const V2_KEY = 'mini-drifters-records-v2';
 const LEGACY_KEY = 'mini-drifters-records';
 const entry3 = (fastestLap = null, current = [null, null], legacy = [null, null]) => ({ fastestLap, scoring: {
@@ -127,14 +131,14 @@ async function check(name, engine) {
     assert.deepEqual(await page.locator('#handlings label').allTextContents(), ['Classic', 'Power'], 'only the two public modes');
     assert.deepEqual(await page.locator('#handlings input').evaluateAll((i) => i.map((x) => x.value)), ['classic', 'revised'], 'Power keeps the id revised');
     assert.equal(await pref(), null, 'a first visit saves no preference just by loading');
-    assert.deepEqual(await page.locator('.title-menu button').evaluateAll((b) => b.map((x) => x.childNodes[0].textContent.trim())), ['Start driving', 'Practice pad', 'Gymkhana', 'How to play', 'Options']);
+    assert.deepEqual(await page.locator('.title-menu button').evaluateAll((b) => b.map((x) => x.childNodes[0].textContent.trim())), ['Tracks', 'Gymkhana', 'Getaway', 'How to play', 'Options']);
     for (const [w, h] of [[1920, 1080], [1366, 768], [1024, 600]]) {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForTimeout(150); // the resize event that refits the title, as menus-browser waits
       await frames();
       const fit = await value(() => {
         const menu = document.getElementById('menu');
-        const parts = [...document.querySelectorAll('.title, .track-select, .handling-select, .handling-summary, .personal-bests, .title-menu button, #controller-note')];
+        const parts = [...document.querySelectorAll('.title, .handling-select, .handling-summary, .title-menu button, #controller-note')];
         const out = parts.filter((el) => { const r = el.getBoundingClientRect(); return r.left < 0 || r.top < 0 || r.right > innerWidth / 2 || r.bottom > innerHeight; }).map((el) => el.className || el.id);
         const labels = [...document.querySelectorAll('#handlings label')].every((l) => { const r = l.getBoundingClientRect(); return l.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); });
         return { scrolls: menu.scrollHeight > menu.clientHeight, out, labels };
@@ -149,13 +153,13 @@ async function check(name, engine) {
     ok('title: Classic and Power only, Classic chosen, menu and records heading name the mode, fits 1024x600 to 1920x1080');
 
     // --- 2. Keyboard ------------------------------------------------------------------
-    assert.equal(await focused(), 'start');
+    assert.equal(await focused(), 'tracks-open');
     await page.keyboard.press('KeyH');
     s = await status();
     assert.equal(s.selected, 'revised');
     assert.match(s.heading, /Original · Power/);
     assert.equal(s.summary, 'Break rear traction with throttle. More control, more consequences.');
-    assert.equal(await focused(), 'start', 'H changes the mode without moving focus');
+    assert.equal(await focused(), 'tracks-open', 'H changes the mode without moving focus');
     assert.equal(await pref(), 'revised', 'and the choice is saved');
     await page.keyboard.press('Shift+KeyH');
     assert.equal((await status()).selected, 'classic', 'Shift+H goes back');
@@ -171,15 +175,18 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowLeft');
     assert.equal((await status()).selected, 'revised', 'wraps backwards');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(), 'start');
+    assert.equal(await focused(), 'tracks-open');
+    await chooseTracks(page);
     await page.keyboard.press('ArrowRight');
     s = await status();
-    assert.equal(s.track, 'switchback', 'away from the handling choice, Left/Right still change the track');
+    assert.equal(s.track, 'switchback', 'Left/Right on the Tracks sheet change the track');
     assert.equal(s.selected, 'revised');
     assert.match(s.heading, /^Switchback · Power/);
     await page.keyboard.press('ArrowLeft');
     assert.deepEqual(await value(() => window.__miniDrifters.game.ticks), 0, 'no keys drove the car on the title');
     ok('keyboard: H / Shift+H, Up to the choice, Left/Right on it, track keys unchanged elsewhere');
+
+    await page.keyboard.press('Escape');
 
     // --- 3. Mouse -----------------------------------------------------------------------
     await page.locator('#handlings label', { hasText: 'Power' }).click();
@@ -192,8 +199,8 @@ async function check(name, engine) {
 
     // --- 4. A run keeps its mode ----------------------------------------------------------
     await page.keyboard.press('KeyH'); // Power
-    await page.locator('#start').focus();
-    await page.keyboard.press('Enter');
+    await chooseTracks(page);
+    await startTrackWithEnter(page);
     await frames();
     s = await status();
     assert.equal(s.state, 'ready');
@@ -231,7 +238,7 @@ async function check(name, engine) {
     await frames();
     assert.equal((await status()).state, 'menu');
     await page.locator('#handlings label', { hasText: 'Classic' }).click();
-    await page.locator('#start').click();
+    await chooseTracks(page); await page.locator('#start').click();
     await frames();
     s = await status();
     assert.equal(s.handling, 'classic');
@@ -247,7 +254,7 @@ async function check(name, engine) {
     // --- 5. Practice pad ------------------------------------------------------------------
     await page.locator('#handlings label', { hasText: 'Power' }).click();
     const before = await writes();
-    await page.locator('#practice').click();
+    await openTracks(page); await page.locator('#practice').click();
     await frames();
     s = await status();
     assert.deepEqual([s.kind, s.gameTrack, s.handling, s.state, s.ghost], ['practice', 'practice-pad', 'revised', 'ready', null]);
@@ -289,7 +296,7 @@ async function check(name, engine) {
     assert.equal(await records(), null, 'and no records exist');
     // Keyboard only: Down from Start, then Enter or Space, opens the pad (Enter once started a circuit run).
     for (const key of ['Enter', 'Space']) {
-      await page.locator('#start').focus();
+      await chooseTracks(page);
       await page.keyboard.press('ArrowDown');
       assert.equal(await focused(), 'practice');
       await page.keyboard.press(key);
@@ -328,8 +335,8 @@ async function check(name, engine) {
     assert.equal(await prefWrites(), prefBefore, 'the lesson saved no preference');
     assert.deepEqual(await writes(), before, 'and no records');
     // The next circuit run drives the chosen mode again.
-    await page.locator('#start').focus();
-    await page.keyboard.press('Enter');
+    await chooseTracks(page);
+    await startTrackWithEnter(page);
     await frames();
     s = await status();
     assert.deepEqual([s.state, s.kind, s.handling, s.chip], ['ready', 'normal', 'revised', 'Power'], 'after the lesson, a run drives Power');
@@ -345,7 +352,7 @@ async function check(name, engine) {
     assert.equal(await records(), null, 'nothing saved yet');
     for (const [mode, label] of [['revised', 'Power'], ['classic', 'Classic']]) {
       await page.locator('#handlings label', { hasText: label }).click();
-      await page.locator('#start').click();
+      await chooseTracks(page); await page.locator('#start').click();
       await frames();
       s = await status();
       assert.equal(s.handling, mode);
@@ -379,14 +386,14 @@ async function check(name, engine) {
     assert.deepEqual(saved.tracks.switchback.revised, entry3());
     assert.ok(!(await writes()).includes(LEGACY_KEY), 'the v0.2.0 key was never written');
     assert.ok(!(await writes()).includes(V2_KEY), 'nor the schema 2 key');
-    assert.deepEqual(await writes(), [KEY]);
+    assert.deepEqual((await writes()).sort(), RUN_KEYS);
     // The title shows each pair's own values.
     const pb = async () => value(() => [document.getElementById('records-heading').textContent, document.getElementById('pb-lap').textContent]);
     await page.locator('#handlings label', { hasText: 'Power' }).click();
     const revisedTitle = await pb();
     await page.locator('#handlings label', { hasText: 'Classic' }).click();
     const classicTitle = await pb();
-    await page.locator('#start').focus(); // away from the mode choice, Right changes the track
+    await chooseTracks(page);
     await page.keyboard.press('ArrowRight'); // Switchback: nothing driven there in either mode
     assert.deepEqual(await pb(), ['Switchback · Classic — Personal bests', '--']);
     await page.keyboard.press('KeyH');
@@ -395,6 +402,7 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowLeft');
     assert.notEqual(revisedTitle[1], classicTitle[1]);
     assert.match(revisedTitle[0], /Original · Power/);
+    await page.keyboard.press('Escape');
     ok(`records by mode: Power ${revisedTitle[1]}, Classic ${classicTitle[1]}, Switchback -- in both; only ${KEY} written`);
 
     // --- 6b. The last chosen mode is remembered ------------------------------------------
@@ -411,7 +419,7 @@ async function check(name, engine) {
     assert.equal(s.summary, 'Break rear traction with throttle. More control, more consequences.');
     assert.equal((await pb())[1], revisedTitle[1], 'with its own records');
     assert.equal(await prefWrites(), 0, 'restoring the choice saved nothing');
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await frames();
     s = await status();
     assert.deepEqual([s.state, s.kind, s.handling, s.chip, s.ghost], ['ready', 'normal', 'revised', 'Power', ids.revised], 'Enter drives the restored mode');
@@ -434,7 +442,7 @@ async function check(name, engine) {
       assert.match(s.heading, /^Original · Classic/);
       assert.equal(await pref(), bad, 'and is not rewritten just for loading');
       if (bad === 'tuned') {
-        await page.keyboard.press('Enter');
+        await startTrackWithEnter(page);
         await frames();
         s = await status();
         assert.deepEqual([s.state, s.kind, s.handling], ['ready', 'normal', 'classic'], 'a saved Tuned Power choice still starts a game');
@@ -460,9 +468,10 @@ async function check(name, engine) {
     assert.ok(await value(() => document.activeElement.classList.contains('controller-focus')));
     await page.screenshot({ path: shot(`${name}-controller-focus`) });
     await press(13);
-    assert.equal(await focused(), 'start');
+    assert.equal(await focused(), 'tracks-open');
+    await press(0);
     await press(15);
-    assert.equal((await status()).track, 'switchback', 'on Start, D-pad Right is still the track');
+    assert.equal((await status()).track, 'switchback', 'D-pad Right changes the track on its sheet');
     await press(14);
     await press(13);
     assert.equal(await focused(), 'practice');
@@ -473,7 +482,8 @@ async function check(name, engine) {
     assert.ok(await visible('#paused'));
     await page.locator('#paused .return-title').click();
     await frames();
-    await press(0); // focus is back on the title; A on Start
+    await press(0); // Open Tracks again.
+    await press(0); // Start.
     s = await status();
     assert.deepEqual([s.kind, s.handling, s.state], ['normal', 'revised', 'ready']);
     await press(9);
@@ -494,13 +504,14 @@ async function check(name, engine) {
     await page.keyboard.press('KeyH');
     assert.deepEqual(await pbAll(), ['Original · Power — Personal bests', '--', '--', '--', ''], 'v0.2.0 records are Classic only');
     await page.keyboard.press('KeyH');
+    await chooseTracks(page);
     await page.keyboard.press('ArrowRight');
     assert.deepEqual(await pbAll(), ['Switchback · Classic — Personal bests', '--', '0:52.08', '--', ''], 'missing records stay missing');
     assert.equal(await records(), null, 'loading wrote nothing');
     assert.deepEqual(await writes(), [], 'nothing at all');
     await page.screenshot({ path: shot(`${name}-migrated-v020`) });
     // A Classic lap better than v0.2.0's Switchback lap is a new best, saved to the new key only.
-    await page.locator('#start').click();
+    await chooseTracks(page); await page.locator('#start').click();
     await frames();
     assert.deepEqual([(await status()).gameTrack, (await status()).handling], ['switchback', 'classic']);
     assert.equal(await value((d) => window.__drive(d, 'finished', 400), 'gripDriver'), 'finished');
@@ -513,7 +524,7 @@ async function check(name, engine) {
     assert.deepEqual(migrated.tracks.original.classic, entry3(47.31, [null, null], [15420, 0]), 'the v0.2.0 Original records were copied forward exactly, as legacy scoring');
     assert.deepEqual(migrated.tracks.switchback.revised, entry3());
     assert.equal(await value((k) => localStorage.getItem(k), LEGACY_KEY), V020, 'the v0.2.0 key is byte-for-byte untouched');
-    assert.deepEqual(await writes(), [KEY]);
+    assert.deepEqual((await writes()).sort(), RUN_KEYS);
     await page.locator('#results .return-title').click();
     await frames();
     ok('v0.2.0 save: legacy scoring under Classic only, zero shown as 0, missing as --, lap shared, copied forward on a new best, old key untouched');
@@ -525,9 +536,10 @@ async function check(name, engine) {
     assert.match(await page.locator('#records-note').textContent(), /newer version/);
     assert.deepEqual(await pbAll(), ['Original · Classic — Personal bests', '--', '0:47.31', '--', 'Legacy scoring: score 15,420 · combo 0'], 'shows the v0.2.0 records it can still read');
     // The same Switchback run that just beat 52.08 s would be a new best again; it must not be.
+    await chooseTracks(page);
     await page.keyboard.press('ArrowRight');
     assert.deepEqual(await pbAll(), ['Switchback · Classic — Personal bests', '--', '0:52.08', '--', '']);
-    await page.locator('#start').click();
+    await chooseTracks(page); await page.locator('#start').click();
     await frames();
     assert.equal(await value((d) => window.__drive(d, 'finished', 400), 'gripDriver'), 'finished');
     await frames();
@@ -542,11 +554,12 @@ async function check(name, engine) {
     // --- 10. The physics lab's query parameters do nothing in the game -----------------------
     await open('?lab&setup=1&physics=revised&pad=1&extras=1&migration-fixture=reset');
     assert.equal(await visible('.handling-select'), true);
+    await chooseTracks(page);
     assert.equal(await visible('#practice'), true);
     assert.equal(await visible('#lab-panel'), false);
     assert.deepEqual(await page.locator('#handlings label').allTextContents(), ['Classic', 'Power'], 'no lab-only or retired mode');
     assert.equal(await value((k) => localStorage.getItem(k), KEY), later, 'no fixture reset');
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await frames();
     s = await status();
     assert.deepEqual([s.kind, s.handling, s.gameTrack], ['normal', 'classic', 'original']);
@@ -564,7 +577,7 @@ async function check(name, engine) {
       assert.equal(await p2.evaluate(() => window.__miniDrifters.selectedHandling()), 'classic', 'no storage: Classic');
       await p2.keyboard.press('KeyH');
       assert.equal(await p2.evaluate(() => window.__miniDrifters.selectedHandling()), 'revised', 'the choice still works for this visit');
-      await p2.keyboard.press('Enter');
+      await startTrackWithEnter(p2);
       await p2.waitForFunction(() => window.__miniDrifters.game.state === 'ready', null, { polling: 50 });
       assert.equal(await p2.evaluate(() => window.__miniDrifters.game.handling.id), 'revised', 'and a run drives it');
     } finally {
