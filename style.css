@@ -617,6 +617,18 @@ body[data-bust='busted'] #bust-vignette { opacity: 0.8; }
 .stations.ghost-sources { grid-template-columns: repeat(3, 1fr); }
 .ghost-sources .station span { padding: 9px 4px; letter-spacing: 0.05em; white-space: nowrap; }
 .ghost-note { min-height: 2.9em; margin-bottom: 0; }
+/* With the ghost choice, Options is the tallest small sheet. At 1024x600 a fallback font with
+   tall line metrics (Firefox on Linux) pushes Done 16 px off the window, so only the spacing
+   between rows tightens here; every control, text size and line keeps its size. */
+@media (max-height: 620px) {
+  #options .options-warning { margin-top: 6px; }
+  #options h2:not(.sheet-title) { margin: 10px 0 6px; }
+  #options .options-section { margin-top: 10px; }
+  #options .radio-note { margin: 6px 0 2px; }
+  #options .ghost-note { margin-bottom: 0; }
+  #options .volume { margin-top: 6px; }
+  #options .actions button { margin-top: 12px; }
+}
 
 .stats { margin: 14px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; }
 .stats div { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--rule); padding-bottom: 5px; gap: 10px; }

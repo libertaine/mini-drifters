@@ -78,12 +78,17 @@ for(const [name,engine]of [['chromium',chromium],['firefox',firefox]].filter(([n
  const chip=await page.evaluate(async()=>{const n=await import('/src/getaway-nav.js'),g=window.__miniDrifters.game;return n.cueText(g.challenge,n.cueForGame(g),g.challengeDef.geometry.cameras);});assert.equal(await page.locator('#nav-call').textContent(),chip.call);
  for(const variant of ['downtown','industrial']){await open(variant,'revised');assert.equal(await page.evaluate(()=>window.__miniDrifters.game.handling.id),'revised');const r=await page.evaluate(()=>window.__drive());assert.equal(r.ended,'escaped');evidence.push({browser:name,variant,handling:'revised',result:r});}
  // Trigger real effects through main.js and the actual effects path.
- await open();await page.click('#sound');try { await page.waitForFunction(()=>window.__miniDrifters.audio().contextState==='running',null,{timeout:12000,polling:50}); } catch(e) { console.log('REALTIME FAILURE',name,JSON.stringify(await page.evaluate(()=>window.__miniDrifters.audio())),JSON.stringify(errors));throw e; }
+ // Linux Firefox with no output device: resume never settles, so the game reports the bounded
+ // failure instead of playing (as radio-browser and gameplay-audio-browser expect). The impacts,
+ // bonuses, no-repeat and pause still have to work; each impact then counts as silent, not played.
+ await open();await page.click('#sound');try { await page.waitForFunction(()=>{const a=window.__miniDrifters.audio();return a.contextState==='running'||a.failure;},null,{timeout:15000,polling:50}); } catch(e) { console.log('REALTIME FAILURE',name,JSON.stringify(await page.evaluate(()=>window.__miniDrifters.audio())),JSON.stringify(errors));throw e; }
+ const failure=await page.evaluate(()=>window.__miniDrifters.audio().failure),realtime=!failure,heard=realtime?'played':'silent';
+ if(!realtime){assert.equal(name,'firefox');assert.equal(process.platform,'linux');assert.match(failure,/did not start/);assert.equal(await page.locator('#sound').textContent(),'Sound Unavailable');}
  for(const kind of ['fruit','barricade']){
-  await key('KeyR');await page.waitForTimeout(400);const before=await page.evaluate(()=>window.__miniDrifters.smashSounds().played);
-  const hit=await page.evaluate(k=>window.__smash(k),kind);assert.equal(hit.hit?.by,'car');assert.equal(hit.combo,true);assert.equal(hit.sounds.played,before+1);
+  await key('KeyR');await page.waitForTimeout(400);const before=await page.evaluate(h=>window.__miniDrifters.smashSounds()[h],heard);
+  const hit=await page.evaluate(k=>window.__smash(k),kind);assert.equal(hit.hit?.by,'car');assert.equal(hit.combo,true);assert.equal(hit.sounds[heard],before+1);
   assert.equal(hit.bonus,kind==='fruit'?150:250);await shot(`smash-${kind}`);
-  await page.evaluate(()=>window.__frames(20));assert.equal(await page.evaluate(()=>window.__miniDrifters.smashSounds().played),before+1,'debris never repeats');
+  await page.evaluate(()=>window.__frames(20));assert.equal(await page.evaluate(h=>window.__miniDrifters.smashSounds()[h],heard),before+1,'debris never repeats');
   await key('KeyP');const t=await page.evaluate(()=>window.__miniDrifters.game.challenge.time);await page.evaluate(()=>window.__frames(20));assert.equal(await page.evaluate(()=>window.__miniDrifters.game.challenge.time),t);await key('KeyP');
  }
  await key('KeyR');await page.evaluate(()=>{const e=document.getElementById('effects-volume');e.value='0';e.dispatchEvent(new Event('input',{bubbles:true}));});
@@ -106,7 +111,7 @@ for(const [name,engine]of [['chromium',chromium],['firefox',firefox]].filter(([n
  });
  assert.ok(sound.fruit.rms>.001&&sound.barricade.rms>.001);assert.notEqual(sound.fruit.checksum,sound.barricade.checksum);assert.ok(Math.abs(sound.quarter.rms/sound.fruit.rms-.0625)<.00001);assert.equal(sound.off.rms,0);assert.equal(sound.cancel.rms,0);assert.ok(sound.fruit.peak<1&&sound.barricade.peak<1);evidence.push({browser:name,sound});
  const writes=await page.evaluate(()=>window.__writes.filter(k=>/^mini-drifters-(records|gymkhana|ghosts)/.test(k)));assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
- console.log(`${name}: all R4C checks passed (12 HUD layouts, 12 result layouts, two live impacts, mute/volume/pause, offline audio signal and storage isolation)`);
+ console.log(`${name}: all R4C checks passed (12 HUD layouts, 12 result layouts, ${realtime?'two live impacts':'two impacts on the silent path (no real-time output device)'}, mute/volume/pause, offline audio signal and storage isolation)`);
  }finally{await browser.close();}
 }
 await writeFile(new URL('artifacts/results/r4c-browser-evidence.json',root),JSON.stringify(evidence,null,2));

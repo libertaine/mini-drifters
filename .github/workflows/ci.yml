@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    # Run 3 measures only; run 2 (44833769606) holds the full matrix.
+    # Run 4 measures only; run 2 (44833769606) holds the full matrix.
     if: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -115,11 +115,11 @@ jobs:
           retention-days: 30
 
 
-  options-geometry:
-    # Diagnostic only: where the Options sheet's height goes in this container's Firefox and
-    # Chromium, with the current CSS and with a proposed compact-spacing rule injected.
+  results-geometry:
+    # Diagnostic only: every Getaway results layout in this container's Firefox, measured with the
+    # current CSS and with two candidate rules applied to this job's own checkout.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --user 1001
@@ -130,101 +130,57 @@ jobs:
           node-version: 24
       - name: Install Playwright
         run: npm install --no-save --no-package-lock playwright@1.64.1
-      - name: Fonts this container resolves
+      - name: Write the patcher and the candidate rules
         run: |
-          for f in "Trebuchet MS" "Segoe UI" Verdana sans-serif Impact Haettenschweiler "Arial Narrow Bold" "Liberation Sans Narrow" "DejaVu Sans Condensed"; do echo "$f -> $(fc-match "$f")"; done
-      - name: Write the measurement script and the proposed CSS
-        run: |
-          mkdir -p artifacts/geometry/current artifacts/geometry/proposed
-          cat > measure.mjs <<'MEASURE_EOF'
-          // Measure the Options sheet the way reference-ghost-browser step 18 does, with an optional
-          // Linux-like font emulation (DejaVu Sans for --body, DejaVu Sans Condensed for --poster/--display).
-          // usage: node measure-options.mjs <repo root> [native|linux|both] [shotDir]
-          import http from 'node:http';
-          import { readFile } from 'node:fs/promises';
-          import { extname, join } from 'node:path';
-          import { pathToFileURL } from 'node:url';
-
-          const root = process.argv[2];
-          const modes = (process.argv[3] ?? 'both') === 'both' ? ['native', 'linux'] : [process.argv[3]];
-          const shotDir = process.argv[4];
-          const { chromium, firefox } = await import('playwright');
-          const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.png': 'image/png' };
-          const server = http.createServer(async (req, res) => {
-            const path = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/mini-drifters\//, '/');
-            const file = path.endsWith('/') ? path + 'index.html' : path;
-            try { const body = await readFile(join(root, file)); res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' }); res.end(body); }
-            catch { res.writeHead(404); res.end(); }
-          });
-          await new Promise((r) => server.listen(0, '127.0.0.1', r));
-          const BASE = `http://127.0.0.1:${server.address().port}/mini-drifters/`;
-          const EXTRA = process.env.EXTRA_CSS ? (await readFile(process.env.EXTRA_CSS, 'utf8')) : '';
-          const LINUX = ':root{--body:"DejaVu Sans",sans-serif !important;--poster:"DejaVu Sans Condensed",sans-serif !important;--display:"DejaVu Sans Condensed",sans-serif !important}';
-          const NOTE = 'Dockyard · Classic: saved reference, 0:29.57. Your best lap, 0:12.34, has no recording. It joins you from lap 2.';
-
-          for (const [name, engine] of [['chromium', chromium], ['firefox', firefox]]) {
-            const browser = await engine.launch();
-            for (const mode of modes) {
-              const page = await browser.newPage({ viewport: { width: 1024, height: 600 } });
-              await page.goto(BASE);
-              await page.waitForFunction(() => window.__miniDrifters, null, { timeout: 30000 });
-              if (mode === 'linux') await page.addStyleTag({ content: LINUX });
-              if (EXTRA) await page.addStyleTag({ content: EXTRA });
-              await page.locator('#sound').click();
-              for (const [width, height] of [[1024, 600], [1366, 768], [1920, 1080]]) {
-                await page.setViewportSize({ width, height });
-                await page.keyboard.press('KeyO');
-                await page.waitForTimeout(120);
-                const m = await page.evaluate((note) => {
-                  const o = document.getElementById('options');
-                  if (o.hidden) return { open: false };
-                  document.getElementById('ghost-note').textContent = note;
-                  const muted = document.getElementById('options-muted');
-                  const sheet = o.querySelector('.sheet').getBoundingClientRect();
-                  const parts = [...o.querySelectorAll('#options button, #options input, #ghost-sources span, #ghost-note, #options-muted')]
-                    .filter((el) => el.getClientRects().length)
-                    .flatMap((el) => {
-                      const t = el.matches('input') ? el.closest('label') : el;
-                      const r = t.getBoundingClientRect();
-                      return r.left < 0 || r.top < 0 || r.right > innerWidth || r.bottom > innerHeight || (el.matches('span') && el.scrollWidth > el.clientWidth + 1)
-                        ? [`${el.id || el.textContent?.slice(0, 20) || el.name} ${Math.round(r.top)}-${Math.round(r.bottom)}`] : [];
-                    });
-                  const close = document.getElementById('options-close').getBoundingClientRect();
-                  const rows = [...o.querySelector('.sheet').children].map((c) => `${c.id || c.className || c.tagName}:${Math.round(c.getBoundingClientRect().top)}-${Math.round(c.getBoundingClientRect().bottom)}`);
-                  return { open: true, muted: !muted.hidden, sheet: `${Math.round(sheet.top)}-${Math.round(sheet.bottom)} h${Math.round(sheet.height)}`, close: `${Math.round(close.top)}-${Math.round(close.bottom)}`, out: parts, rows: innerHeight === 600 ? rows : undefined };
-                }, NOTE);
-                console.log(`${name} ${mode} ${width}x${height}`, JSON.stringify(m));
-                if (shotDir) await page.screenshot({ path: `${shotDir}/${name}-${mode}-${width}x${height}.png` });
-                await page.keyboard.press('Escape');
-                await page.waitForTimeout(80);
-              }
-              await page.close();
-            }
-            await browser.close();
-          }
-          server.close();
-          MEASURE_EOF
-          cat > proposed.css <<'CSS_EOF'
+          cat > soften.mjs <<'PATCH_EOF'
+          // Diagnostic only: copy the Showmanship suite with its results-sheet assertion turned into a log line.
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const [src, dest] = process.argv.slice(2);
+          const strict = "const b=await bounds('results');assert.ok(inside(b.sheet,width,height),`${name} results sheet ${JSON.stringify(b)}`);assert.ok(b.controls.every(c=>inside(c,width,height)));";
+          const soft = "const b=await bounds('results');console.log('RESULTS',name,failed?'failed':'success',fallback?'fallback':'native',width+'x'+height,'sheet',b.sheet.y.toFixed(1)+'-'+(b.sheet.y+b.sheet.h).toFixed(1),'h'+b.sheet.h.toFixed(1),'fits',inside(b.sheet,width,height)&&b.controls.every(c=>inside(c,width,height)),'controls',JSON.stringify(b.controls.map(c=>[Math.round(c.y),Math.round(c.y+c.h)])));";
+          const text = readFileSync(src, 'utf8');
+          if (!text.includes(strict)) throw new Error('results assertion not found');
+          writeFileSync(dest, text.replace(strict, soft));
+          console.log('patched');
+          PATCH_EOF
+          cat > results-A.css <<'CSS_EOF'
           @media (max-height: 620px) {
-            #options .options-warning { margin-top: 6px; }
-            #options h2 { margin: 10px 0 6px; }
-            #options .options-section { margin-top: 10px; }
-            #options .radio-note { margin: 6px 0 2px; }
-            #options .ghost-note { margin-bottom: 0; }
-            #options .volume { margin-top: 6px; }
-            #options .actions button { margin-top: 12px; }
+            #gymkhana-results[data-layout='urban'] .actions button { margin-top: 12px; }
           }
           CSS_EOF
-      - name: Options geometry with the current CSS
-        run: node measure.mjs "$PWD" native artifacts/geometry/current
-      - name: Options geometry with the proposed rule injected
-        run: EXTRA_CSS=proposed.css node measure.mjs "$PWD" native artifacts/geometry/proposed
+          cat > results-B.css <<'CSS_EOF'
+          @media (max-height: 620px) {
+            #gymkhana-results[data-layout='urban'] .actions button { margin-top: 12px; }
+            #gymkhana-results[data-layout='urban'] .pitch { margin: 4px 0 2px; }
+            #gymkhana-results[data-layout='urban'] .medal-result { margin-top: 2px; }
+          }
+          CSS_EOF
+          node soften.mjs test/getaway-showmanship-browser.mjs test/zz-soft-showmanship.mjs
+          cp style.css style.current.css
+      - name: Results layouts with the current CSS
+        if: ${{ !cancelled() }}
+        run: |
+          cp style.current.css style.css
+          node test/zz-soft-showmanship.mjs "" firefox
+          mkdir -p geometry/current && cp artifacts/screens-r4c/firefox-*-*.png geometry/current/
+      - name: Results layouts with candidate A
+        if: ${{ !cancelled() }}
+        run: |
+          cat style.current.css results-A.css > style.css
+          node test/zz-soft-showmanship.mjs "" firefox
+          mkdir -p geometry/A && cp artifacts/screens-r4c/firefox-*-*.png geometry/A/
+      - name: Results layouts with candidate B
+        if: ${{ !cancelled() }}
+        run: |
+          cat style.current.css results-B.css > style.css
+          node test/zz-soft-showmanship.mjs "" firefox
+          mkdir -p geometry/B && cp artifacts/screens-r4c/firefox-*-*.png geometry/B/
       - name: Keep the geometry evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: options-geometry
-          path: artifacts/geometry/
+          name: results-geometry
+          path: geometry/
           retention-days: 30
 
   deploy:
