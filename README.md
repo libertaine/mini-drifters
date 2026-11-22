@@ -1,18 +1,18 @@
 # Mini Drifters
 
+![Mini Drifters title screen](docs/media/title_screen.png)
+
 **One overpowered car. Zero good ideas.**
 
 A small top-down arcade drifting game for the browser. Throw a muscle car sideways with the handbrake, keep it there, and earn points for the trouble.
+
+![Animated Mini Drifters gameplay preview](docs/media/mini_drifter1.gif)
 
 ## [▶ Play Mini Drifters](https://libertaine.github.io/mini-drifters/)
 
 It runs in a desktop browser with a keyboard or a standard-mapped controller. There's nothing to install and no account to create.
 
 **Current version: v0.7.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
-
-![Mini Drifters v0.7.0 title screen, with Tracks, Gymkhana and Getaway](docs/media/title-screen-v0.7.0.png)
-
-![Mini Drifters gameplay: a drift combo through Switchback](docs/media/gameplay.gif)
 
 ## What's in it
 
