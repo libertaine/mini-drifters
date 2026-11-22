@@ -14,7 +14,13 @@ import { HANDLING_MODES, handlingById } from './handling.js';
 import { readHandlingPreference, writeHandlingPreference } from './handling-preferences.js';
 import { padTrack } from './practice-pad.js';
 import { createGymkhanaRecords } from './gymkhana-records.js';
-import { createGymkhanaUi } from './gymkhana-ui.js';
+import { createGymkhanaUi, hideBust } from './gymkhana-ui.js';
+import { GYMKHANA_CHALLENGES } from './gymkhana.js';
+import { GETAWAY_MISSIONS } from './getaway-missions.js';
+import { createGetawayRecords } from './getaway-records.js';
+import { createGhostStore } from './ghost-store.js';
+import { createReferenceGhosts, slotState } from './reference-ghost.js';
+import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -28,12 +34,22 @@ const LESSON_TRACK_ID = 'original';
 const LESSON_HANDLING = handlingById('classic');
 
 // Records are kept per track and handling mode (records.js). The gymkhana challenges keep
-// their own, per challenge and handling mode, under their own key (gymkhana-records.js).
+// their own, per challenge and handling mode, under their own key (gymkhana-records.js), and
+// Getaway its own, per mission, environment and handling mode (getaway-records.js).
 const records = createRecords();
 const gymkhanaRecords = createGymkhanaRecords();
+const getawayRecords = createGetawayRecords();
+// The saved reference ghost keeps one flying lap per track and mode under its own key
+// (ghost-store.js). It hears each event after the records, so it can tell whether a lap has
+// just set the fastest-lap record (reference-ghost.js).
+const referenceGhosts = createReferenceGhosts({ store: createGhostStore(),
+  bestLapFor: (trackId, handlingId) => records.forTrack(trackId, handlingId).fastestLap });
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
   gymkhanaRecords.handle(event);
+  getawayRecords.handle(event);
+  referenceGhosts.handle(event);
+  if (event.type === 'start' || event.type === 'ghost') showReference();
   showPersonalBests();
 } });
 // The title's poster is Original's hairpin, whichever circuit is chosen for driving.
@@ -72,7 +88,7 @@ function stepTrack(direction) {
 }
 
 // --- Handling ----------------------------------------------------------------
-// The mode for the next run, chosen only on the title. Unlike the track it is remembered: a
+// The mode for the next run, chosen on the title or its selection sheets. Unlike the track it is remembered: a
 // first visit starts on Classic, and later visits on the mode last chosen (handling-preferences.js).
 // A run takes its mode when it starts and keeps it through restarts and Drive again.
 function browserStorage() {
@@ -107,7 +123,8 @@ function selectHandling(id, { remember = true } = {}) {
   for (const input of handlingInputs) input.checked = input.value === id;
   setText('handling-summary', handlingById(id).summary);
   showPersonalBests();
-  if (gymkhanaOpen) showGymkhanaMenu();
+  if (picker === 'tracks') showTracksHandling();
+  if (challengePicker()) showGymkhanaMenu();
 }
 
 function stepHandling(direction) {
@@ -117,6 +134,78 @@ function stepHandling(direction) {
 }
 
 const selectedHandling = () => handlingById(selectedHandlingId);
+
+// --- Ghost -------------------------------------------------------------------
+// Which ghost a circuit run shows, chosen in Options and remembered like the handling mode. G
+// still only shows or hides the chosen one. The lesson, the pad and the gymkhana have none.
+const GHOST_CHOICES = [
+  { id: 'previous', name: 'Previous lap' },
+  { id: 'reference', name: 'Saved reference' },
+  { id: 'off', name: 'Off' },
+];
+game.ghostSource = readGhostPreference(preferenceStorage);
+
+const ghostInputs = GHOST_CHOICES.map((choice) => {
+  const label = document.createElement('label');
+  label.className = 'station';
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'ghost-source';
+  input.value = choice.id;
+  input.setAttribute('aria-describedby', 'ghost-note');
+  const name = document.createElement('span');
+  name.textContent = choice.name;
+  label.append(input, name);
+  $('ghost-sources').append(label);
+  input.addEventListener('change', () => selectGhostSource(choice.id));
+  return input;
+});
+
+function selectGhostSource(id) {
+  if (!GHOST_CHOICES.some((c) => c.id === id)) return;
+  game.ghostSource = id;
+  writeGhostPreference(preferenceStorage, id); // only ever on the player's own choice
+  showGhostStatus();
+  showGhostOptions();
+}
+
+// The reference this run may show, handed to the renderer. Only a lap the store accepted.
+function showReference() {
+  game.ghostReference = referenceGhosts.recording;
+  showGhostStatus();
+  if (optionsOpen) showGhostOptions();
+}
+
+const circuitRun = () => game.state !== 'menu' && game.mode === 'normal' && !tutorial;
+
+// A sentence on what the chosen ghost will do, for the run in progress or, on the title, for
+// the selected track and mode.
+function ghostNote() {
+  if (game.state !== 'menu' && !circuitRun()) return 'Ghosts are only shown on circuit runs, never in lessons, practice or Gymkhana.';
+  if (game.ghostSource === 'previous') return 'Races your last clean lap of this run. Press G to hide or show it.';
+  if (game.ghostSource === 'off') return 'No ghost is shown. Clean laps still update your saved reference.';
+  const trackId = circuitRun() ? game.track.id : selectedTrackId;
+  const handlingId = circuitRun() ? game.handling.id : selectedHandlingId;
+  const slot = circuitRun() ? referenceGhosts.slot : referenceGhosts.peek(trackId, handlingId);
+  const best = records.forTrack(trackId, handlingId).fastestLap;
+  const where = `${trackById(trackId).name} · ${handlingById(handlingId).name}`;
+  const state = slotState(slot, best);
+  if (state === 'best') return `${where}: saved personal best, ${formatTime(slot.lapTime)}. It joins you from lap 2.`;
+  if (state === 'reference') {
+    const unrecorded = best !== null && best < slot.lapTime ? ` Your best lap, ${formatTime(best)}, has no recording.` : '';
+    return `${where}: saved reference, ${formatTime(slot.lapTime)}.${unrecorded} It joins you from lap 2.`;
+  }
+  if (state === 'incompatible') return `${where}: the saved lap was driven under older physics, so it isn't shown. Your next clean lap after lap 1 replaces it.`;
+  if (state === 'corrupt') return `${where}: the saved lap couldn't be read. Your next clean lap after lap 1 replaces it.`;
+  if (state === 'newer' || state === 'unsupported') return `${where}: the saved lap is from a newer version of Mini Drifters. It is kept, but can't be shown or replaced here.`;
+  if (state === 'unavailable') return 'Ghost storage is unavailable, so laps can\'t be saved or loaded. Previous lap still works.';
+  return `${where}: no saved reference yet. Your first clean lap after lap 1 is saved.`;
+}
+
+function showGhostOptions() {
+  for (const input of ghostInputs) input.checked = input.value === game.ghostSource;
+  setText('ghost-note', ghostNote());
+}
 
 // --- Sound -----------------------------------------------------------------
 const soundButton = $('sound');
@@ -201,6 +290,7 @@ function clearInput() {
 // gymkhana records only to 'gymkhana'.
 
 function beginRun() {
+  picker = null;
   doneOpen = false;
   tutorial = null;
   startRun(game, { track: trackById(selectedTrackId), handling: selectedHandling() });
@@ -212,6 +302,7 @@ function beginRun() {
 
 // The practice pad: the selected mode on open asphalt. No ghost, no laps, no records.
 function beginPractice() {
+  picker = null;
   doneOpen = false;
   tutorial = null;
   startRun(game, { track: padTrack(), mode: 'practice', ghost: false, handling: selectedHandling() });
@@ -221,53 +312,93 @@ function beginPractice() {
   audio.newRun(game);
 }
 
-// --- Gymkhana ----------------------------------------------------------------
-// The title's Gymkhana button opens a sheet where one challenge is chosen and started. A
-// gymkhana session is game.mode 'gymkhana': the selected handling mode on the challenge's own
-// pad, with no laps or ghost. Its run ends the session, completed or failed, on a results sheet
-// of its own. The challenge, like the track, is not saved: a new visit starts on the first.
-let gymkhanaOpen = false;
-let gymkhanaOpener = null;
-const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, onChoose: () => showGymkhanaMenu() });
+// The category sheets share the same keyboard and controller navigation as Gymkhana.
+const PICKER_SHEETS = {
+  tracks: 'tracks-menu', challenges: 'gymkhana-menu',
+  missions: 'getaway-menu', environments: 'gymkhana-menu',
+};
+const CATEGORY_BUTTON = { tracks: 'tracks-open', challenges: 'gymkhana', missions: 'getaway' };
+let picker = null;
+let mission = null;
+const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, onChoose: () => showGymkhanaMenu() });
 const inGymkhana = () => game.mode === 'gymkhana' && game.state !== 'menu';
+const inGetaway = () => inGymkhana() && game.challengeDef.layout === 'urban';
+const challengePicker = () => picker === 'challenges' || picker === 'environments';
+const pickerSheet = () => $(PICKER_SHEETS[picker]);
+
+const missionButtons = GETAWAY_MISSIONS.map((entry) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = entry.id;
+  button.textContent = entry.title;
+  const descriptionId = entry.id + '-description';
+  button.setAttribute('aria-describedby', descriptionId);
+  const text = document.createElement('p');
+  text.id = descriptionId;
+  text.className = 'pitch';
+  text.textContent = entry.description;
+  const choice = document.createElement('div');
+  choice.append(button, text);
+  $('getaway-missions').append(choice);
+  button.addEventListener('click', () => openPicker('environments', entry));
+  return button;
+});
+
+function showTracksHandling() {
+  setText('tracks-handling', selectedHandling().name + ' handling.' + (instructionDevice === 'keyboard' ? ' Press H to change it.' : ''));
+}
 
 function showGymkhanaMenu() {
   gymkhana.showMenu(selectedHandling(), instructionDevice);
 }
 
-function openGymkhana(opener = null) {
-  if (gymkhanaOpen || game.state !== 'menu') return;
-  gymkhanaOpen = true;
-  gymkhanaOpener = opener;
-  clearInput();
-  showGymkhanaMenu();
+function openPicker(level, selectedMission = null) {
+  if (game.state !== 'menu') return;
+  picker = level;
+  mission = selectedMission;
+  if (challengePicker()) {
+    const getaway = picker === 'environments';
+    $('gymkhana-menu').dataset.category = getaway ? 'getaway' : 'gymkhana';
+    setText('gymkhana-title', getaway ? mission.title : 'Gymkhana');
+    setText('challenge-category', getaway ? 'Getaway · Choose an environment' : 'Short challenges on open asphalt');
+    gymkhana.setChoices(getaway ? mission.environments : GYMKHANA_CHALLENGES);
+    showGymkhanaMenu();
+  }
+  if (picker === 'tracks') showTracksHandling();
   syncScreens();
-  $('gymkhana-start').focus();
+  const first = {
+    tracks: $('start'), challenges: $('gymkhana-start'), missions: missionButtons[0], environments: $('gymkhana-start'),
+  };
+  first[picker].focus();
 }
 
-function closeGymkhana({ restoreFocus = true } = {}) {
-  if (!gymkhanaOpen) return;
-  gymkhanaOpen = false;
+function closePicker({ restoreFocus = true } = {}) {
+  if (picker === 'environments') {
+    const button = $(mission.id);
+    openPicker('missions');
+    settleFocus(button, restoreFocus);
+    return;
+  }
+  const opener = $(CATEGORY_BUTTON[picker]);
+  picker = null;
   syncScreens();
-  settleFocus(gymkhanaOpener, restoreFocus);
-  gymkhanaOpener = null;
+  settleFocus(opener, restoreFocus);
 }
 
-// Left and Right on the sheet. Focus follows only if it was already on the choice.
 function stepChallenge(direction) {
   gymkhana.step(direction);
   showGymkhanaMenu();
   if (gymkhana.inputs.includes(document.activeElement)) gymkhana.inputs.find((input) => input.checked).focus();
 }
 
-// The sheet's Up/Down stops: the chosen challenge, then its buttons.
-function gymkhanaStops() {
+function pickerStops() {
+  if (picker === 'tracks') return [trackInputs.find((input) => input.checked), $('start'), $('practice'), $('tracks-back')];
+  if (picker === 'missions') return [...missionButtons, $('getaway-back')];
   return [gymkhana.inputs.find((input) => input.checked), $('gymkhana-start'), $('gymkhana-back')];
 }
 
 function beginGymkhana() {
-  gymkhanaOpen = false;
-  gymkhanaOpener = null;
+  picker = null;
   doneOpen = false;
   tutorial = null;
   startRun(game, { mode: 'gymkhana', ghost: false, handling: selectedHandling(), challenge: gymkhana.selected() });
@@ -315,8 +446,8 @@ function startTutorial() {
 // is back in the state it opens in.
 function leaveSession() {
   tutorial = null;
-  gymkhanaOpen = false;
-  gymkhanaOpener = null;
+  picker = null;
+  mission = null;
   optionsOpen = false;
   optionsOpener = null;
   helpOpen = false;
@@ -331,16 +462,16 @@ function leaveSession() {
 }
 
 function returnToTitle() {
-  // Leaving a challenge lands on the button that leads back to the challenges.
-  const button = inGymkhana() ? $('gymkhana') : $('start');
+  const button = inGetaway() ? $('getaway') : inGymkhana() ? $('gymkhana') : $('tracks-open');
   leaveSession();
   button.focus();
 }
 
-// From a challenge's results, straight back to the sheet the challenge was chosen on.
+// Results and Back can return to the selection for the run that just ended.
 function changeChallenge() {
+  const chosenMission = mission;
   leaveSession();
-  openGymkhana($('gymkhana'));
+  openPicker(chosenMission ? 'environments' : 'challenges', chosenMission);
 }
 
 function finishTutorial() {
@@ -376,6 +507,7 @@ function openOptions(opener = null) {
   optionsOpen = true;
   optionsOpener = opener;
   clearInput();
+  showGhostOptions();
   syncScreens();
   (stationInputs.find((input) => input.checked) ?? stationInputs[0]).focus();
 }
@@ -420,9 +552,7 @@ function titleStops() {
   return [mode, ...document.querySelectorAll('.title-menu button')].filter((el) => el && el.getClientRects().length);
 }
 
-// Up and Down walk the title's menu, wrapping at the ends.
-function moveMenuFocus(direction) {
-  const buttons = titleStops();
+function moveMenuFocus(buttons, direction) {
   const current = buttons.indexOf(document.activeElement);
   const next = current < 0 ? (direction > 0 ? 0 : buttons.length - 1) : (current + direction + buttons.length) % buttons.length;
   buttons[next].focus();
@@ -466,30 +596,29 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
-  // The Gymkhana sheet: Left and Right choose the challenge, Up and Down walk its controls,
-  // H changes the handling mode as on the title, and Enter starts.
-  if (gymkhanaOpen) {
+  if (picker) {
     const plain = !(e.ctrlKey || e.metaKey || e.altKey);
-    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
-      e.preventDefault(); // the radio group's own arrow keys would move the choice twice
+    const horizontal = e.code === 'ArrowRight' ? 1 : e.code === 'ArrowLeft' ? -1 : 0;
+    const vertical = e.code === 'ArrowDown' ? 1 : e.code === 'ArrowUp' ? -1 : 0;
+    if (horizontal || vertical) {
+      e.preventDefault();
       if (e.repeat) return;
-      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') stepChallenge(e.code === 'ArrowRight' ? 1 : -1);
-      else {
-        const stops = gymkhanaStops();
-        const current = stops.indexOf(document.activeElement);
-        const direction = e.code === 'ArrowDown' ? 1 : -1;
-        stops[current < 0 ? (direction > 0 ? 0 : stops.length - 1) : (current + direction + stops.length) % stops.length].focus();
-      }
+      if (horizontal && picker === 'tracks') stepTrack(horizontal);
+      else if (horizontal && challengePicker()) stepChallenge(horizontal);
+      else moveMenuFocus(pickerStops(), vertical || horizontal);
     } else if (e.repeat) {
-      e.preventDefault(); // a key held from the button that opened this mustn't press Start
+      e.preventDefault();
     } else if (e.code === 'Escape') {
       e.preventDefault();
-      closeGymkhana();
+      closePicker();
     } else if (e.code === 'KeyH' && plain) {
       stepHandling(e.shiftKey ? -1 : 1);
+    } else if (e.code === 'KeyO' && plain) {
+      openOptions(document.activeElement);
     } else if (e.code === 'Enter' && plain && !(e.target instanceof HTMLButtonElement)) {
       e.preventDefault();
-      beginGymkhana();
+      if (picker === 'tracks') beginRun();
+      else if (challengePicker()) beginGymkhana();
     }
     return;
   }
@@ -508,21 +637,20 @@ window.addEventListener('keydown', (e) => {
   // long, so Esc leaves them directly.
   if ((tutorial || game.mode === 'practice' || game.mode === 'gymkhana') && game.state !== 'menu' && !game.paused && e.code === 'Escape' && !e.repeat) {
     e.preventDefault();
-    returnToTitle();
+    if (inGetaway()) changeChallenge();
+    else returnToTitle();
     return;
   }
   if (game.state === 'menu' && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
     e.preventDefault();
-    if (!e.repeat) moveMenuFocus(e.code === 'ArrowDown' ? 1 : -1);
+    if (!e.repeat) moveMenuFocus(titleStops(), e.code === 'ArrowDown' ? 1 : -1);
     return;
   }
   if (game.state === 'menu' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
     e.preventDefault();
-    // Left and Right change the track, unless the handling choice has the focus.
     const direction = e.code === 'ArrowRight' ? 1 : -1;
     if (!e.repeat) {
       if (handlingInputs.includes(document.activeElement)) stepHandling(direction);
-      else stepTrack(direction);
     }
     return;
   }
@@ -540,11 +668,11 @@ window.addEventListener('keydown', (e) => {
   // A held Enter mustn't press whichever button focus has just landed on.
   if (e.repeat && e.code === 'Enter') e.preventDefault();
   if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.code === 'Enter' && keepsKeys(e.target)) {
+  if (e.code === 'Enter' && (keepsKeys(e.target) || (game.state === 'menu' && e.target instanceof HTMLButtonElement))) {
     // Left to the browser, so Enter presses the focused button.
   } else if (e.code === 'Enter' && (game.state === 'menu' || game.state === 'finished')) {
     e.preventDefault();
-    if (game.state === 'menu') beginRun();
+    if (game.state === 'menu') openPicker('tracks');
     else driveAgain();
   } else if (e.code === 'KeyR' && game.state !== 'menu') {
     restart();
@@ -570,7 +698,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (!held) return;
-  if (optionsOpen || helpOpen || doneOpen || gymkhanaOpen) {
+  if (optionsOpen || helpOpen || doneOpen || picker) {
     input[held] = false; // and Space stays free to press the focused control
     return;
   }
@@ -608,9 +736,13 @@ $('resume').addEventListener('click', pauseOrResume);
 $('restart').addEventListener('click', restart);
 $('start').addEventListener('click', beginRun);
 $('practice').addEventListener('click', beginPractice);
-$('gymkhana').addEventListener('click', (e) => openGymkhana(e.detail > 0 ? null : e.currentTarget));
+for (const [level, button] of Object.entries(CATEGORY_BUTTON)) {
+  $(button).addEventListener('click', () => openPicker(level));
+}
+for (const id of ['tracks-back', 'getaway-back', 'gymkhana-back']) {
+  $(id).addEventListener('click', (e) => closePicker({ restoreFocus: e.detail === 0 }));
+}
 $('gymkhana-start').addEventListener('click', beginGymkhana);
-$('gymkhana-back').addEventListener('click', (e) => closeGymkhana({ restoreFocus: e.detail === 0 }));
 $('gymkhana-again').addEventListener('click', restart);
 $('gymkhana-change').addEventListener('click', changeChallenge);
 $('again').addEventListener('click', beginRun);
@@ -682,14 +814,13 @@ window.addEventListener('gamepaddisconnected', (e) => {
 const resultsSheet = () => (game.mode === 'gymkhana' ? $('gymkhana-results') : $('results'));
 
 function controllerSheet() {
-  return optionsOpen ? $('options') : helpOpen ? $('help') : doneOpen ? $('tutorial-done') : gymkhanaOpen ? $('gymkhana-menu')
+  return optionsOpen ? $('options') : helpOpen ? $('help') : doneOpen ? $('tutorial-done') : picker ? pickerSheet()
     : game.paused ? $('paused') : game.state === 'finished' ? resultsSheet() : game.state === 'menu' ? $('menu') : null;
 }
 
 function menuControls(sheet) {
   if (sheet === $('menu')) return [...titleStops(), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
-  // The Gymkhana sheet's stops are the keyboard's: the chosen challenge, Start and Back.
-  if (sheet === $('gymkhana-menu')) return [...gymkhanaStops(), soundButton].filter((el) => el && !el.disabled && el.getClientRects().length);
+  if (picker && sheet === pickerSheet()) return [...pickerStops(), soundButton];
   return [...sheet.querySelectorAll('button, input'), soundButton].filter((el) => !el.disabled && el.getClientRects().length);
 }
 
@@ -697,7 +828,8 @@ function controllerMenu(pressed, sheet) {
   if (pressed.back) {
     if (optionsOpen) closeOptions();
     else if (helpOpen) closeHelp();
-    else if (gymkhanaOpen) closeGymkhana();
+    else if (picker) closePicker();
+    else if (inGetaway() && game.state === 'finished') changeChallenge();
     else if (doneOpen || game.state === 'finished') returnToTitle();
     else if (game.paused) pauseOrResume();
     const nextSheet = controllerSheet();
@@ -711,14 +843,17 @@ function controllerMenu(pressed, sheet) {
   const controls = menuControls(sheet);
   const current = controls.indexOf(document.activeElement);
   const horizontal = pressed.right ? 1 : pressed.left ? -1 : 0;
-  if (horizontal && sheet === $('menu')) {
-    // As on the keyboard: the track, unless the handling choice has the focus.
-    if (handlingInputs.includes(document.activeElement)) {
-      stepHandling(horizontal);
-      controllerFocus(handlingInputs.find((input) => input.checked));
-    } else stepTrack(horizontal);
+  if (horizontal && sheet === pickerSheet() && picker === 'tracks') {
+    stepTrack(horizontal);
+    if (trackInputs.includes(document.activeElement)) controllerFocus(document.activeElement);
     return;
   }
+  if (horizontal && sheet === pickerSheet() && challengePicker()) {
+    stepChallenge(horizontal);
+    if (gymkhana.inputs.includes(document.activeElement)) controllerFocus(document.activeElement);
+    return;
+  }
+  if (horizontal && sheet === $('menu') && !handlingInputs.includes(document.activeElement)) return;
   if (horizontal && document.activeElement instanceof HTMLInputElement) {
     const el = document.activeElement;
     if (el.type === 'range') {
@@ -764,6 +899,7 @@ function pollController() {
     controllerMenu(pad.pressed, sheet);
     return NEUTRAL_DRIVE;
   }
+  if (pad.pressed.back && inGetaway()) { changeChallenge(); return NEUTRAL_DRIVE; }
   if (pad.pressed.pause) { pauseOrResume(); return NEUTRAL_DRIVE; }
   // A challenge has no ghost to show or hide, so there X is a quick retry.
   if (pad.pressed.ghost && inGymkhana()) { restart(); return NEUTRAL_DRIVE; }
@@ -787,10 +923,37 @@ function setText(id, text) {
   if (el.textContent !== text) el.textContent = text;
 }
 
+// The tag under the Sound button names the chosen ghost and whether G has hidden it. A saved
+// reference that can't be shown says why, briefly; Options has the full sentence.
+const REFERENCE_MISSING = { none: 'No Reference Yet', incompatible: 'Reference Outdated', corrupt: 'No Reference Yet',
+  newer: 'Reference: Newer Version', unsupported: 'Reference: Newer Version', unavailable: 'Reference Unavailable' };
 function showGhostStatus() {
   const el = $('ghost-status');
-  el.dataset.state = game.ghostVisible ? 'on' : 'off';
-  setText('ghost-status', game.ghostVisible ? 'Ghost On' : 'Ghost Off');
+  const source = game.ghostSource;
+  let text;
+  let state;
+  if (source === 'off') {
+    text = 'Ghost Off';
+    state = 'off';
+    el.title = 'No ghost. Choose one in Options.';
+  } else if (source === 'reference') {
+    const slot = referenceGhosts.slot;
+    if (game.ghostReference) {
+      text = game.ghostVisible ? 'Reference On' : 'Reference Off';
+      state = game.ghostVisible ? 'on' : 'off';
+    } else {
+      text = REFERENCE_MISSING[slot?.status] ?? REFERENCE_MISSING.none;
+      state = 'none';
+    }
+    el.title = 'Press G to show or hide your saved reference lap. It joins you from lap 2.';
+  } else {
+    text = game.ghostVisible ? 'Ghost On' : 'Ghost Off';
+    state = game.ghostVisible ? 'on' : 'off';
+    el.title = 'Press G to show or hide the ghost of your last valid lap';
+  }
+  el.dataset.state = state;
+  el.dataset.source = source;
+  setText('ghost-status', text);
 }
 
 // Tab carries on from whatever last had focus, even once that's hidden, and that can be past
@@ -815,15 +978,13 @@ function fitTitle() {
   title.style.fontSize = '';
   const ratio = title.clientWidth / title.scrollWidth;
   if (ratio < 1) title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * ratio * 0.98}px`;
-  // Wrapped fallback text and a storage-failure note also need vertical room.
-  // Reduce only the title, keeping every record, instruction and action visible.
+  // Keep the complete menu visible if the fallback title font takes extra room.
   const panel = title.closest('.title-panel');
   const padding = getComputedStyle(panel);
   const available = Math.min(innerHeight, panel.clientHeight) - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
   const heading = title.getBoundingClientRect();
   const used = $('controller-note').getBoundingClientRect().bottom - heading.top;
   if (used > available) {
-    // A wrapped Track row (three circuits at 1024x600) needs a little below v0.4.0's 0.25 floor.
     const scale = Math.max(0.2, (heading.height - (used - available) - 4) / heading.height);
     title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * scale}px`;
   }
@@ -831,7 +992,7 @@ function fitTitle() {
 
 function syncScreens() {
   const { state, paused } = game;
-  const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done' : gymkhanaOpen ? 'gymkhana'
+  const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done' : picker ? picker
     : paused ? 'paused' : state === 'menu' || state === 'finished' ? state : 'driving';
   if (context !== controllerContext) {
     controllerContext = context;
@@ -845,12 +1006,15 @@ function syncScreens() {
   if (inGymkhana()) document.body.dataset.challenge = game.challengeDef.kind;
   else delete document.body.dataset.challenge;
   $('gym-panel').hidden = !inGymkhana();
+  if (!inGymkhana()) hideBust();
   setText('handling-status', practice ? `Practice · ${game.handling.name}` : game.handling.name);
   $('handling-status').title = `Handling: ${game.handling.name}. Change it on the title screen.`;
-  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen || gymkhanaOpen;
+  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen || picker !== null;
   if (!$('menu').hidden) fitTitle();
   $('help').hidden = !helpOpen;
-  $('gymkhana-menu').hidden = !gymkhanaOpen;
+  $('tracks-menu').hidden = optionsOpen || picker !== 'tracks';
+  $('getaway-menu').hidden = optionsOpen || picker !== 'missions';
+  $('gymkhana-menu').hidden = optionsOpen || !challengePicker();
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
   $('ghost-status').hidden = !!tutorial;
@@ -873,7 +1037,10 @@ function syncScreens() {
   $('results').hidden = !finished || optionsOpen || game.mode === 'gymkhana';
   $('gymkhana-results').hidden = !finished || optionsOpen || game.mode !== 'gymkhana';
   $('options').hidden = !optionsOpen;
-  if (finished && game.mode === 'gymkhana') gymkhana.showResults(game);
+  if (finished && game.mode === 'gymkhana') {
+    setText('gymkhana-change', inGetaway() ? 'Environments' : 'Challenges');
+    gymkhana.showResults(game);
+  }
   else if (finished) showResults();
   if (document.activeElement instanceof HTMLElement && state !== 'menu' && !finished && !optionsOpen) document.activeElement.blur();
   startTabAt(optionsOpen ? null : paused ? $('paused') : finished ? resultsSheet() : null);
@@ -957,7 +1124,12 @@ function updateBanners(now) {
     banner.serialLap = game.lapEventSerial;
     if (game.lapEvent === 'lap') {
       const best = laps.lastLap === laps.bestLap && laps.completed > 1;
-      showBanner('lap', `LAP ${formatTime(laps.lastLap)}${best ? ' — BEST' : ''}`, now);
+      // With the saved reference chosen, a lap it saved (or failed to save) says so.
+      const offered = referenceGhosts.lastResult;
+      const thisLap = offered && offered.runId === game.runId && offered.time === laps.lastLap && game.ghostSource === 'reference';
+      const saved = thisLap && offered.saved ? ' · REFERENCE SAVED'
+        : thisLap && (offered.reason === 'write failed' || offered.reason === 'too large') ? ' · REFERENCE NOT SAVED' : '';
+      showBanner('lap', `LAP ${formatTime(laps.lastLap)}${best ? ' — BEST' : ''}${saved}`, now);
     } else {
       const lost = game.lastForfeit;
       showBanner('void', lost > 0 ? `LAP NOT COUNTED — ${formatNumber(lost)} POINTS LOST` : 'LAP NOT COUNTED — CHECKPOINT MISSED', now);
@@ -1058,6 +1230,7 @@ function updateHud(now) {
     $('combo-grace-bar').style.transform = `scaleX(${Math.max(0, combo.grace / T.comboGrace)})`;
   }
   if (game.mode === 'gymkhana') gymkhana.updateHud(game);
+  else hideBust();
   updateBanners(now);
   updatePrompt();
   if (debug) updateDebug();
@@ -1107,6 +1280,21 @@ function contactText(game) {
   return `${hit.kind} ${hit.impact.toFixed(1)} m/s${hard}, ${ago.toFixed(1)} s ago`;
 }
 
+// Getaway: one smash sound per object the car breaks, in order. The run's
+// smash log has one entry per object, so a broken one can never sound twice; a muted or paused
+// game plays nothing, and nothing is saved up for later.
+let smashHeardRun = null;
+let smashHeard = 0;
+function playSmashSounds() {
+  const run = game.mode === 'gymkhana' ? game.challenge : null;
+  if (!run?.smashLog) return;
+  if (run !== smashHeardRun) { smashHeardRun = run; smashHeard = 0; }
+  while (smashHeard < run.smashLog.length) {
+    audio.smash(run.smashLog[smashHeard].kind);
+    smashHeard += 1;
+  }
+}
+
 // --- Loop ------------------------------------------------------------------
 let last = performance.now();
 let shownState = game.state;
@@ -1128,6 +1316,7 @@ function frame(now) {
     syncScreens();
   }
   audio.update(game, dt);
+  playSmashSounds();
   const alpha = Math.min(1, game.accumulator / TUNING.simStep);
   drawFrame(renderer, game, alpha, dt, debug);
   if (game.state !== 'menu') updateHud(now / 1000);
@@ -1139,8 +1328,10 @@ selectHandling(selectedHandlingId, { remember: false });
 syncScreens();
 showGhostStatus();
 showSound(audio.snapshot());
-$('start').focus();
+$('tracks-open').focus();
 // A small read-only hook for the browser checks and tuning from the console.
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
-  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode, gymkhana: () => ({ open: gymkhanaOpen, selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial) };
+  selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode,
+  referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: challengePicker(), selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial),
+  smashSounds: () => ({ ...audio.smashes }) };
 requestAnimationFrame(frame);

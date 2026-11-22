@@ -1,3 +1,4 @@
+import { startTrackWithEnter } from './support/track-menu.mjs';
 // The radio in real browsers: real keys, real clicks and real Web Audio, served the same
 // way as on GitHub Pages. It measures the output level, which proves signal or silence
 // reached the destination. It can't tell whether anything sounds good, and nobody
@@ -90,7 +91,9 @@ async function open(browser, { saved, muted, before } = {}) {
   }
   await before?.(page);
   await page.goto(BASE);
-  await page.waitForFunction(() => window.__miniDrifters);
+  // The entry module runs before load. Read readiness directly so a render-frame wait
+  // cannot hide a startup error or obscure which failure fixture was being opened.
+  assert.ok(await page.evaluate(() => Boolean(window.__miniDrifters)), 'Radio test page failed to start: ' + errors.join(' | '));
   const helpers = {
     page, context, errors, requests,
     sound: () => page.evaluate(() => window.__miniDrifters.audio()),
@@ -173,7 +176,7 @@ async function run(browser, browserName) {
       assert.equal(await page.locator('#sound').textContent(), 'Sound Unavailable');
       await t.closeOptions();
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('mini-drifters-audio')).station), 'garage-rock');
-      await page.keyboard.press('Enter');
+      await startTrackWithEnter(page);
       await page.keyboard.down('ArrowUp');
       await page.waitForTimeout(500);
       await page.keyboard.up('ArrowUp');
@@ -278,7 +281,7 @@ async function run(browser, browserName) {
     // Into a run. With music at 0, only the effects can be making a sound.
     await t.setVolume('music-volume', 0);
     await t.closeOptions();
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await page.waitForFunction(() => {
       const a = window.__miniDrifters.audio();
       return a.engine !== 'none' && !['waiting', 'loading'].includes(a.tire);
@@ -331,7 +334,7 @@ async function run(browser, browserName) {
   {
     const t = await open(browser, { saved: settings('redline-radio', 100, 100) });
     const { page } = t;
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await t.playing('redline-radio');
     await page.waitForFunction(() => window.__miniDrifters.audio().engine !== 'none', null, { timeout: 15000 });
     const started = (await t.sound()).radio.starts;
@@ -406,7 +409,7 @@ async function run(browser, browserName) {
     };
     await t.closeOptions();
     await same('leaving Options');
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await same('starting a run');
     await page.waitForTimeout(150);
     await page.keyboard.press('KeyR');
@@ -455,7 +458,7 @@ async function run(browser, browserName) {
   {
     const t = await open(browser, { saved: settings('garage-rock', 50, 80) });
     const { page } = t;
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await t.playing('garage-rock');
     await page.waitForTimeout(700);
     const { starts } = (await t.sound()).radio;
@@ -516,10 +519,10 @@ async function run(browser, browserName) {
   {
     const t = await open(browser);
     const { page } = t;
-    await page.locator('#start').focus();
-    await page.keyboard.press('Tab'); // Practice pad
+    await page.locator('#tracks-open').focus();
     await page.keyboard.press('Tab'); // Gymkhana
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'gymkhana');
+    await page.keyboard.press('Tab'); // Getaway
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'getaway');
     await page.keyboard.press('Tab'); // How to Play
     await page.keyboard.press('Tab'); // Options
     assert.equal(await page.evaluate(() => document.activeElement.classList.contains('options-open')), true);
@@ -555,7 +558,7 @@ async function run(browser, browserName) {
     step('Options works by keyboard, and game keys stay out of it');
 
     // After closing with the mouse, Enter means what it always did.
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     assert.equal((await t.game()).state, 'ready', 'Enter starts the run');
     assert.equal(await page.locator('#options').isVisible(), false);
 
@@ -612,9 +615,10 @@ async function run(browser, browserName) {
     ['corrupt', (route) => route.fulfill({ status: 200, contentType: 'audio/wav', body: 'not audio' })],
     ['refused', (route) => route.abort()],
   ]) {
-    const t = await open(browser, { saved: settings('garage-rock'), before: (page) => page.route('**/radio/**', fulfill) });
+    const t = await open(browser, { saved: settings('garage-rock'), before: (page) => page.route('**/radio/**', fulfill) })
+      .catch((error) => { throw new Error('Opening the ' + label + ' radio fixture', { cause: error }); });
     const { page } = t;
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await page.waitForFunction(() => window.__miniDrifters.audio().radio.status === 'unavailable', null, { timeout: 15000 });
     await page.waitForFunction(() => window.__miniDrifters.audio().engine !== 'none', null, { timeout: 15000 });
     const s = await t.sound();
@@ -638,7 +642,7 @@ async function run(browser, browserName) {
   }
   {
     const t = await open(browser, { saved: settings('garage-rock'), before: (page) => page.addInitScript(() => { delete window.AudioContext; }) });
-    await t.page.keyboard.press('Enter');
+    await startTrackWithEnter(t.page);
     assert.equal(await t.page.locator('#sound').textContent(), 'Sound Unavailable');
     await driveOn(t);
     step('no Web Audio with a saved station: labelled unavailable, and the game drives');
@@ -650,7 +654,7 @@ async function run(browser, browserName) {
     }) });
     await t.page.keyboard.press('KeyN');
     assert.equal((await t.sound()).station, 'garage-rock');
-    await t.page.keyboard.press('Enter');
+    await startTrackWithEnter(t.page);
     await driveOn(t);
     step('no local storage: settings last for this visit, and the game drives');
     await t.done();
@@ -706,7 +710,8 @@ try {
       report.runs.push(await run(browser, name));
     } catch (error) {
       console.error(`  FAILED: ${error.message}`);
-      report.runs.push({ browser: name, version: browser.version(), passed: false, error: error.message });
+      if (error.cause) console.error(error.cause.stack);
+      report.runs.push({ browser: name, version: browser.version(), passed: false, error: error.stack });
     } finally {
       await browser.close();
     }

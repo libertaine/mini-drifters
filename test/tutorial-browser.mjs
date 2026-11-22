@@ -1,3 +1,4 @@
+import { startTrackWithEnter } from './support/track-menu.mjs';
 // The driving lesson and Return to Title in real browsers: real keys, real clicks and the
 // real simulation, served the same way as on GitHub Pages. Needs Playwright:
 //   node test/tutorial-browser.mjs [/path/to/playwright/index.mjs]
@@ -142,7 +143,7 @@ async function assertCleanTitle(page, where) {
     assert.equal(await visible(page, id), false, `${where}: #${id} is gone`);
   }
   assert.equal(await page.evaluate(() => document.body.dataset.screen), 'title', where);
-  assert.equal(await focused(page), 'start', `${where}: the keyboard is on Start Driving`);
+  assert.equal(await focused(page), 'tracks-open', `${where}: the keyboard is on Start Driving`);
   const audio = await page.evaluate(() => window.__miniDrifters.audio());
   assert.equal(audio.mode, 'silent', `${where}: the engine has stopped`);
   await page.waitForTimeout(120);
@@ -193,9 +194,9 @@ async function check(name, engine) {
   };
   const openTutorial = async (page) => {
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'practice', 'v0.3.0: Practice pad sits between Start and How to Play');
+    assert.equal(await focused(page), 'gymkhana');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'gymkhana', 'and Gymkhana after it');
+    assert.equal(await focused(page), 'getaway');
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'how-to-play');
     await page.keyboard.press('Enter');
@@ -257,7 +258,7 @@ async function check(name, engine) {
     page = await open();
     assert.equal((await game(page)).tutorial, null, 'no lesson on first load');
     assert.equal(await visible(page, 'prompt'), false);
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await assertNormalRunWorks(page, 'Enter on the title');
     assert.equal((await game(page)).tutorial, null);
     await page.context().close();
@@ -332,13 +333,15 @@ async function check(name, engine) {
       // How to Play now has a second button, and has to hold it at every size.
       await page.keyboard.press('ArrowDown');
       await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowDown');
       await page.keyboard.press('Enter');
       await assertSheetFits(page, 'help', `How to Play at ${width}x${height}`);
       await page.screenshot({ path: artifact(`${name}-how-to-play-${width}x${height}.png`) });
       await page.keyboard.press('Escape');
       await page.keyboard.press('ArrowUp');
       await page.keyboard.press('ArrowUp');
-      assert.equal(await focused(page), 'start');
+      await page.keyboard.press('ArrowUp');
+      assert.equal(await focused(page), 'tracks-open');
       await openTutorial(page);
       const seen = [];
       const release = await playLesson(page, {
@@ -586,13 +589,13 @@ async function check(name, engine) {
     await page.keyboard.press('Escape');
     await assertCleanTitle(page, 'Esc from a moving lesson');
     await page.keyboard.down('ArrowUp'); // the repeat of the key that's still down
-    assert.equal(await focused(page), 'start', 'a repeating arrow does not walk the menu');
+    assert.equal(await focused(page), 'tracks-open', 'a repeating arrow does not walk the menu');
     await page.keyboard.up('ArrowUp');
     assert.equal((await game(page)).state, 'menu');
     await page.keyboard.press('KeyR');
     await page.keyboard.press('KeyP');
     assert.equal((await game(page)).state, 'menu', 'R and P do nothing on the title');
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await assertNormalRunWorks(page, 'a run after leaving a lesson');
     step('Esc leaves a lesson at any moment, with held keys cleared, and a normal run follows');
 
@@ -621,7 +624,7 @@ async function check(name, engine) {
     // A station chosen in a lesson survives, and the sound comes back for the next run.
     const station = (await page.evaluate(() => window.__miniDrifters.audio())).station;
     assert.notEqual(station, stationBefore, 'the station chosen during the lesson is kept');
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await assertNormalRunWorks(page, 'sound after returning to the title');
     const live = await page.evaluate(() => window.__miniDrifters.audio());
     assert.equal(live.station, station);
@@ -648,7 +651,7 @@ async function check(name, engine) {
     await tabTo(page, /return-title/);
     await page.keyboard.press('Space');
     await assertCleanTitle(page, 'the results');
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await assertNormalRunWorks(page, 'a run after the results');
     const ghostIsFresh = await page.evaluate(() => window.__miniDrifters.game.ghost.replay === null);
     assert.ok(ghostIsFresh, 'no ghost carried over from the finished run');
@@ -657,7 +660,7 @@ async function check(name, engine) {
 
     // Pause from a run that's still on the grid, by mouse.
     page = await open();
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await page.keyboard.press('KeyP');
     await page.locator('#paused .return-title').click();
     await assertCleanTitle(page, 'a pause on the grid, by mouse');

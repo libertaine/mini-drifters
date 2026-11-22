@@ -89,24 +89,28 @@ export function beginGhostRecording(ghost, x, y, heading) {
   ghost.lapTick = 0;
 }
 
-// Called after each racing tick with the car's new pose and what updateLaps returned.
+// Called after each racing tick with the car's new pose and what updateLaps returned. Returns
+// the finished recording on the tick a valid lap is kept, so the session can offer it to the
+// saved reference (ghost-store.js), and null otherwise.
 export function recordGhostTick(ghost, x, y, heading, lapEvent) {
   const { recording } = ghost;
-  if (!recording) return;
+  if (!recording) return null;
   ghost.lapTick += 1;
   const tick = ghost.lapTick;
 
   if (lapEvent) {
     // A line crossing ends this lap either way, but only a valid one becomes the ghost.
-    if (lapEvent === 'lap' && tick <= MAX_RECORDED_TICKS) {
+    const kept = lapEvent === 'lap' && tick <= MAX_RECORDED_TICKS;
+    if (kept) {
       addSample(recording, tick, x, y, heading);
       recording.durationTicks = tick;
       ghost.replay = recording;
     }
     beginGhostRecording(ghost, x, y, heading);
-    return;
+    return kept ? recording : null;
   }
   if (tick % SAMPLE_EVERY === 0 && tick <= MAX_RECORDED_TICKS) addSample(recording, tick, x, y, heading);
+  return null;
 }
 
 // Each recording must match the game showing it, or the ghost would drive across the grass.
@@ -138,9 +142,10 @@ export function ghostPoseAt(recording, tick) {
   };
 }
 
-// What to draw at a fractional playback tick, or null when there is nothing to show.
-export function ghostDisplay(ghost, tick, playerX, playerY) {
-  const { replay } = ghost;
+// What to draw at a fractional playback tick, or null when there is nothing to show. The
+// recording is the previous lap unless another is given (the saved reference), and either one
+// must match the running game.
+export function ghostDisplay(ghost, tick, playerX, playerY, replay = ghost.replay) {
   if (!replay || !ghostIsCompatible(ghost, replay)) return null;
   const past = tick - replay.durationTicks;
   if (past >= FADE_OUT_TICKS) return null;

@@ -1,3 +1,4 @@
+import { startTrackWithEnter } from './support/track-menu.mjs';
 // Real DOM and existing animation loop; only Gamepad API snapshots and frame time
 // are mocked. No physical hardware is required, including on Firefox CI.
 import assert from 'node:assert/strict';
@@ -81,13 +82,19 @@ async function check(name, engine) {
     await frames();
     await value(() => { window.__pads = [window.__newPad()]; window.__frames(); });
     assert.match(await page.locator('#controller-note').textContent(), /ready/);
+    await press(0);
+    assert.ok(await visible('tracks-menu'));
     await press(15);
     assert.equal(await value(() => window.__miniDrifters.selectedTrack()), 'switchback');
     await press(13);
     assert.equal(await focus(), 'practice', 'v0.3.0: Practice pad sits under Start');
     assert.ok(await page.locator('#practice').evaluate((el) => getComputedStyle(el).outlineStyle !== 'none'));
+    await press(1);
+    assert.equal(await focus(), 'tracks-open');
     await press(13);
-    assert.equal(await focus(), 'gymkhana', 'Gymkhana is the next stop');
+    assert.equal(await focus(), 'gymkhana');
+    await press(13);
+    assert.equal(await focus(), 'getaway');
     await press(13);
     assert.equal(await focus(), 'how-to-play');
     assert.ok(await page.locator('#how-to-play').evaluate((el) => getComputedStyle(el).outlineStyle !== 'none'));
@@ -111,7 +118,8 @@ async function check(name, engine) {
     await press(14);
     assert.equal(await page.locator('#effects-volume').inputValue(), '95');
     await press(1);
-    await untilFocus('start');
+    await untilFocus('tracks-open');
+    await press(0);
     await press(0);
     assert.equal(await value(() => window.__miniDrifters.game.track.id), 'switchback');
     assert.equal(await value(() => window.__miniDrifters.game.state), 'ready');
@@ -287,7 +295,7 @@ async function check(name, engine) {
     assert.ok(await visible('menu'));
     await value(() => { window.__apiFails = true; window.__frames(); });
     assert.match(await page.locator('#controller-note').textContent(), /unavailable/);
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     assert.equal(await value(() => window.__miniDrifters.game.state), 'ready');
     assert.deepEqual(errors, []);
     ok('tutorial pause actions and graceful API failure retain keyboard access');

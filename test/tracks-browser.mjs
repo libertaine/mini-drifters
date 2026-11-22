@@ -1,3 +1,4 @@
+import { chooseTracks, startTrackWithEnter } from './support/track-menu.mjs';
 // Choosing a circuit, and driving Switchback, in real browsers: real keys, real clicks and
 // real frames, served the same way as on GitHub Pages. Needs Playwright:
 //   node test/tracks-browser.mjs [/path/to/playwright/index.mjs]
@@ -195,29 +196,30 @@ async function check(name, engine) {
     let g = await game(page);
     assert.equal(g.selected, 'original');
     assert.equal(g.track, 'original');
-    assert.equal(await focused(page), 'start', 'Start keeps the focus');
+    assert.equal(await focused(page), 'tracks-open', 'Tracks keeps the focus');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['START DRIVING', 'PRACTICE PAD', 'GYMKHANA', 'HOW TO PLAY', 'OPTIONS'], 'the menu is v0.2.0\'s, with v0.3.0\'s Practice pad and Gymkhana');
+    assert.deepEqual(words, ['TRACKS', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']);
     const poster = await stamp(page, POSTER);
+    await chooseTracks(page);
     for (const [width, height] of SIZES) {
       await page.setViewportSize({ width, height });
       await frames(page);
       const fit = await page.evaluate(() => {
         const box = (el) => el.getBoundingClientRect();
         const select = box(document.querySelector('.track-select'));
-        const tagline = box(document.querySelector('.tagline'));
+        const title = box(document.querySelector('#tracks-title'));
         const start = box(document.getElementById('start'));
         const labels = [...document.querySelectorAll('#tracks label')].map((label) => {
           const r = box(label);
           const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
           return { right: r.right, bottom: r.bottom, reachable: label.contains(hit) };
         });
-        const menu = document.getElementById('menu');
-        return { select, tagline, start, labels, scrolls: menu.scrollHeight > menu.clientHeight };
+        const menu = document.getElementById('tracks-menu');
+        return { select, title, start, labels, scrolls: menu.scrollHeight > menu.clientHeight };
       });
       assert.equal(fit.scrolls, false, `the title scrolls at ${width}x${height}`);
-      assert.ok(fit.select.top >= fit.tagline.bottom && fit.select.bottom <= fit.start.top, `the choice sits between the tagline and Start at ${width}x${height}`);
-      assert.ok(fit.labels.every((l) => l.reachable && l.right <= width * 0.5 && l.bottom <= height), `every choice is pressable at ${width}x${height}`);
+      assert.ok(fit.select.top >= fit.title.bottom && fit.select.bottom <= fit.start.top, `the choice sits between the Tracks heading and Start at ${width}x${height}`);
+      assert.ok(fit.labels.every((l) => l.reachable && l.right <= width && l.bottom <= height), `every choice is pressable at ${width}x${height}`);
       await page.screenshot({ path: artifact(`${name}-title-${width}x${height}.png`) });
     }
     await page.setViewportSize({ width: 1366, height: 768 });
@@ -242,8 +244,6 @@ async function check(name, engine) {
     assert.equal(g.state, 'menu');
     assert.equal(g.ticks, 0);
     assert.deepEqual(g.input, NO_KEYS, 'Left and Right on the title are not steering');
-    await page.keyboard.press('Shift+Tab');
-    assert.equal(await focused(page), 'classic', 'the handling choice sits between Start and the circuits');
     await page.keyboard.press('Shift+Tab');
     assert.equal(await focused(page), 'switchback', 'Tab reaches the chosen circuit');
     await page.keyboard.press('ArrowLeft');
@@ -348,7 +348,7 @@ async function check(name, engine) {
     step('the lesson uses Original while Switchback is chosen, and leaves the choice alone');
 
     // --- Drive Again, and going back to Original --------------------------------------------
-    await page.keyboard.press('Enter');
+    await startTrackWithEnter(page);
     await frameShowsGrid(page);
     assert.equal((await game(page)).track, 'switchback');
     let done = await finishScripted(page);
@@ -362,6 +362,7 @@ async function check(name, engine) {
 
     await page.keyboard.press('KeyP');
     await page.locator('#paused .return-title').click();
+    await chooseTracks(page);
     await page.locator('#tracks label', { hasText: 'Original' }).click();
     await page.locator('#start').click();
     await frameShowsGrid(page);
@@ -381,6 +382,7 @@ async function check(name, engine) {
     // --- Switchback's driving view at each size ----------------------------------------------
     for (const [width, height] of SIZES) {
       page = await open({ viewport: { width, height } });
+      await chooseTracks(page);
       await page.keyboard.press('ArrowRight');
       await page.keyboard.press('Enter');
       await frameShowsGrid(page);

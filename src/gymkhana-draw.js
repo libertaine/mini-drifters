@@ -1,6 +1,7 @@
 // Paints a gymkhana challenge onto the pad, in world coordinates (metres), and onto the
 // minimap. Reads the challenge and its run; changes neither.
 import { CONE_RADIUS } from './gymkhana.js';
+import { drawUrban, drawUrbanMap } from './getaway-urban-draw.js';
 
 const PAINT = 'rgba(246,241,228,0.78)';
 const FAINT = 'rgba(246,241,228,0.28)';
@@ -250,6 +251,7 @@ export function drawChallenge(ctx, game) {
   ctx.lineCap = 'butt';
   if (def.layout === 'box') drawPrecision(ctx, def, run);
   else if (def.layout === 'slalom') drawSlalom(ctx, def, run);
+  else if (def.layout === 'urban') drawUrban(ctx, def, run, game, performance.now() / 1000);
   else drawLinked(ctx, def, run);
   drawCones(ctx, run.cones, def.kind === 'time' ? def.geometry.conePenalty : 0);
   ctx.restore();
@@ -262,7 +264,8 @@ export function drawChallengeMap(ctx, game, px) {
   if (!def || !run) return;
   ctx.save();
   ctx.lineJoin = 'round';
-  if (def.layout === 'box') {
+  if (def.layout === 'urban') drawUrbanMap(ctx, game, px);
+  else if (def.layout === 'box') {
     const { box, gate, zoneFrom } = def.geometry;
     ctx.fillStyle = run.reached ? 'rgba(95,211,138,0.5)' : 'rgba(255,182,39,0.5)';
     ctx.fillRect(box.minX + zoneFrom, box.minY, box.maxX - box.minX - zoneFrom, box.maxY - box.minY);

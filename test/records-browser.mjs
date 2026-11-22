@@ -1,3 +1,4 @@
+import { chooseTracks, startTrackWithEnter } from './support/track-menu.mjs';
 // Actual game loop, keyboard events and Gamepad adapter; only frame time, pad
 // snapshots and storage failures are controlled. No simulation values are injected.
 import assert from 'node:assert/strict';
@@ -125,6 +126,7 @@ async function check(name, engine) {
     return { state: g.state, completed: g.laps.completed, results: g.results, bestLap: g.laps.bestLap, score: g.scoring.score, combo: g.scoring.bestCombo };
   }, { device, boundary });
   const layout = async (label) => {
+    await chooseTracks(page);
     for (const fallback of [null, 'Arial, sans-serif', 'Verdana, sans-serif']) {
       await page.evaluate((fallback) => {
         for (const property of ['--poster', '--body']) {
@@ -138,7 +140,7 @@ async function check(name, engine) {
         // The title refits on the window's resize event, which can arrive after this call
         // returns. Deliver it now, so what is measured is the settled layout a player sees.
         await page.evaluate(() => window.dispatchEvent(new Event('resize'))); await frames();
-        const issues = await page.locator('#menu').evaluate((menu) => [...menu.querySelectorAll('.title, .tagline, .track-select, .handling-select, .handling-summary, .personal-bests h2, .personal-bests dt, .personal-bests dd, .records-legacy, .records-note, .title-menu button, #controller-note')]
+        const issues = await page.locator('#tracks-menu').evaluate((menu) => [...menu.querySelectorAll('.title, .tagline, .track-select, .handling-select, .handling-summary, .personal-bests h2, .personal-bests dt, .personal-bests dd, .records-legacy, .records-note, .title-menu button, #controller-note')]
           .filter((el) => el.getClientRects().length).flatMap((el) => {
             const r = el.getBoundingClientRect();
             return r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth || el.scrollWidth > el.clientWidth + 1 ? [{ text: el.textContent, box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom }, scroll: el.scrollWidth, client: el.clientWidth, font: getComputedStyle(el).font }] : [];
@@ -155,7 +157,7 @@ async function check(name, engine) {
     assert.deepEqual(await values(), ['--', '--', '--']);
     assert.equal(await page.evaluate(() => window.__recordWrites), 0);
     await layout('empty');
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     const first = await drive();
     assert.equal(first.completed, 3); assert.equal(first.state, 'finished');
     assert.ok(first.results.score > 0 && first.results.bestCombo > 0);
@@ -174,6 +176,7 @@ async function check(name, engine) {
     assert.equal(await page.evaluate(() => localStorage.getItem('mini-drifters-sound')), 'off');
     ok('real keyboard three-lap finish saves settled records, NEW BEST and remark; reload restores them');
 
+    await press(0);
     await press(15);
     assert.match(await page.locator('#records-heading').textContent(), /Switchback/);
     assert.deepEqual(await values(), ['--', '--', '--']);
@@ -185,7 +188,7 @@ async function check(name, engine) {
     const both = await saved();
     assert.deepEqual(both.tracks.original.classic, original);
     assert.deepEqual(current(both, 'switchback'), { score: second.results.score, fastestLap: second.results.bestLap, bestCombo: second.results.bestCombo });
-    await press(1); const switchShown = await values();
+    await press(1); await press(0); const switchShown = await values();
     await press(14); assert.deepEqual(await values(), shown);
     await press(15); assert.deepEqual(await values(), switchShown);
     ok('D-pad switches records immediately; controller completes Switchback without overwriting Original');
@@ -197,7 +200,7 @@ async function check(name, engine) {
       localStorage.setItem(key, JSON.stringify(v));
     }, KEY);
     await page.reload(); await page.waitForFunction(() => window.__miniDrifters, null, { polling: 100 }); await frames();
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     assert.equal((await drive()).state, 'finished');
     assert.deepEqual(await badges(), [false, false, false]);
     assert.equal(await page.evaluate(() => window.__recordWrites), 0);
@@ -206,7 +209,7 @@ async function check(name, engine) {
 
     // Empty fresh profile: one actual valid lap must persist despite restart/abandon.
     await page.context().close(); page = await setup(); await frames();
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     const partial = await drive('keyboard', 'lap');
     assert.equal(partial.completed, 1); assert.ok(partial.score > 0 && partial.combo > 0);
     assert.deepEqual(current(await saved(), 'original'), { score: null, fastestLap: partial.bestLap, bestCombo: null });
@@ -227,7 +230,7 @@ async function check(name, engine) {
 
     await page.context().close(); page = await setup(); await frames();
     await page.evaluate(() => { window.__failRecordsWrite = true; });
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     assert.equal((await drive()).state, 'finished');
     assert.equal(await saved(), null); assert.deepEqual(await badges(), [false, false, false]);
     assert.match(await page.locator('#results-records-note').textContent(), /cannot be saved/);
@@ -244,10 +247,11 @@ async function check(name, engine) {
     await page.context().close(); page = await setup(false, { [LEGACY_KEY]: v020, [V2_KEY]: v2 }); await frames();
     assert.deepEqual(await values(), ['--', '0:00.50', '--'], 'the shared lap is the old best; there is no current score or combo yet');
     assert.equal(await page.locator('#pb-legacy').textContent(), 'Legacy scoring: score 99,999 · combo 2,400');
+    await chooseTracks(page);
     assert.ok(await page.locator('#pb-legacy').isVisible());
     assert.equal(await page.evaluate(() => window.__recordWrites + window.__v2Writes + window.__legacyWrites), 0, 'opening the game wrote nothing');
     await layout('legacy');
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     const fresh = await drive();
     assert.equal(fresh.state, 'finished');
     assert.ok(fresh.results.score > 0 && fresh.results.score < 99999);
@@ -263,7 +267,7 @@ async function check(name, engine) {
     // A first Power run would set current records, but the write fails: no NEW BEST, and the
     // title shows both the storage note and the legacy line.
     await page.evaluate(() => { window.__failRecordsWrite = true; });
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     assert.equal(await page.evaluate(() => window.__miniDrifters.game.handling.id), 'revised');
     assert.equal((await drive()).state, 'finished');
     assert.deepEqual(await badges(), [false, false, false], 'a failed write claims nothing');
@@ -277,7 +281,7 @@ async function check(name, engine) {
     await page.context().close(); page = await setup(true); await frames();
     assert.match(await page.locator('#records-note').textContent(), /cannot be saved/);
     await layout('denied');
-    await page.keyboard.press('Enter'); await frames();
+    await startTrackWithEnter(page); await frames();
     assert.equal((await drive()).state, 'finished');
     assert.deepEqual(await badges(), [false, false, false]);
     assert.deepEqual(errors, []);

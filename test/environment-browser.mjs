@@ -1,3 +1,4 @@
+import { chooseTracks } from './support/track-menu.mjs';
 // v0.6.0 R1 environment on the real page, in Chromium and Firefox: Dockyard chosen by keyboard in
 // Classic and in Power; its apron drives as concrete and is off the course; a container stops the
 // car; the debug view (D) shows the collision boxes, the course flag and the last contact, and
@@ -83,6 +84,7 @@ async function check(name, engine) {
       await page.goto(base);
       await page.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
       await frames(2);
+      await chooseTracks(page);
       while ((await value(() => window.__miniDrifters.selectedTrack())) !== 'dockyard') await key('ArrowRight');
       while ((await value(() => window.__miniDrifters.selectedHandling())) !== handling) await key('KeyH');
       await key('Enter');
@@ -153,6 +155,7 @@ async function check(name, engine) {
       await page.goto(base);
       await page.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
       await frames(2);
+      await chooseTracks(page);
       while ((await value(() => window.__miniDrifters.selectedTrack())) !== track) await key('ArrowRight');
       while ((await value(() => window.__miniDrifters.selectedHandling())) !== handling) await key('KeyH');
       await key('Enter');

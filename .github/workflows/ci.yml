@@ -12,7 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     # The image already holds the browsers and their system packages, so the job
     # never downloads from the Ubuntu mirrors. Its version must match the
     # Playwright version installed below. Running as the runner's user lets
@@ -41,6 +41,8 @@ jobs:
         run: npm run test:gameplay-audio:browser
       - name: Previous-lap ghost in Chromium and Firefox
         run: npm run test:ghost:browser
+      - name: Saved reference ghost, its storage and Options in Chromium and Firefox
+        run: npm run test:reference-ghost:browser
       - name: Radio in Chromium and Firefox
         run: npm run test:radio:browser
       - name: Title screen and menus in Chromium and Firefox
@@ -59,6 +61,16 @@ jobs:
         run: npm run test:handling:browser
       - name: Gymkhana challenges and their records in Chromium and Firefox
         run: npm run test:gymkhana:browser
+      - name: Gymkhana medals in Chromium and Firefox
+        run: npm run test:medals:browser
+      - name: Gameplay categories in Chromium and Firefox
+        run: npm run test:categories:browser
+      - name: Getaway mission in Chromium and Firefox
+        run: npm run test:getaway:browser
+      - name: Getaway Showmanship and impact audio in Chromium and Firefox
+        run: npm run test:showmanship:browser
+      - name: Getaway personal bests, reloads and storage failures in Chromium and Firefox
+        run: npm run test:getaway-records:browser
       - name: Dockyard and Slalom Sprint in Chromium and Firefox
         run: npm run test:dockyard-slalom:browser
       - name: Wheelspin smoke, rubber and engine note in Chromium and Firefox
