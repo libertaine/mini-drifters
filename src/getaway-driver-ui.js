@@ -1,7 +1,8 @@
-// The page side of Getaway Driver (EXPERIMENTAL, v0.8.0 R0 research): its meter, HUD lines, banners
-// and results sheet. gymkhana-ui.js hands a Getaway Driver session here and keeps everything else.
-// It fills elements index.html already holds; it reads the run and changes nothing in it.
+// The page side of Getaway Driver: its meter, HUD lines, banners, results sheet and completion
+// counts. gymkhana-ui.js hands a Getaway Driver session here and keeps everything else. It fills
+// elements index.html already holds; it reads the run and the counts and changes neither.
 import { cueForGame, cueText } from './getaway-nav.js';
+import { DRIVER_OUTCOMES, driverOutcome } from './getaway-driver.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -109,7 +110,9 @@ export function updateDriverHud(def, run) {
   const left = def.timeLimit - run.time;
   setText($('gym-cones'), run.phase === 'running' && left <= 30 ? `${Math.ceil(left)} s left` : '');
   setText($('gym-best'), `Spotted ${run.detections}× · lost them ${run.escapes}× · top ${mph(run.topSpeed)}`);
-  setText($('gym-medal'), 'Research build · no records');
+  // The way home this run is still on for (the results sheet's classification, applied now).
+  setText($('gym-medal'), run.phase !== 'running' ? '' : run.pursuing ? 'Lose them first'
+    : `On for: ${OUTCOME_NAME[driverOutcome(run, def.driverTuning)]}`);
 }
 
 export function driverBanner(event) {
@@ -128,7 +131,27 @@ export function driverBanner(event) {
   }
 }
 
-const TITLES = { ghost: 'Ghost run', 'low profile': 'Low profile', 'lost them': 'Lost them', busted: 'Busted', 'out of time': 'Out of time' };
+const OUTCOME_NAME = Object.fromEntries(DRIVER_OUTCOMES.map((o) => [o.outcome, o.name]));
+const TITLES = { ...OUTCOME_NAME, busted: 'Busted', 'out of time': 'Out of time' };
+// After a finish: how the other ways home differ (the next one up, as a medal's "Next:" line does).
+const NEXT = {
+  ghost: 'The cleanest way home: never even suspicious.',
+  'low profile': 'Next time, stay under SUSPICIOUS all the way for a Ghost run.',
+  'lost them': 'Next time, avoid the chase for Low profile, or stay under SUSPICIOUS for a Ghost run.',
+};
+
+// "Ghost run 2 · Low profile 0 · Lost them 1" for one environment and mode.
+export function countsLine(counts) {
+  return DRIVER_OUTCOMES.map((o) => `${o.name} ${counts[o.id]}`).join(' · ');
+}
+const total = (counts) => DRIVER_OUTCOMES.reduce((n, o) => n + counts[o.id], 0);
+
+// The sheet's and the results' storage line.
+export function driverNote(records) {
+  if (!records.available) return 'Storage unavailable. Finishes cannot be counted on this device.';
+  if (records.readOnly) return 'Getaway Driver counts were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.';
+  return '';
+}
 function remark(r) {
   if (r.outcome === 'ghost') return 'Nobody looked twice. Never even suspicious.';
   if (r.outcome === 'low profile') return 'Some heads turned, but nobody gave chase.';
@@ -137,12 +160,14 @@ function remark(r) {
   return 'Out of time. The safehouse stopped waiting.';
 }
 
-export function showDriverResults(def, game) {
+export function showDriverResults(def, game, records) {
   const run = game.challenge;
   const r = run.result;
   const failed = run.phase === 'failed';
   $('gymkhana-results').dataset.outcome = failed ? 'failed' : 'complete';
   $('gymkhana-results').dataset.layout = def.layout;
+  // Which way home, for the title's colour: 'ghost' | 'low-profile' | 'lost-them', '' after a failure.
+  $('gymkhana-results').dataset.driver = failed ? '' : DRIVER_OUTCOMES.find((o) => o.outcome === r.outcome)?.id ?? '';
   setText($('gr-eyebrow'), `${def.name} · ${game.handling.name} handling`);
   setText($('gr-title'), TITLES[r.outcome] ?? 'Run over');
   setText($('gr-reason'), remark(r));
@@ -178,15 +203,20 @@ export function showDriverResults(def, game) {
   const medal = $('gr-medal');
   medal.hidden = true;
   medal.dataset.new = 'false';
-  setText($('gr-next'), '');
-  setText($('gr-best'), 'Research build: no medals, no records. Nothing from this run is saved.');
-  setText($('gr-records-note'), '');
+  setText($('gr-next'), failed ? '' : NEXT[r.outcome] ?? '');
+  const counts = records.countsFor(def.id, game.handling.id);
+  const counted = !failed && records.counted;
+  setText($('gr-best'), `Finishes with ${game.handling.name} handling: ${countsLine(counts)}${counted ? ` (+1 ${OUTCOME_NAME[r.outcome]})` : ''}`);
+  setText($('gr-records-note'), driverNote(records));
 }
 
-// The choice sheet: nothing is recorded, so no best, medal or target.
-export function showDriverMenu() {
-  setText($('challenge-best-label'), 'Research build');
-  setText($('challenge-best'), 'No records');
-  const handling = $('gymkhana-handling');
-  setText(handling, handling.textContent.replace(' Each handling mode keeps its own best.', ''));
+// The choice sheet: no best, medal or target, but how often this device has finished each way.
+export function showDriverMenu(def, handling, device, records) {
+  const counts = records.countsFor(def.id, handling.id);
+  setText($('challenge-best-label'), 'Finishes');
+  setText($('challenge-best'), String(total(counts)));
+  setText($('challenge-next'), countsLine(counts));
+  setText($('gymkhana-handling'), device === 'controller'
+    ? `${handling.name} handling, chosen on the title screen. Each handling mode keeps its own count.`
+    : `${handling.name} handling. Press H to change it. Each handling mode keeps its own count.`);
 }

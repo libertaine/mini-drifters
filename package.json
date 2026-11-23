@@ -30,6 +30,7 @@
     "test:getaway:browser": "node test/getaway-urban-browser.mjs",
     "test:showmanship:browser": "node test/getaway-showmanship-browser.mjs",
     "test:getaway-records:browser": "node test/getaway-records-browser.mjs",
-    "test:analytics:browser": "node test/analytics-browser.mjs"
+    "test:analytics:browser": "node test/analytics-browser.mjs",
+    "test:getaway-driver:browser": "node test/getaway-driver-browser.mjs"
   }
 }

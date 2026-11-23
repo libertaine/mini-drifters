@@ -512,6 +512,10 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 #challenge-points { min-height: 6.9em; font-size: 14px; }
 #gymkhana-results[data-outcome="failed"] .sheet-title { color: var(--red); }
 #gymkhana-results[data-outcome="failed"] .stats .big dd { color: var(--muted); }
+/* Getaway Driver's three ways home, cleanest first. */
+#gymkhana-results[data-driver="ghost"] .sheet-title { color: var(--green); }
+#gymkhana-results[data-driver="low-profile"] .sheet-title { color: var(--amber); }
+#gymkhana-results[data-driver="lost-them"] .sheet-title { color: #ff7a3d; }
 
 /* ---- Gymkhana medals ---- */
 /* A medal is a disc carrying its initial, always beside its name or on a button whose name
@@ -561,8 +565,8 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 .bust[data-level='critical'] .bust-fill, .bust[data-level='busted'] .bust-fill { background: var(--red); }
 .bust[data-level='critical'] { animation: bust-pulse 0.5s ease-in-out infinite alternate; }
 .bust[data-trend='falling'] .bust-fill { background: var(--green); }
-/* Getaway Driver (experimental, v0.8.0 R0): the same panel shows ATTENTION until a chase, then BUST
-   RISK with the escape bar under it. */
+/* Getaway Driver: the same panel shows ATTENTION until a chase, then BUST RISK with the escape bar
+   under it. */
 .bust-lose { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
 .bust-lose[hidden] { display: none; }
 .bust-lose-track { position: relative; flex: 1; height: 8px; overflow: hidden; border-radius: 4px; background: rgba(246,241,228,0.14); }

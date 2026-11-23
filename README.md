@@ -23,7 +23,7 @@ Mini Drifters is an early playable prototype: one car, built to find out whether
 - **Two handling modes:** forgiving Classic, and Power, where the throttle can break the rear loose.
 - **Personal bests** for every track and handling pair, and for every challenge, kept in your browser.
 - **Circuit ghosts** with Previous Lap, Saved Reference and Off choices.
-- **Getaway: Get the Footage**, a four-camera mission in Downtown and Industrial.
+- **Getaway: Get the Footage**, a four-camera mission in Downtown and Industrial, and **Getaway Driver**, a stealth run to the safehouse.
 - **An optional driving lesson** and an unscored **practice pad**.
 - **Recorded engine sound** and a **three-station radio** with provisional music.
 
@@ -99,6 +99,8 @@ On the sheet, Left and Right choose the challenge, H changes handling, Enter sta
 **Getaway → Get the Footage → Downtown or Industrial.** Hit all four cameras in order, follow the navigation cues and get through the escape gate before time runs out. Lose the cruiser by pulling away or breaking its line of sight.
 
 Showmanship adds 150 per fruit stand and 250 per wooden barricade to banked drift. The breakables preserve a live combo and cost speed. An escape qualifies for a medal. Busts and timeouts end the run without one. Each environment and handling pair keeps its best Showmanship, saved in this browser, with its medal. See the mission rules, handling targets and records in [Getaway](docs/GETAWAY.md).
+
+**Getaway → Getaway Driver → Downtown.** Reach the safehouse without drawing the police. Speeding, drifting and crashes raise ATTENTION, four times as fast when a patrol car can see you. If one gives chase, lose them before the safehouse opens: out of sight and 45 m clear of every pursuer for 5 seconds. A run ends as a Ghost run, Low profile or Lost them. There are no scores or medals. This browser counts how often you finish each way, for each handling mode. See [Getaway Driver](docs/GETAWAY-DRIVER.md).
 
 ## Classic and Power handling
 
@@ -216,6 +218,7 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 | [RECORDS](docs/RECORDS.md) | Personal bests: qualification, storage schema and acceptance steps |
 | [GHOST](docs/GHOST.md) | Circuit ghost choices, playback and storage |
 | [GETAWAY](docs/GETAWAY.md) | Get the Footage rules and medals |
+| [GETAWAY-DRIVER](docs/GETAWAY-DRIVER.md) | Getaway Driver: attention, police, losing them, outcomes and completion counts |
 | [CONTROLLERS](docs/CONTROLLERS.md) | Controller mapping, input policy and physical testing |
 | [GAMEPLAY-AUDIO](docs/GAMEPLAY-AUDIO.md), [AUDIO-LAB](docs/AUDIO-LAB.md) | How the game sounds, and the development listening bench |
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |

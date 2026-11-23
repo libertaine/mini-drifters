@@ -1,19 +1,20 @@
-// Getaway Driver (EXPERIMENTAL, v0.8.0 R0 research): attention, patrols and sight, detection, the
-// chase and the escape, the safehouse, and isolation from everything that ships.
+// Getaway Driver: the accepted R0 mechanics held fixed, attention, patrols and sight, detection, the
+// chase and the escape, the safehouse and its three outcomes, the Getaway sheet, and isolation from
+// the Get the Footage records and from analytics.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { TUNING } from '../src/tuning.js';
 import { createGame, startRun, tick } from '../src/game.js';
 import { handlingById } from '../src/handling.js';
 import { GYMKHANA_CHALLENGES } from '../src/gymkhana.js';
-import { GETAWAY_MISSIONS } from '../src/getaway-missions.js';
+import { GETAWAY_MISSIONS, GETAWAY_SHEET } from '../src/getaway-missions.js';
+import { createAnalytics, categoryOf } from '../src/analytics.js';
 import { getawayIndex, createGetawayRecords } from '../src/getaway-records.js';
 import { onPavement, lineOfSight } from '../src/getaway-city.js';
 import {
-  DRIVER, DRIVER_PATROLS, GETAWAY_DRIVER, createDriverChallenge, driverCityFor, buildLoop, unitSees, visionOutline,
+  DRIVER, DRIVER_PATROLS, DRIVER_OUTCOMES, GETAWAY_DRIVER, createDriverChallenge, driverCityFor, driverOutcome, buildLoop, unitSees, visionOutline,
 } from '../src/getaway-driver.js';
-import { RESEARCH_MISSIONS } from '../src/getaway-driver-entry.js';
 import { driveUrban, urbanGrip } from './support/urban-drivers.mjs';
 
 const CLASSIC = handlingById('classic');
@@ -43,17 +44,102 @@ function parkAll(run) {
 }
 const steps = (game, seconds, input = NONE) => { for (let i = 0; i < Math.round(seconds / DT); i += 1) tick(game, input); };
 
-// --- Isolation ---------------------------------------------------------------------------------------
-test('isolation: shipped missions, gymkhana challenges and the records index never include Getaway Driver', () => {
+// --- The accepted mechanics ----------------------------------------------------------------------------
+// The owner playtested R0 in Classic and Power and accepted these numbers (2026-11-23). R1 integrates
+// the mission without changing them: police attention thresholds, patrols, the pursuit, the five
+// seconds to lose them and the safehouse. A change here is a balance change and needs its own review.
+const RAD = Math.PI / 180;
+const ACCEPTED_DRIVER = {
+  speedLimit: 20, speedRate: 0.05, driftSlip: 15 * RAD, driftFull: 40 * RAD, driftRate: 0.08, impactMin: 3, impactBump: 0.12,
+  smashBump: { fruit: 0.2, barricade: 0.3 }, watched: 4, scrutiny: 0.1, scrutinyRange: 30, calmAfter: 1.5, decay: 0.05,
+  suspectAt: 0.35, detectAt: 0.7, spotTime: 0.6, patrolSpeed: 11, patrolGrip: 5, patrolAccel: 3, patrolBrake: 5, lane: 2.5,
+  visionRange: 65, visionHalf: 50 * RAD, nearSight: 14, respondSpeed: 24, pursuitPing: 4, loseGap: 45, loseTime: 5,
+  afterEscape: 0.6, searchTime: 6, timeLimit: 150,
+};
+const ACCEPTED_PATROLS = {
+  downtown: [
+    { id: 'west', name: 'West', nodes: ['A0', 'B0', 'B1', 'A1'], start: 0.3 },
+    { id: 'central', name: 'Central', nodes: ['B1', 'BA', 'B2', 'C2', 'CA', 'C1'], start: 0.1 },
+    { id: 'east', name: 'East', nodes: ['D2', 'C2', 'B2', 'BB', 'B3', 'C3', 'D3'], start: 0.35 },
+    { id: 'stakeout', name: 'Stakeout', post: { x: 326, y: -4.5, heading: Math.PI } },
+  ],
+};
+// Whole runs by the scripted drivers, as R0 drove them (recorded from the R0 worktree).
+const ACCEPTED_RUNS = {
+  'classic/calm': { outcome: 'ghost', time: 36.041667, detections: 0, peakAttention: 0.159167 },
+  'classic/brisk': { outcome: 'ghost', time: 30.391667, detections: 0, peakAttention: 0.324132 },
+  'classic/fast': { outcome: 'busted', time: 29.883333, detections: 1, peakAttention: 1 },
+  'revised/calm': { outcome: 'ghost', time: 36.008333, detections: 0, peakAttention: 0.1575 },
+  'revised/brisk': { outcome: 'ghost', time: 30.483333, detections: 0, peakAttention: 0.322396 },
+  'revised/fast': { outcome: 'busted', time: 38.116667, detections: 1, peakAttention: 1 },
+};
+const DRIVERS = { calm: [{ lateral: 8, cap: 17 }, 120], brisk: [{ lateral: 9, cap: 21 }, 150], fast: [{ lateral: 11 }, 160] };
+
+test('accepted mechanics: attention, patrol, pursuit, escape and safehouse numbers are the R0 ones', () => {
+  assert.deepEqual({ ...DRIVER, smashBump: { ...DRIVER.smashBump } }, ACCEPTED_DRIVER);
+  assert.deepEqual(JSON.parse(JSON.stringify(DRIVER_PATROLS)), JSON.parse(JSON.stringify(ACCEPTED_PATROLS)));
+  const def = GETAWAY_DRIVER.environments[0];
+  assert.equal(def.id, 'getaway-driver-downtown');
+  assert.equal(def.timeLimit, 150);
+  assert.equal(def.captureModel.id, 'proximity');
+  assert.equal(def.pursuerTuning.ping, 4);
+  assert.equal(def.driverTuning.loseTime, 5);
+});
+
+test('accepted mechanics: whole runs repeat the R0 runs exactly, in both handling modes', () => {
+  for (const [key, want] of Object.entries(ACCEPTED_RUNS)) {
+    const [h, name] = key.split('/');
+    const [drv, limit] = DRIVERS[name];
+    const { result } = driveUrban(createDriverChallenge(), handlingById(h), urbanGrip(drv), { limit });
+    assert.deepEqual({ outcome: result.outcome, time: +result.time.toFixed(6), detections: result.detections, peakAttention: +result.peakAttention.toFixed(6) }, want, key);
+  }
+});
+
+// --- The Getaway sheet and isolation ---------------------------------------------------------------------
+test('sheet: the Getaway sheet offers Get the Footage then Getaway Driver, with no URL switch', () => {
+  assert.deepEqual(GETAWAY_SHEET.map((m) => m.id), ['get-the-footage', 'getaway-driver']);
+  assert.equal(GETAWAY_SHEET[1], GETAWAY_DRIVER);
+  assert.deepEqual(GETAWAY_DRIVER.environments.map((d) => d.id), ['getaway-driver-downtown']);
+  assert.ok(!existsSync(new URL('../src/getaway-driver-entry.js', import.meta.url)), 'the R0 ?driver switch is gone');
+  for (const file of ['main.js', 'getaway-missions.js', 'getaway-driver.js', 'getaway-driver-ui.js', 'getaway-driver-records.js', 'gymkhana-ui.js', 'getaway-urban-draw.js', 'render.js']) {
+    const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /URLSearchParams|location\.search|getaway-driver-entry|RESEARCH_MISSIONS/, file);
+  }
+  for (const text of [GETAWAY_DRIVER.description, ...GETAWAY_DRIVER.environments[0].points]) assert.doesNotMatch(text, /research/i);
+});
+
+test('isolation: gymkhana challenges and the Get the Footage records index never include Getaway Driver', () => {
   assert.deepEqual(GETAWAY_MISSIONS.map((m) => m.id), ['get-the-footage']);
   assert.ok(!GYMKHANA_CHALLENGES.some((c) => /driver/.test(c.id)));
   assert.ok(![...getawayIndex().keys()].some((id) => /driver/.test(id)));
-  // No page here: the switch is off.
-  assert.deepEqual(RESEARCH_MISSIONS, []);
-  // The URL switch lives only in the entry file.
-  for (const file of ['main.js', 'getaway-driver.js', 'getaway-driver-ui.js', 'gymkhana-ui.js', 'getaway-urban-draw.js', 'render.js']) {
-    assert.doesNotMatch(readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8'), /URLSearchParams|location\.search/, file);
+});
+
+test('analytics: a Getaway Driver run counts as a getaway run, and sends no outcome or count', () => {
+  const sent = [];
+  let t = 0;
+  const analytics = createAnalytics({ send: (name, data) => sent.push([name, data]), now: () => t, foreground: () => true });
+  const events = [];
+  const def = createDriverChallenge();
+  const game = createGame(undefined, { handling: CLASSIC, onRunEvent: (e) => {
+    events.push(e);
+    analytics.runEvent(e, { lap: 0, category: categoryOf({ mode: game.mode, layout: game.challengeDef?.layout }) });
+  } });
+  startRun(game, { mode: 'gymkhana', ghost: false, handling: CLASSIC, challenge: def });
+  const drive = urbanGrip({ lateral: 8, cap: 17 });
+  for (let i = 0; i < 120 / DT && game.state !== 'finished'; i += 1) {
+    tick(game, drive(game));
+    t += DT * 1000;
+    analytics.frame({ runId: game.runId, category: categoryOf({ mode: game.mode, layout: def.layout }), racing: game.state === 'racing', active: true });
   }
+  assert.equal(game.challenge.result.outcome, 'ghost');
+  const ended = events.find((e) => e.type === 'challenge');
+  assert.equal(ended.completed, true);
+  assert.equal(ended.value, null);
+  assert.ok(!('outcome' in ended), 'the run event carries no outcome');
+  const runEvents = sent.filter(([name]) => name === 'md_run_start' || name === 'md_run_complete');
+  assert.deepEqual(runEvents, [['md_run_start', { category: 'getaway' }], ['md_run_complete', { category: 'getaway' }]]);
+  const payload = JSON.stringify(sent).toLowerCase();
+  for (const word of ['ghost', 'low', 'lost', 'driver', 'outcome', 'count', 'downtown']) assert.ok(!payload.includes(word), `${word} in ${payload}`);
 });
 
 test('isolation: a completed run has no value, and the Getaway records ignore it and write nothing', () => {
@@ -241,6 +327,34 @@ test('safehouse: shut while chased, open otherwise; arriving unnoticed is a ghos
   for (let i = 0; i < Math.round(1.5 / DT) && run.phase === 'running'; i += 1) { place(game, [295 + i * 0.25, 0], 0, 30); tick(game, NONE); }
   assert.equal(run.phase, 'complete');
   assert.equal(run.result.outcome, 'ghost');
+});
+
+// Arrive at the safehouse from just short of it, with the run's history set by hand.
+function arrive(history) {
+  const { game, run } = session({ at: [290, 0] });
+  parkAll(run);
+  Object.assign(run, history);
+  for (let i = 0; i < Math.round(1.5 / DT) && run.phase === 'running'; i += 1) { place(game, [295 + i * 0.25, 0], 0, 30); tick(game, NONE); }
+  return run;
+}
+
+test('outcomes: Ghost run, Low profile and Lost them are told apart by attention and chases', () => {
+  assert.deepEqual(DRIVER_OUTCOMES.map((o) => [o.id, o.outcome, o.name]),
+    [['ghost', 'ghost', 'Ghost run'], ['low-profile', 'low profile', 'Low profile'], ['lost-them', 'lost them', 'Lost them']]);
+  // Never SUSPICIOUS: a ghost run, right up to the line.
+  assert.equal(arrive({ peakAttention: DRIVER.suspectAt - 0.01 }).result.outcome, 'ghost');
+  // SUSPICIOUS (or hotter, even reported) but never chased: low profile.
+  assert.equal(arrive({ peakAttention: DRIVER.suspectAt }).result.outcome, 'low profile');
+  assert.equal(arrive({ peakAttention: 1, reports: 1 }).result.outcome, 'low profile');
+  // Chased and lost: lost them, however calm the rest of the run.
+  const lost = arrive({ peakAttention: 1, detections: 2, escapes: 2 });
+  assert.equal(lost.result.outcome, 'lost them');
+  assert.equal(lost.result.detections, 2);
+  assert.equal(lost.result.value, null);
+  // The HUD's "on for" line and the results use the same rule.
+  assert.equal(driverOutcome({ detections: 0, peakAttention: 0.2 }), 'ghost');
+  assert.equal(driverOutcome({ detections: 0, peakAttention: 0.5 }), 'low profile');
+  assert.equal(driverOutcome({ detections: 1, peakAttention: 0.2 }), 'lost them');
 });
 
 test('whole runs: a calm driver arrives unnoticed in both handling modes; a fast one is chased; runs repeat exactly', () => {

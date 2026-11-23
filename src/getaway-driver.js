@@ -1,5 +1,6 @@
-// Getaway Driver: the second Getaway mission. EXPERIMENTAL (v0.8.0 R0 research), not a shipped
-// challenge, and offered only by getaway-driver-entry.js.
+// Getaway Driver: the second Getaway mission, offered on the Getaway sheet after Get the Footage
+// (getaway-missions.js GETAWAY_SHEET). The mechanics below are the R0 build the owner accepted
+// in Classic and Power; a unit test holds DRIVER and DRIVER_PATROLS to those numbers.
 //
 // Get the Footage's Downtown, without its cameras: drive from the start to the safehouse without
 // drawing the police, or, once they are on you, lose them first. It is a gymkhana challenge object
@@ -19,8 +20,11 @@
 //     TIME seconds together. The police then search where they last saw it and go back to patrol;
 //   - victory: through the safehouse gate unnoticed, or after losing every pursuer. The gate does not
 //     open while a police car is chasing (nobody leads the police home).
-// Nothing here reads or writes storage, and nothing here is a medal or a record: a run's result has
-// no value (game.js reports value null), and the mission is in no records index.
+// A completed run ends one of three ways (driverOutcome): a Ghost run (never even SUSPICIOUS), Low
+// profile (noticed, never chased) or Lost them (chased, and lost every time). Nothing here reads or
+// writes storage, and nothing here is a score, medal or record: a run's result has no value (game.js
+// reports value null), and the mission is in no records index. How often each outcome has been
+// reached is counted, on this device only, by getaway-driver-records.js.
 import { TUNING } from './tuning.js';
 import { gateCrossing } from './track.js';
 import { padTrack } from './practice-pad.js';
@@ -98,6 +102,21 @@ const cities = new Map();
 export function driverCityFor(variant = 'downtown') {
   if (!cities.has(variant)) cities.set(variant, buildCity(LAYOUTS[variant]));
   return cities.get(variant);
+}
+
+// --- Outcomes ----------------------------------------------------------------------------------------
+// The three ways to reach the safehouse, best first. `id` is the stable id the completion counts are
+// saved under; `outcome` is what a run's result says.
+export const DRIVER_OUTCOMES = Object.freeze([
+  Object.freeze({ id: 'ghost', outcome: 'ghost', name: 'Ghost run' }),
+  Object.freeze({ id: 'low-profile', outcome: 'low profile', name: 'Low profile' }),
+  Object.freeze({ id: 'lost-them', outcome: 'lost them', name: 'Lost them' }),
+]);
+
+// What a run would be if it reached the safehouse now: chased at any point (and so lost them, since
+// the safehouse is shut during a chase), else noticed (SUSPICIOUS or above), else unseen.
+export function driverOutcome(run, D = DRIVER) {
+  return run.detections ? 'lost them' : run.peakAttention < D.suspectAt ? 'ghost' : 'low profile';
 }
 
 // --- Patrol loops ------------------------------------------------------------------------------------
@@ -358,7 +377,7 @@ export function createDriverChallenge({ variant = 'downtown', driver = {}, patro
 
   function result(run, scoring, ended) {
     const arrived = ended === 'arrived';
-    const outcome = !arrived ? ended : run.detections ? 'lost them' : run.peakAttention < D.suspectAt ? 'ghost' : 'low profile';
+    const outcome = !arrived ? ended : driverOutcome(run, D);
     return {
       value: null, ended, outcome,
       time: run.time, distance: run.ground, peakAttention: run.peakAttention, reports: run.reports,
@@ -678,7 +697,7 @@ export function createDriverChallenge({ variant = 'downtown', driver = {}, patro
       'Drive calmly out of sight of the police and ATTENTION drains. Fill it unseen and you are reported: a patrol car is sent to look.',
       'A police car that keeps you in sight at 70% ATTENTION or more gives chase, with BUST RISK as in Get the Footage. One is parked past the safehouse, watching the way in.',
       'To lose them: out of every police car\'s sight, and 45 m or more from every pursuer, for 5 seconds. The safehouse stays shut while they chase.',
-      'Research build: no medals, no records. Every run is the same city and the same patrols.',
+      'Three ways home: Ghost run (never suspicious), Low profile (never chased) or Lost them.',
     ]),
     track,
     geometry: Object.freeze({ city, cameras: city.cameras, exit: safehouse, start, bounds, loops }),
@@ -691,6 +710,6 @@ export function createDriverChallenge({ variant = 'downtown', driver = {}, patro
 export const GETAWAY_DRIVER = Object.freeze({
   id: 'getaway-driver',
   title: 'Getaway Driver',
-  description: 'Lie low. Reach the safehouse. If they spot you, lose them first. (Research build)',
+  description: 'Lie low. Reach the safehouse. If they spot you, lose them first.',
   environments: Object.freeze([createDriverChallenge()]),
 });

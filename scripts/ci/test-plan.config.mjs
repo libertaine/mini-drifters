@@ -34,10 +34,13 @@ export const SUITES = Object.freeze({
   'test:wheelspin:browser': { file: 'test/wheelspin-browser.mjs', group: 'audio-lessons', seconds: 74, about: 'Wheelspin smoke, rubber and engine note' },
   'test:environment:browser': { file: 'test/environment-browser.mjs', group: 'circuits', seconds: 10, about: 'Functional environments and collision messages' },
   'test:analytics:browser': { file: 'test/analytics-browser.mjs', group: 'menus-input', seconds: 79, about: 'Analytics gate, events and disclosure' },
+  // v0.8.0 R1. Its seconds are a local measurement until a hosted run replaces them; it sits in the
+  // shortest group, whatever its name, so the slowest job does not grow.
+  'test:getaway-driver:browser': { file: 'test/getaway-driver-browser.mjs', group: 'audio-lessons', seconds: 63, about: 'Getaway Driver: the sheet, outcomes, completion counts and storage' },
 });
 
 // The parallel jobs, in the order they are listed in the run. Measured totals (s): circuits 483,
-// menus-input 421 (+79 with analytics), gymkhana-getaway 503, audio-lessons 444.
+// menus-input 500, gymkhana-getaway 503, audio-lessons 444 (+63 with Getaway Driver).
 export const GROUPS = Object.freeze(['circuits', 'menus-input', 'gymkhana-getaway', 'audio-lessons']);
 
 // Run in every tier 2 change, and in tier 1 when a published file changes: the whole game
@@ -58,11 +61,13 @@ const AUDIO_SUITES = ['test:gameplay-audio:browser', 'test:radio:browser', 'test
   'test:reference-ghost:browser'];
 // Suites that drive a mocked Gamepad (navigator.getGamepads).
 const CONTROLLER_SUITES = ['test:controller:browser', 'test:categories:browser', 'test:dockyard-slalom:browser', 'test:getaway:browser',
-  'test:gymkhana:browser', 'test:handling:browser', 'test:medals:browser', 'test:records:browser', 'test:reference-ghost:browser'];
+  'test:gymkhana:browser', 'test:handling:browser', 'test:medals:browser', 'test:records:browser', 'test:reference-ghost:browser',
+  'test:getaway-driver:browser'];
 // Everything that opens the Gymkhana or Getaway sheets, HUD or results.
 const CHALLENGE_SUITES = ['test:gymkhana:browser', 'test:medals:browser', 'test:categories:browser', 'test:getaway:browser',
-  'test:showmanship:browser', 'test:getaway-records:browser', 'test:dockyard-slalom:browser'];
-const GETAWAY_SUITES = ['test:getaway:browser', 'test:showmanship:browser', 'test:getaway-records:browser', 'test:categories:browser'];
+  'test:showmanship:browser', 'test:getaway-records:browser', 'test:dockyard-slalom:browser', 'test:getaway-driver:browser'];
+const GETAWAY_SUITES = ['test:getaway:browser', 'test:showmanship:browser', 'test:getaway-records:browser', 'test:categories:browser',
+  'test:getaway-driver:browser'];
 
 // Path rules. `paths` are globs: `*` stays within a folder, `**` crosses folders. A file can
 // match several rules: the highest tier wins and the suites add up. A changed file no rule
@@ -87,7 +92,7 @@ export const RULES = Object.freeze([
   { id: 'challenges', tier: 3, why: 'Gymkhana and Getaway rules, missions, police, city and medals',
     paths: ['src/gymkhana.js', 'src/getaway-urban.js', 'src/getaway-city.js', 'src/getaway-nav.js', 'src/getaway-pursuer.js', 'src/getaway-missions.js', 'src/getaway-driver*.js', 'src/medals.js'] },
   { id: 'persistence', tier: 3, why: 'Saved records, ghosts or preferences, and their storage formats',
-    paths: ['src/records.js', 'src/gymkhana-records.js', 'src/getaway-records.js', 'src/ghost.js', 'src/ghost-store.js', 'src/reference-ghost.js',
+    paths: ['src/records.js', 'src/gymkhana-records.js', 'src/getaway-records.js', 'src/getaway-driver-records.js', 'src/ghost.js', 'src/ghost-store.js', 'src/reference-ghost.js',
       'src/ghost-preferences.js', 'src/handling-preferences.js', 'src/audio-preferences.js'] },
   { id: 'radio-catalogue', tier: 3, paths: ['src/radio-stations.js'], why: 'The radio file list, which most browser suites serve files from' },
 

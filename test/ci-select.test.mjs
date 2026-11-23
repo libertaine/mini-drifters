@@ -113,9 +113,17 @@ test('a new Getaway Driver integration: tier 3', () => {
     'src/main.js', 'src/gymkhana-ui.js', 'index.html', 'style.css']);
   assert.equal(p.tier, 3);
   assert.equal(p.full, true);
-  // Even alone, the new mission files are tier 3, and an unregistered browser test is unknown.
+  // Even alone, the mission and its saved counts are tier 3.
   assert.equal(pr([{ status: 'A', path: 'src/getaway-driver.js' }]).tier, 3);
-  assert.equal(pr([{ status: 'A', path: 'test/getaway-driver-browser.mjs' }]).tier, 3);
+  assert.equal(pr(['src/getaway-driver-records.js']).tier, 3);
+  // Its browser suite is registered (v0.8.0 R1): a change to it alone runs it, with the smoke suite.
+  const suite = pr(['test/getaway-driver-browser.mjs']);
+  assert.equal(suite.tier, 2);
+  assert.deepEqual(suite.groups.flatMap((g) => g.suites).sort(), ['test:browser', 'test:getaway-driver:browser']);
+  // And the Getaway sheet, drawing and controller changes select it.
+  for (const file of ['src/gymkhana-ui.js', 'src/getaway-urban-draw.js', 'src/controller.js']) {
+    assert.ok(pr([file]).groups.flatMap((g) => g.suites).includes('test:getaway-driver:browser'), file);
+  }
 });
 
 test('a change to CI or the test selection itself: tier 3', () => {

@@ -16,9 +16,9 @@ import { padTrack } from './practice-pad.js';
 import { createGymkhanaRecords } from './gymkhana-records.js';
 import { createGymkhanaUi, hideBust } from './gymkhana-ui.js';
 import { GYMKHANA_CHALLENGES } from './gymkhana.js';
-import { GETAWAY_MISSIONS } from './getaway-missions.js';
-import { RESEARCH_MISSIONS } from './getaway-driver-entry.js';
+import { GETAWAY_SHEET } from './getaway-missions.js';
 import { createGetawayRecords } from './getaway-records.js';
+import { createDriverRecords } from './getaway-driver-records.js';
 import { createGhostStore } from './ghost-store.js';
 import { createReferenceGhosts, slotState } from './reference-ghost.js';
 import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
@@ -42,6 +42,9 @@ const LESSON_HANDLING = handlingById('classic');
 const records = createRecords();
 const gymkhanaRecords = createGymkhanaRecords();
 const getawayRecords = createGetawayRecords();
+// Getaway Driver keeps no bests: only how often each way home was reached, under its own key
+// (getaway-driver-records.js).
+const driverRecords = createDriverRecords();
 // The saved reference ghost keeps one flying lap per track and mode under its own key
 // (ghost-store.js). It hears each event after the records, so it can tell whether a lap has
 // just set the fastest-lap record (reference-ghost.js).
@@ -56,6 +59,7 @@ const game = createGame(undefined, { onRunEvent: (event) => {
   gymkhanaRecords.handle(event);
   getawayRecords.handle(event);
   referenceGhosts.handle(event);
+  driverRecords.handle(event, event.type === 'challenge' ? game.challenge?.result?.outcome ?? null : null);
   if (event.type === 'start' || event.type === 'ghost') showReference();
   showPersonalBests();
   analytics?.runEvent(event, { lap: game.laps.completed, category: analyticsCategory() });
@@ -328,13 +332,13 @@ const PICKER_SHEETS = {
 const CATEGORY_BUTTON = { tracks: 'tracks-open', challenges: 'gymkhana', missions: 'getaway' };
 let picker = null;
 let mission = null;
-const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, onChoose: () => showGymkhanaMenu() });
+const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, driverRecords, onChoose: () => showGymkhanaMenu() });
 const inGymkhana = () => game.mode === 'gymkhana' && game.state !== 'menu';
 const inGetaway = () => inGymkhana() && game.challengeDef.layout === 'urban';
 const challengePicker = () => picker === 'challenges' || picker === 'environments';
 const pickerSheet = () => $(PICKER_SHEETS[picker]);
 
-const missionButtons = [...GETAWAY_MISSIONS, ...RESEARCH_MISSIONS].map((entry) => {
+const missionButtons = GETAWAY_SHEET.map((entry) => {
   const button = document.createElement('button');
   button.type = 'button';
   button.id = entry.id;

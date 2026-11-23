@@ -46,8 +46,8 @@ repository's own files. So "production" is the address itself. Local play
 `navigator.webdriver`), a copy on any other host, another path on the same host, plain
 HTTP and `file://` all fail the first two rows.
 
-The game itself reads no URL parameters today. `?debug` and `?driver` (the Getaway
-Driver research switch) are listed so that they stay uncounted if they ship. A unit test
+The game itself reads no URL parameters today. `?debug` and `?driver` (the retired Getaway
+Driver research switch, which no longer does anything) are listed so that they stay uncounted. A unit test
 fails if any source file starts reading a URL parameter that is not sorted into
 `SCENARIO_PARAMS` or `PREFERENCES`. The in-game debug display (the `D` key) is not a
 URL scenario: it sends nothing extra and changes nothing that is sent.
@@ -99,10 +99,12 @@ frame loop, never from what is drawn on the screen.
 |---|---|
 | `tracks` | A scored circuit run (`game.mode === 'normal'`): Original, Switchback or Dockyard |
 | `gymkhana` | A Gymkhana challenge |
-| `getaway` | A Getaway mission (a challenge on the `urban` layout) |
+| `getaway` | A Getaway mission (a challenge on the `urban` layout): Get the Footage or Getaway Driver |
 | none | The driving lesson (Try It) and the practice pad. Nothing is sent for them, and their time is not counted |
 
-The circuit, challenge, mission, environment and handling mode are not sent.
+The circuit, challenge, mission, environment and handling mode are not sent. Nor is a Getaway
+Driver outcome (Ghost run, Low profile, Lost them) or its completion counts: those stay in the
+browser (see [GETAWAY-DRIVER](GETAWAY-DRIVER.md)).
 
 ### `md_game_start` and `md_run_start`
 
@@ -132,7 +134,7 @@ have laps.
 |---|---|
 | `tracks` | The game's `finish` event: three valid laps done |
 | `gymkhana` | The `challenge` event with `completed: true` |
-| `getaway` | The `challenge` event with `completed: true`: an escape |
+| `getaway` | The `challenge` event with `completed: true`: an escape (Get the Footage) or reaching the safehouse (Getaway Driver) |
 
 Nothing is sent for a failed challenge, a bust, a timeout, a retry, a restart, or a run
 left for the title. A retry or return to the title takes effect as the game's own `start`

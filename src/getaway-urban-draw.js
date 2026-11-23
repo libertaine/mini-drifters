@@ -689,7 +689,7 @@ export function drawUrban(ctx, def, run, game, time, view) {
   ctx.setLineDash([]);
 }
 
-// --- Getaway Driver (EXPERIMENTAL, v0.8.0 R0) ------------------------------------------------------
+// --- Getaway Driver ----------------------------------------------------------------------------------
 // What each police car can see, on the ground: a patrol car's cone ahead, or all round for one that is
 // looking for the car, stopped by the buildings. Pale blue while it has not seen you, amber while it
 // is watching you, red while it chases.

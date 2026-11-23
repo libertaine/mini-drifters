@@ -8,7 +8,7 @@ import {
 } from './medals.js';
 import { cueForGame, cueText, turnBearing } from './getaway-nav.js';
 import { getawayMedal } from './getaway-records.js';
-import { isDriver, updateDriverMeter, updateDriverHud, driverNavText, driverNavGoal, driverBanner, showDriverResults, showDriverMenu } from './getaway-driver-ui.js';
+import { isDriver, updateDriverMeter, updateDriverHud, driverNavText, driverNavGoal, driverBanner, showDriverResults, showDriverMenu, driverNote } from './getaway-driver-ui.js';
 
 const MPH_PER_MS = 2.23694;
 const DEG = 180 / Math.PI;
@@ -193,7 +193,7 @@ function updateBust(def, run, game) {
     : run.time < def.pursuerTuning.delay ? 'waiting' : run.phase === 'running' ? run.level : 'clear';
   document.body.dataset.bust = level;
   if (!on) return;
-  // Getaway Driver (R0 research) relabels this meter: put Get the Footage's back.
+  // Getaway Driver relabels this meter: put Get the Footage's back.
   if (el.dataset.mode) {
     el.dataset.mode = '';
     el.querySelector('.bust-label').textContent = 'Bust risk';
@@ -259,14 +259,15 @@ function updateNav(def, run, game) {
   el.dataset.new = run.time < navNewUntil ? 'true' : 'false';
 }
 
-// `records` is the gymkhana records keeper (gymkhana-records.js) and `getawayRecords` the Getaway
-// one (getaway-records.js). `onChoose` is called after the player picks a challenge on the sheet.
-export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
+// `records` is the gymkhana records keeper (gymkhana-records.js), `getawayRecords` the Getaway
+// one (getaway-records.js) and `driverRecords` Getaway Driver's completion counts
+// (getaway-driver-records.js). `onChoose` is called after the player picks a challenge on the sheet.
+export function createGymkhanaUi({ records, getawayRecords, driverRecords, onChoose }) {
   let choices;
   let inputs = [];
   const remembered = new Map();
   const selected = () => choices[remembered.get(choices) ?? 0];
-  const keeper = (def) => (isGetaway(def) ? getawayRecords : records);
+  const keeper = (def) => (isDriver(def) ? driverRecords : isGetaway(def) ? getawayRecords : records);
   const bestOf = (def, handlingId) => keeper(def).bestFor(def.id, handlingId);
 
   function choose(index) {
@@ -300,8 +301,9 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
   }
   setChoices(GYMKHANA_CHALLENGES);
 
-  const recordsNote = (def) => (!keeper(def).available ? 'Record storage unavailable. New improvements cannot be saved.'
-    : keeper(def).readOnly ? `${isGetaway(def) ? 'Getaway' : 'Gymkhana'} records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.` : '');
+  const recordsNote = (def) => (isDriver(def) ? driverNote(driverRecords)
+    : !keeper(def).available ? 'Record storage unavailable. New improvements cannot be saved.'
+      : keeper(def).readOnly ? `${isGetaway(def) ? 'Getaway' : 'Gymkhana'} records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.` : '');
 
   let shownPrompt = '';
   let shownRows = '';
@@ -368,7 +370,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
         ? `${handling.name} handling, chosen on the title screen. Each handling mode keeps its own best.`
         : `${handling.name} handling. Press H to change it. Each handling mode keeps its own best.`);
       setText($('gymkhana-records-note'), recordsNote(def));
-      if (isDriver(def)) showDriverMenu();
+      if (isDriver(def)) showDriverMenu(def, handling, device, driverRecords);
     },
 
     // The line under the car before the clock starts: what to do, and the keys.
@@ -468,7 +470,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
       const run = game.challenge;
       if (isDriver(def)) {
         shownRows = '';
-        showDriverResults(def, game);
+        showDriverResults(def, game, driverRecords);
         return;
       }
       const r = run.result;
@@ -478,6 +480,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
       const { newBest, previousBest } = keeper(def);
       $('gymkhana-results').dataset.outcome = failed ? 'failed' : 'complete';
       $('gymkhana-results').dataset.layout = def.layout;
+      $('gymkhana-results').dataset.driver = '';
       setText($('gr-eyebrow'), `${def.name} · ${game.handling.name} handling`);
       setText($('gr-title'), isGetaway(def)
         ? (failed ? (run.reason === 'busted' ? 'Busted' : /^missed camera/.test(run.reason) ? 'Upload cancelled' : 'Run failed') : isGetaway(def) && def.showmanship ? 'Getaway complete' : 'Escaped')
