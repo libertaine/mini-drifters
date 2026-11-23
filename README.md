@@ -247,3 +247,5 @@ In particular, the Mustang engine recordings are owned by the project owner, dis
 with Mini Drifters by permission, and not licensed for other uses. The other recordings,
 including the tyre sound, are third-party CC0 recordings. The provisional radio music is
 synthesized by a script in this repository and covered by its MIT License.
+
+<!-- CI validation: tier 1 (README only). Not for merging. -->
