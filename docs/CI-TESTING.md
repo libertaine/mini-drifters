@@ -182,7 +182,7 @@ The browser suites run in four jobs, balanced by measured time (seconds on GitHu
 | `circuits` | tracks, records, ghost, reference ghost, scoring, environment | 483 s |
 | `menus-input` | handling, controller, menus, the smoke test, analytics | 500 s |
 | `gymkhana-getaway` | gymkhana, medals, categories, getaway, showmanship, Getaway records, Dockyard/Slalom | 503 s |
-| `audio-lessons` | tutorial, gameplay audio, radio, wheelspin, audio lab, Coyote, Getaway Driver (in the shortest group, so the slowest job does not grow) | 444 s (507 s) |
+| `audio-lessons` | tutorial, gameplay audio, radio, wheelspin, audio lab, Coyote, Getaway Driver (in the shortest group, so the slowest job does not grow) | 498 s |
 
 Each job repeats the setup: about 25 s to start the Playwright container, a few seconds for
 checkout, Node and Playwright. Each job is its own virtual machine, so ports, artifacts and

@@ -34,13 +34,13 @@ export const SUITES = Object.freeze({
   'test:wheelspin:browser': { file: 'test/wheelspin-browser.mjs', group: 'audio-lessons', seconds: 74, about: 'Wheelspin smoke, rubber and engine note' },
   'test:environment:browser': { file: 'test/environment-browser.mjs', group: 'circuits', seconds: 10, about: 'Functional environments and collision messages' },
   'test:analytics:browser': { file: 'test/analytics-browser.mjs', group: 'menus-input', seconds: 79, about: 'Analytics gate, events and disclosure' },
-  // v0.8.0 R1. Its seconds are a local measurement until a hosted run replaces them; it sits in the
-  // shortest group, whatever its name, so the slowest job does not grow.
-  'test:getaway-driver:browser': { file: 'test/getaway-driver-browser.mjs', group: 'audio-lessons', seconds: 63, about: 'Getaway Driver: the sheet, outcomes, completion counts and storage' },
+  // v0.8.0 R1 (run 45119922651, PR #43). In the shortest group, whatever its name, so the slowest
+  // job does not grow.
+  'test:getaway-driver:browser': { file: 'test/getaway-driver-browser.mjs', group: 'audio-lessons', seconds: 54, about: 'Getaway Driver: the sheet, outcomes, completion counts and storage' },
 });
 
 // The parallel jobs, in the order they are listed in the run. Measured totals (s): circuits 483,
-// menus-input 500, gymkhana-getaway 503, audio-lessons 444 (+63 with Getaway Driver).
+// menus-input 500, gymkhana-getaway 503, audio-lessons 498 (444 + 54 for Getaway Driver).
 export const GROUPS = Object.freeze(['circuits', 'menus-input', 'gymkhana-getaway', 'audio-lessons']);
 
 // Run in every tier 2 change, and in tier 1 when a published file changes: the whole game
