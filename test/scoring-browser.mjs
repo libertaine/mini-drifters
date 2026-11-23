@@ -9,6 +9,7 @@ import http from 'node:http';
 import { mkdir, readFile, readdir } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+throw new Error('CI VALIDATION: deliberate failure, to show a failing suite cannot be hidden');
 import { RADIO_FILES } from '../src/radio-stations.js';
 
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
