@@ -1,4 +1,4 @@
-// The optional driving lesson. It watches a real session and decides when the player
+// The optional driving lesson (CI validation: tier 2 comment-only change). It watches a real session and decides when the player
 // has really done each thing. It never writes to the game: the car, the scoring and the
 // clock behave exactly as they do in a normal run. Contains no browser code.
 import { TUNING as T } from './tuning.js';
