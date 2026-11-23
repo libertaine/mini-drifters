@@ -1,93 +1,155 @@
 name: CI and Pages
 
+# What runs is decided by scripts/ci/select-tests.mjs from the files a change touches: see
+# docs/CI-TESTING.md. Pull requests get the tier their files need. A push to main always runs
+# the full regression, and only a fully tested push to main deploys.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  # Release qualification, or a full regression of any branch on request: Actions > CI and
+  # Pages > Run workflow. It always runs everything, and it never deploys.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer push to a pull request replaces its older run. Runs on main and manual runs are
+# never cancelled.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  test:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # The image already holds the browsers and their system packages, so the job
-    # never downloads from the Ubuntu mirrors. Its version must match the
-    # Playwright version installed below. Running as the runner's user lets
-    # Firefox start, because it refuses to run as root in another user's home.
-    container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
-      options: --user 1001
+    timeout-minutes: 5
+    outputs:
+      tier: ${{ steps.select.outputs.tier }}
+      full: ${{ steps.select.outputs.full }}
+      suites: ${{ steps.select.outputs.suites }}
+      matrix: ${{ steps.select.outputs.matrix }}
+      browser: ${{ steps.select.outputs.browser }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Choose the tests
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            node scripts/ci/select-tests.mjs --event "$EVENT" --classifier "the selector and rules in this commit"
+            exit 0
+          fi
+          # A pull request is classified by the selector and rules on its base branch, not the
+          # ones it brings, so no change can choose its own tier.
+          base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          trusted="$RUNNER_TEMP/trusted"
+          if git cat-file -e "$base:scripts/ci/select-tests.mjs" 2>/dev/null; then
+            install -d "$trusted"
+            git archive "$base" scripts/ci | tar -x -C "$trusted"
+            node "$trusted/scripts/ci/select-tests.mjs" --event pull_request --base "$BASE_SHA" --head "$HEAD_SHA" --classifier "the selector and rules on the base branch (${base:0:12})"
+          else
+            node scripts/ci/select-tests.mjs --event full --reason "the base branch has no test selector yet" --classifier "the selector and rules in this commit"
+          fi
+
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Unit, session and publishing tests
+      - name: Unit, session, publishing and test-selection tests
         run: npm test
-      # The game has no dependencies. Playwright is installed only for this check,
-      # at a pinned version, and is not recorded in package.json.
+
+  browser:
+    name: browser (${{ matrix.group }})
+    needs: plan
+    if: needs.plan.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The image already holds the browsers and their system packages, so the job never
+    # downloads from the Ubuntu mirrors. Its version must match the Playwright version
+    # installed below. Running as the runner's user lets Firefox start, because it refuses
+    # to run as root in another user's home.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # The game has no dependencies. Playwright is installed only for these checks, at a
+      # pinned version, and is not recorded in package.json.
       - name: Install Playwright
         run: npm install --no-save --no-package-lock playwright@1.64.1
-      - name: Chromium and Firefox check, served as on Pages
-        run: npm run test:browser
-      - name: Development audio lab in Chromium and Firefox
-        run: npm run test:audio:browser
-      - name: Coyote voice in the audio lab
-        run: npm run test:coyote:browser
-      - name: Gameplay audio on the published files, and the fallback
-        run: npm run test:gameplay-audio:browser
-      - name: Previous-lap ghost in Chromium and Firefox
-        run: npm run test:ghost:browser
-      - name: Saved reference ghost, its storage and Options in Chromium and Firefox
-        run: npm run test:reference-ghost:browser
-      - name: Radio in Chromium and Firefox
-        run: npm run test:radio:browser
-      - name: Title screen and menus in Chromium and Firefox
-        run: npm run test:menus:browser
-      - name: Driving tutorial and Return to Title in Chromium and Firefox
-        run: npm run test:tutorial:browser
-      - name: Track choice and Switchback in Chromium and Firefox
-        run: npm run test:tracks:browser
-      - name: Voided-lap warnings and results in Chromium and Firefox
-        run: npm run test:scoring:browser
-      - name: Mocked controller in Chromium and Firefox
-        run: npm run test:controller:browser
-      - name: Local personal records in Chromium and Firefox
-        run: npm run test:records:browser
-      - name: Handling modes and practice pad in Chromium and Firefox
-        run: npm run test:handling:browser
-      - name: Gymkhana challenges and their records in Chromium and Firefox
-        run: npm run test:gymkhana:browser
-      - name: Gymkhana medals in Chromium and Firefox
-        run: npm run test:medals:browser
-      - name: Gameplay categories in Chromium and Firefox
-        run: npm run test:categories:browser
-      - name: Getaway mission in Chromium and Firefox
-        run: npm run test:getaway:browser
-      - name: Getaway Showmanship and impact audio in Chromium and Firefox
-        run: npm run test:showmanship:browser
-      - name: Getaway personal bests, reloads and storage failures in Chromium and Firefox
-        run: npm run test:getaway-records:browser
-      - name: Dockyard and Slalom Sprint in Chromium and Firefox
-        run: npm run test:dockyard-slalom:browser
-      - name: Wheelspin smoke, rubber and engine note in Chromium and Firefox
-        run: npm run test:wheelspin:browser
-      - name: Functional environments and collision messages in Chromium and Firefox
-        run: npm run test:environment:browser
+      - name: Browser suites in Chromium and Firefox
+        env:
+          SUITES: ${{ matrix.suites }}
+          GROUP: ${{ matrix.group }}
+        run: node scripts/ci/run-suites.mjs --results "results-$GROUP.json" $SUITES
+      - name: Keep this group's results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: results-${{ matrix.group }}
+          path: results-*.json
+          retention-days: 7
       - name: Keep screenshots from a failed run
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-artifacts
+          name: browser-artifacts-${{ matrix.group }}
           path: artifacts/
           retention-days: 7
 
+  # The required status check. It always runs, and passes only if the plan was made, the unit
+  # suite passed, and every planned browser suite has a passing result: a skipped, cancelled
+  # or missing job fails it.
+  test:
+    needs: [plan, unit, browser]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Collect the browser results
+        if: needs.plan.outputs.browser == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: results-*
+          merge-multiple: true
+          path: results
+      - name: Everything planned ran and passed
+        env:
+          PLANNED: ${{ needs.plan.outputs.suites }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: node scripts/ci/verify-results.mjs --plan "$PLANNED" --results-dir results --job "plan=$PLAN_RESULT" --job "unit=$UNIT_RESULT" --job "browser=$BROWSER_RESULT"
+
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.plan.outputs.full == 'true'
+    needs: [plan, test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
