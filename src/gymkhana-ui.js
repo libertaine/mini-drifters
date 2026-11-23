@@ -8,6 +8,7 @@ import {
 } from './medals.js';
 import { cueForGame, cueText, turnBearing } from './getaway-nav.js';
 import { getawayMedal } from './getaway-records.js';
+import { isDriver, updateDriverMeter, updateDriverHud, driverNavText, driverNavGoal, driverBanner, showDriverResults, showDriverMenu } from './getaway-driver-ui.js';
 
 const MPH_PER_MS = 2.23694;
 const DEG = 180 / Math.PI;
@@ -192,6 +193,13 @@ function updateBust(def, run, game) {
     : run.time < def.pursuerTuning.delay ? 'waiting' : run.phase === 'running' ? run.level : 'clear';
   document.body.dataset.bust = level;
   if (!on) return;
+  // Getaway Driver (R0 research) relabels this meter: put Get the Footage's back.
+  if (el.dataset.mode) {
+    el.dataset.mode = '';
+    el.querySelector('.bust-label').textContent = 'Bust risk';
+    el.style.removeProperty('--mark');
+    if ($('bust-lose')) $('bust-lose').hidden = true;
+  }
   el.dataset.level = level;
   const pct = Math.round(run.meter * 100);
   el.style.setProperty('--bust', `${pct}%`);
@@ -232,9 +240,9 @@ function updateNav(def, run, game) {
   if (el.style.width !== width) el.style.width = width;
   if (el.style.bottom !== bottom) el.style.bottom = bottom;
   const cue = cueForGame(game);
-  const words = cueText(run, cue, cameras);
+  const words = isDriver(def) ? driverNavText(run, cue) : cueText(run, cue, cameras);
   el.dataset.glyph = words.glyph;
-  el.dataset.goal = run.exitOpen ? 'escape' : run.missed[run.nextCamera] ? 'missed' : 'camera';
+  el.dataset.goal = isDriver(def) ? driverNavGoal(run) : run.exitOpen ? 'escape' : run.missed[run.nextCamera] ? 'missed' : 'camera';
   // Screen bearing of the glyph (drawn pointing up): the coming turn's approach, or the aim.
   const car = game.car;
   const bearing = !cue ? -Math.PI / 2
@@ -360,6 +368,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
         ? `${handling.name} handling, chosen on the title screen. Each handling mode keeps its own best.`
         : `${handling.name} handling. Press H to change it. Each handling mode keeps its own best.`);
       setText($('gymkhana-records-note'), recordsNote(def));
+      if (isDriver(def)) showDriverMenu();
     },
 
     // The line under the car before the clock starts: what to do, and the keys.
@@ -390,6 +399,12 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
       setText($('gym-handling'), game.handling.name);
       setText($('gym-clock'), formatClock(run.time));
       setText($('gym-stage'), run.phase === 'running' ? `Next: ${run.stage}` : run.stage);
+      if (isDriver(def)) {
+        updateDriverMeter(def, run, game);
+        updateNav(def, run, game);
+        updateDriverHud(def, run);
+        return;
+      }
       setText($('gym-gates'), def.layout === 'course' ? `Gates ${run.gates.filter(Boolean).length}/${run.gates.length}`
         : def.layout === 'slalom' ? `Cones ${run.next}/${def.geometry.count}`
           : isGetaway(def) ? `Footage ${def.geometry.cameras.map((_, i) => (run.cameras[i] ? '●' : '○')).join('')} ${run.nextCamera}/${def.geometry.cameras.length} · escape gate ${run.exitOpen ? 'open' : 'locked'}`
@@ -428,6 +443,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
 
     // What the banner says about a run's event: a cone has fallen.
     banner(def, event) {
+      if (isDriver(def)) return driverBanner(event);
       if (isGetaway(def)) {
         if (event.type === 'missed') return { kind: 'lost', text: `CAM ${event.crossed} TOO SOON · GO BACK FOR CAM ${event.camera}` };
         if (event.type === 'wrongway') return { kind: 'penalty', text: `WRONG WAY · CAM ${event.camera} FILMS THE OTHER WAY` };
@@ -450,6 +466,11 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
     showResults(game) {
       const def = game.challengeDef;
       const run = game.challenge;
+      if (isDriver(def)) {
+        shownRows = '';
+        showDriverResults(def, game);
+        return;
+      }
       const r = run.result;
       const failed = run.phase === 'failed';
       const handlingId = game.handling.id;

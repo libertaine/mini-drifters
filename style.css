@@ -551,7 +551,7 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 #bust-state { flex: 1; font: 400 22px/1 var(--poster); letter-spacing: 0.04em; text-transform: uppercase; color: var(--green); }
 #bust-pct { font: 400 22px/1 var(--display); font-variant-numeric: tabular-nums; color: var(--ink); }
 .bust-track { position: relative; height: 14px; margin-top: 6px; overflow: hidden; border-radius: 7px; background: rgba(246,241,228,0.14); }
-.bust-track::after { content: ''; position: absolute; top: 0; bottom: 0; left: 60%; width: 2px; background: rgba(246,241,228,0.45); }
+.bust-track::after { content: ''; position: absolute; top: 0; bottom: 0; left: var(--mark, 60%); width: 2px; background: rgba(246,241,228,0.45); }
 .bust-fill { position: absolute; inset: 0 auto 0 0; width: var(--bust, 0%); background: var(--amber); transition: width 0.08s linear; }
 #bust-detail { margin-top: 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bust[data-level='close'] { border-color: rgba(255,182,39,0.7); }
@@ -561,6 +561,19 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 .bust[data-level='critical'] .bust-fill, .bust[data-level='busted'] .bust-fill { background: var(--red); }
 .bust[data-level='critical'] { animation: bust-pulse 0.5s ease-in-out infinite alternate; }
 .bust[data-trend='falling'] .bust-fill { background: var(--green); }
+/* Getaway Driver (experimental, v0.8.0 R0): the same panel shows ATTENTION until a chase, then BUST
+   RISK with the escape bar under it. */
+.bust-lose { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.bust-lose[hidden] { display: none; }
+.bust-lose-track { position: relative; flex: 1; height: 8px; overflow: hidden; border-radius: 4px; background: rgba(246,241,228,0.14); }
+.bust-lose-fill { position: absolute; inset: 0 auto 0 0; width: var(--lose, 0%); background: var(--green); transition: width 0.08s linear; }
+#bust-lose-pct { font: 700 12px var(--body); color: var(--green); font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; }
+.bust[data-mode='attention'][data-level='critical'] { animation: none; }
+.bust[data-mode='attention'][data-level='critical'] .bust-fill { background: #ff7a3d; }
+.bust[data-mode='attention'][data-level='critical'] #bust-state { color: #ff7a3d; }
+.bust[data-mode='attention'][data-level='critical'] { border-color: #ff7a3d; }
+.bust[data-mode='pursuit'] { border-color: var(--red); }
+.bust[data-mode='pursuit'] #bust-state { color: var(--red); }
 @keyframes bust-pulse { from { box-shadow: 0 0 0 0 rgba(255,90,79,0.0); } to { box-shadow: 0 0 18px 2px rgba(255,90,79,0.55); } }
 #bust-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.2s;
   background: radial-gradient(ellipse at center, rgba(255,90,79,0) 55%, rgba(255,90,79,0.42) 100%); }

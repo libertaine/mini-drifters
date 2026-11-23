@@ -11,6 +11,7 @@
 // next turn, the smash flash and SMASH +N pop-up, and a minimap that marks the next objective.
 import { BREAKABLE } from './getaway-urban.js';
 import { cueForGame, easeAngle, turnBearing } from './getaway-nav.js';
+import { visionOutline } from './getaway-driver.js';
 
 // Smash feedback timings (seconds after the hit). Bounded: everything but the resting debris is gone
 // within POPUP, and the debris is a fixed handful of pieces per object that stop within about 1 s.
@@ -657,8 +658,11 @@ export function drawUrban(ctx, def, run, game, time, view) {
   ctx.setLineDash([1, 1]);
   line(ctx, exit.x1, exit.y1, exit.x2, exit.y2);
   ctx.setLineDash([]);
-  label(ctx, open || run.phase === 'complete' ? 'ESCAPE' : `ESCAPE · LOCKED ${run.nextCamera}/${city.cameras.length}`,
+  const driver = def.mission === 'driver';
+  label(ctx, driver ? (open || run.phase === 'complete' ? 'SAFEHOUSE' : 'SAFEHOUSE · SHUT')
+    : open || run.phase === 'complete' ? 'ESCAPE' : `ESCAPE · LOCKED ${run.nextCamera}/${city.cameras.length}`,
     exit.cx + exit.tx * 5, exit.cy + exit.ty * 5, 2.4, color);
+  if (driver) drawDriverSight(ctx, def, run);
 
   for (const sign of city.signs) drawSign(ctx, sign, time);
 
@@ -669,6 +673,10 @@ export function drawUrban(ctx, def, run, game, time, view) {
   }
 
   // The ring the police car arrests within (solid while it is close and can see you).
+  if (driver) {
+    for (const u of run.police) if (u.mode === 'pursue') drawBustRing(ctx, def, run, u);
+    return;
+  }
   const p = run.pursuer;
   const r = def.captureModel.radius;
   const inside = run.gap < r && run.sees && run.phase === 'running';
@@ -679,6 +687,66 @@ export function drawUrban(ctx, def, run, game, time, view) {
   ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
+}
+
+// --- Getaway Driver (EXPERIMENTAL, v0.8.0 R0) ------------------------------------------------------
+// What each police car can see, on the ground: a patrol car's cone ahead, or all round for one that is
+// looking for the car, stopped by the buildings. Pale blue while it has not seen you, amber while it
+// is watching you, red while it chases.
+const SIGHT = {
+  patrol: ['rgba(140,180,255,0.10)', 'rgba(140,180,255,0.28)'],
+  watching: ['rgba(255,182,39,0.22)', 'rgba(255,182,39,0.65)'],
+  pursue: ['rgba(255,90,79,0.10)', 'rgba(255,90,79,0.35)'],
+  looking: ['rgba(255,182,39,0.08)', 'rgba(255,182,39,0.3)'],
+};
+function drawDriverSight(ctx, def, run) {
+  const { city } = def.geometry;
+  for (const u of run.police) {
+    const [fill, edge] = u.mode === 'pursue' ? SIGHT.pursue : u.watching ? SIGHT.watching
+      : u.mode === 'patrol' || u.mode === 'return' ? SIGHT.patrol : SIGHT.looking;
+    const pts = visionOutline(city, u, def.driverTuning);
+    ctx.beginPath();
+    ctx.moveTo(u.x, u.y);
+    for (const [x, y] of pts) ctx.lineTo(x, y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 0.3;
+    ctx.stroke();
+  }
+}
+
+function drawBustRing(ctx, def, run, p) {
+  const r = def.captureModel.radius;
+  const inside = run.gap < r && run.sees && run.phase === 'running';
+  ctx.strokeStyle = inside ? `rgba(255,90,79,${0.5 + 0.4 * run.meter})` : 'rgba(255,90,79,0.2)';
+  ctx.lineWidth = inside ? 0.55 : 0.3;
+  ctx.setLineDash(inside ? [] : [1.2, 1.2]);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// Over the roofs: a mark above each police car that is onto you. "?" watching you while you are
+// suspicious, "!" chasing, "…" responding to a report or searching.
+function drawDriverMarks(ctx, def, run, time) {
+  const D = def.driverTuning;
+  for (const u of run.police) {
+    let text = null;
+    let color = AMBER;
+    if (u.mode === 'pursue') { text = '!'; color = RED; }
+    else if (u.watching && run.attention >= D.suspectAt) text = '?';
+    else if (u.mode === 'respond' || u.mode === 'search') text = '…';
+    if (!text) continue;
+    const bob = Math.sin(time * 6) * 0.4;
+    ctx.fillStyle = 'rgba(20,21,24,0.78)';
+    ctx.beginPath();
+    ctx.arc(u.x, u.y - 5.2 + bob, 2.1, 0, Math.PI * 2);
+    ctx.fill();
+    label(ctx, text, u.x, u.y - 5.1 + bob, 3, color);
+  }
 }
 
 export function drawUrbanAbove(ctx, def, run, view, time) {
@@ -727,6 +795,7 @@ export function drawUrbanAbove(ctx, def, run, view, time) {
   for (const p of city.props) if (visible(p, view)) drawProp(ctx, p);
   for (const bl of city.blockades) if (visible(bl, view, 10)) drawBlockade(ctx, bl, time);
   // SMASH +N pop-ups, over the roofs so a building beside the stand never hides one.
+  if (def.mission === 'driver') { drawDriverMarks(ctx, def, run, time); return; }
   for (const br of city.breakables) {
     const hit = run.broken[br.index];
     if (hit) drawPopup(ctx, br, hit, run.time);
@@ -824,15 +893,31 @@ export function drawUrbanMap(ctx, game, px) {
   ctx.strokeStyle = run.exitOpen ? GREEN : RED;
   ctx.lineWidth = (run.exitOpen ? 3.4 : 2.6) * px;
   line(ctx, exit.x1, exit.y1, exit.x2, exit.y2);
+  const driver = def.mission === 'driver';
   if (live && run.exitOpen) {
     ring(exit.cx, exit.cy, GREEN);
-    tag('EXIT', exit.cx + exit.tx * 16 * px, exit.cy + exit.ty * 16 * px, GREEN);
+    tag(driver ? 'SAFE' : 'EXIT', exit.cx + exit.tx * 16 * px, exit.cy + exit.ty * 16 * px, GREEN);
   }
-  const p = run.pursuer;
-  ctx.fillStyle = Math.floor(performance.now() / 250) % 2 ? '#3d7bff' : RED;
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, 3.6 * px, 0, Math.PI * 2);
-  ctx.fill();
+  if (driver) {
+    // Every police car: a pale dot and a short nose on patrol, flashing once its lights are on.
+    const flash = Math.floor(performance.now() / 250) % 2;
+    for (const u of run.police) {
+      ctx.fillStyle = u.lights ? (flash ? '#3d7bff' : RED) : u.watching ? AMBER : 'rgba(160,190,255,0.95)';
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, 3.4 * px, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.lineWidth = 1.4 * px;
+      line(ctx, u.x, u.y, u.x + Math.cos(u.heading) * 8 * px, u.y + Math.sin(u.heading) * 8 * px);
+    }
+  }
+  const p = driver ? null : run.pursuer;
+  if (p) {
+    ctx.fillStyle = Math.floor(performance.now() / 250) % 2 ? '#3d7bff' : RED;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.6 * px, 0, Math.PI * 2);
+    ctx.fill();
+  }
   // The player's heading: a nose in front of the car's dot (render.js draws the dot over it).
   const car = game.car;
   const h = car.heading;

@@ -17,6 +17,7 @@ import { createGymkhanaRecords } from './gymkhana-records.js';
 import { createGymkhanaUi, hideBust } from './gymkhana-ui.js';
 import { GYMKHANA_CHALLENGES } from './gymkhana.js';
 import { GETAWAY_MISSIONS } from './getaway-missions.js';
+import { RESEARCH_MISSIONS } from './getaway-driver-entry.js';
 import { createGetawayRecords } from './getaway-records.js';
 import { createGhostStore } from './ghost-store.js';
 import { createReferenceGhosts, slotState } from './reference-ghost.js';
@@ -333,7 +334,7 @@ const inGetaway = () => inGymkhana() && game.challengeDef.layout === 'urban';
 const challengePicker = () => picker === 'challenges' || picker === 'environments';
 const pickerSheet = () => $(PICKER_SHEETS[picker]);
 
-const missionButtons = GETAWAY_MISSIONS.map((entry) => {
+const missionButtons = [...GETAWAY_MISSIONS, ...RESEARCH_MISSIONS].map((entry) => {
   const button = document.createElement('button');
   button.type = 'button';
   button.id = entry.id;

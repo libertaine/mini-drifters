@@ -1074,7 +1074,9 @@ export function drawFrame(r, game, alpha, dt, debug) {
   // Getaway Drift in town: the parked police cars of a blockade, lights on.
   const urban = game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban' && game.challenge ? game.challengeDef : null;
   if (urban) for (const c of blockadeCars(urban.geometry.city)) drawPolice(ctx, { prevX: c.x, x: c.x, prevY: c.y, y: c.y, prevHeading: c.heading, heading: c.heading }, 1, true);
-  if (game.challenge?.pursuer) drawPolice(ctx, game.challenge.pursuer, blend, game.state === 'racing' && !game.paused);
+  // Getaway Driver (R0 research): every police car, lights only on those responding or chasing.
+  if (game.challenge?.police) for (const u of game.challenge.police) drawPolice(ctx, u, blend, u.lights && game.state === 'racing' && !game.paused);
+  else if (game.challenge?.pursuer) drawPolice(ctx, game.challenge.pursuer, blend, game.state === 'racing' && !game.paused);
   drawCar(ctx, car, pose);
   drawSmoke(r);
   if (urban) drawUrbanAbove(ctx, urban, game.challenge, view, performance.now() / 1000);
@@ -1082,6 +1084,6 @@ export function drawFrame(r, game, alpha, dt, debug) {
   else if (!yard) drawTrees(r);
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
-  if (game.challenge?.pursuer) drawPoliceMarker(r, game.challenge, pose, urban ? 96 : 0);
+  if (game.challenge?.pursuer && (!game.challenge.police || game.challenge.pursuer.lights)) drawPoliceMarker(r, game.challenge, pose, urban ? 96 : 0);
   drawMinimap(r, car, ghost, game);
 }
