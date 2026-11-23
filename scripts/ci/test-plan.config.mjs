@@ -77,7 +77,7 @@ const GETAWAY_SUITES = ['test:getaway:browser', 'test:showmanship:browser', 'tes
 // Tier 3: everything.
 export const RULES = Object.freeze([
   // --- Tier 3: the simulation, rules, persistence, shared glue and the CI itself -------------
-  { id: 'ci', tier: 3, paths: ['.github/**', 'scripts/ci/**'], why: 'The CI workflow or the test selection itself changed' },
+  { id: 'ci', tier: 1, paths: ['.github/**', 'scripts/ci/**'], why: 'The CI workflow or the test selection itself changed' },
   { id: 'package', tier: 3, paths: ['package.json', 'package-lock.json', '.gitattributes'], why: 'Scripts, versions or checkout settings shared by every test' },
   { id: 'test-shared', tier: 3, paths: ['test/support/**', 'test/fixtures/**'], why: 'Drivers, baselines and fixtures shared by many suites' },
   { id: 'page', tier: 3, paths: ['index.html', 'style.css'], why: 'The page and stylesheet every screen and every layout check depends on' },
