@@ -218,6 +218,7 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 | [CONTROLLERS](docs/CONTROLLERS.md) | Controller mapping, input policy and physical testing |
 | [GAMEPLAY-AUDIO](docs/GAMEPLAY-AUDIO.md), [AUDIO-LAB](docs/AUDIO-LAB.md) | How the game sounds, and the development listening bench |
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |
+| [ANALYTICS](docs/ANALYTICS.md) | What the published game counts, the event contract, and how to opt out |
 | [ROADMAP](docs/ROADMAP.md) | What each version contained, and what might come next |
 | [v0.7.0 release notes](docs/RELEASE-v0.7.0.md) | Medals, reference ghosts, Getaway and menus: compatibility and known limits |
 | [v0.6.0 release notes](docs/RELEASE-v0.6.0.md) | Functional environments, compatibility and known limits |
@@ -238,6 +239,10 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 - The Gymkhana challenges were sized from scripted test drives. Linked Drift has a higher scoring ceiling in Power than in Classic.
 - The Try It lesson teaches Classic only. A lesson for Power's throttle technique may come later.
 - Owner review covered controller driving and drifting on Original and Switchback; not every physical disconnect/reconnect scenario was explicitly verified.
+
+## Privacy
+
+The published game counts visits, runs started and completed, valid laps and active play time with cookie-free [Umami](https://umami.is/) analytics. No scores, times, inputs, records, ghosts or identifiers are sent, and nothing is stored in your browser for it. Local play and automated tests are never counted, and Do Not Track is respected. To opt out, add `?analytics=off` to the address: [libertaine.github.io/mini-drifters/?analytics=off](https://libertaine.github.io/mini-drifters/?analytics=off). The details are in [ANALYTICS](docs/ANALYTICS.md).
 
 ## License
 

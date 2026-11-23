@@ -60,7 +60,8 @@ Each script below runs in Chromium and Firefox, and CI runs all of them on every
 | `npm run test:ghost:browser` | The previous-lap ghost |
 | `npm run test:radio:browser` | The radio |
 | `npm run test:menus:browser` | The title screen and menus |
-| `npm run test:tutorial:browser` | Plays the whole lesson with real key presses at each supported window size, and Return to Title |
+| `npm run test:tutorial:browser` | Plays the whole lesson with real key presses at each supported window size, the steer step's reminder to get moving, and Return to Title |
+| `npm run test:analytics:browser` | Analytics on the published address with a stubbed or blocked tracker: who is counted, the events from real play, focused play time, unchanged records and storage, and the title's disclosure. See [ANALYTICS](ANALYTICS.md) |
 | `npm run test:tracks:browser` | The track choice, and a lap of Switchback with real key presses |
 | `npm run test:scoring:browser` | Voided-lap warnings and results |
 | `npm run test:controller:browser` | Mocked Gamepad snapshots and controller menus. Physical hardware is not required |
@@ -100,6 +101,7 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
 | `src/tutorial.js` | The driving lesson. It watches a session and never writes to it |
+| `src/analytics-tracker.js`, `src/analytics.js` | Optional anonymous analytics on the published page only: the gate and loader, and the event observer. See [ANALYTICS](ANALYTICS.md) |
 | `src/tyre-effects.js` | What the tyres leave behind each frame: smoke and rubber, including Power's wheelspin |
 | `src/render.js`, `src/main.js` | Drawing, input and the HUD |
 | `src/controls.js`, `src/controller.js` | One driving-command shape for keyboard and controller, and the standard-mapped Gamepad reading |
