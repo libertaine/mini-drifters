@@ -2,7 +2,7 @@
 import { TUNING } from './tuning.js';
 import { createRecords } from './records.js';
 import { Controller, NEUTRAL_DRIVE } from './controller.js';
-import { InputArbiter } from './controls.js';
+import { InputArbiter, drivingActive } from './controls.js';
 import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance, countedScore } from './game.js';
 import { createRenderer, drawFrame, effectsSnapshot, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
@@ -21,6 +21,8 @@ import { createGetawayRecords } from './getaway-records.js';
 import { createGhostStore } from './ghost-store.js';
 import { createReferenceGhosts, slotState } from './reference-ghost.js';
 import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
+import { categoryOf } from './analytics.js';
+import { startAnalytics } from './analytics-tracker.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -44,6 +46,10 @@ const getawayRecords = createGetawayRecords();
 // just set the fastest-lap record (reference-ghost.js).
 const referenceGhosts = createReferenceGhosts({ store: createGhostStore(),
   bestLapFor: (trackId, handlingId) => records.forTrack(trackId, handlingId).fastestLap });
+// Anonymous counts, on the published page only: null everywhere else (docs/ANALYTICS.md). An
+// observer that hears the run events last and the frame loop after the simulation, and changes nothing.
+const analytics = startAnalytics(window);
+const analyticsCategory = () => categoryOf({ mode: game.mode, layout: game.challengeDef?.layout });
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
   gymkhanaRecords.handle(event);
@@ -51,6 +57,7 @@ const game = createGame(undefined, { onRunEvent: (event) => {
   referenceGhosts.handle(event);
   if (event.type === 'start' || event.type === 'ghost') showReference();
   showPersonalBests();
+  analytics?.runEvent(event, { lap: game.laps.completed, category: analyticsCategory() });
 } });
 // The title's poster is Original's hairpin, whichever circuit is chosen for driving.
 const renderer = createRenderer($('view'), game.track, trackById('original'));
@@ -1311,6 +1318,8 @@ function frame(now) {
     if (tutorial.phase === 'complete') finishTutorial();
     else if (game.state === 'finished') restart(); // three laps mustn't end a lesson with no time limit
   }
+  analytics?.frame({ runId: game.runId, category: analyticsCategory(), racing: game.state === 'racing' && !game.paused,
+    active: drivingActive(drivingInput) });
   if (game.state !== shownState) {
     shownState = game.state;
     syncScreens();

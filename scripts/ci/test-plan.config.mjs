@@ -33,9 +33,7 @@ export const SUITES = Object.freeze({
   'test:dockyard-slalom:browser': { file: 'test/dockyard-slalom-browser.mjs', group: 'gymkhana-getaway', seconds: 97, about: 'Dockyard and Slalom Sprint' },
   'test:wheelspin:browser': { file: 'test/wheelspin-browser.mjs', group: 'audio-lessons', seconds: 74, about: 'Wheelspin smoke, rubber and engine note' },
   'test:environment:browser': { file: 'test/environment-browser.mjs', group: 'circuits', seconds: 10, about: 'Functional environments and collision messages' },
-  // Arrives with PR #37 (v0.8.0 analytics). Until package.json defines it, a change that would
-  // select it gets the full regression instead. Remove `pending` once it exists (a test says so).
-  'test:analytics:browser': { file: 'test/analytics-browser.mjs', group: 'menus-input', seconds: 79, about: 'Analytics gate, events and disclosure', pending: 'PR #37' },
+  'test:analytics:browser': { file: 'test/analytics-browser.mjs', group: 'menus-input', seconds: 79, about: 'Analytics gate, events and disclosure' },
 });
 
 // The parallel jobs, in the order they are listed in the run. Measured totals (s): circuits 483,

@@ -6,7 +6,7 @@ import { TUNING as T } from '../src/tuning.js';
 import { createGame, startRun, restartRun, returnToMenu, togglePause, tick, advance, NO_INPUT } from '../src/game.js';
 import { bankCombo } from '../src/scoring.js';
 import {
-  TUTORIAL_STEPS, TUTORIAL_LIMITS as L,
+  TUTORIAL_STEPS, TUTORIAL_LIMITS as L, STATIONARY_HINT,
   createTutorial, updateTutorial, skipStep, isCountersteering, tutorialView, tutorialEnding,
 } from '../src/tutorial.js';
 import { gripDriver, driftDriver, lessonDriver, noviceDriver } from './support/drivers.mjs';
@@ -195,6 +195,177 @@ test('steer: the car really turning both ways passes', () => {
   drive(session, 0.6, { up: true, right: true });
   drive(session, 1.2, { up: true, left: true }, { until: (t) => stepId(t) !== 'steer' });
   assert.equal(stepId(session.t), 'slide');
+});
+
+// --- 3b. Steer, with the car standing still ---------------------------------------------
+// The wheel only counts above steerMinSpeed. A player who stops after the first step is
+// reminded to get moving, without the step itself getting any easier.
+const wiggle = (s) => ({ left: s % 1 < 0.5, right: s % 1 >= 0.5 });
+const tooSlow = (game) => game.car.forwardSpeed < L.steerMinSpeed;
+
+// In the steer step, braked to a stop during the run, and nothing else pressed yet.
+function stopped() {
+  const session = moving();
+  drive(session, 6, { down: true }, { until: (_, game) => game.car.speed < 0.3 });
+  assert.equal(session.game.state, 'racing');
+  assert.equal(stepId(session.t), 'steer');
+  assert.ok(session.t.stationaryTime < L.stationarySeconds, 'braking alone has not brought the reminder yet');
+  assert.notEqual(session.t.hint, STATIONARY_HINT);
+  return session;
+}
+
+// The lesson's hint at every frame it is updated.
+function hintsWhile(session, seconds, keys) {
+  const hints = [];
+  drive(session, seconds, keys, { until: (t) => { hints.push(t.hint); return false; } });
+  return hints;
+}
+
+test('steer: steering at a standstill brings the reminder after about 1.5 s of simulated time', () => {
+  const session = moving();
+  const { game, t } = session;
+  // Slowing down from the first step: the clock starts when the wheel would stop counting.
+  drive(session, 10, { down: true }, { until: (_, g) => tooSlow(g) });
+  let slow = 0;
+  drive(session, 4, (s) => ({ down: game.car.speed > 0.3, ...wiggle(s) }), { until: (tt, g) => {
+    slow = tooSlow(g) ? slow + 2 * T.simStep : 0;
+    return tt.hint === STATIONARY_HINT;
+  } });
+  assert.equal(t.hint, STATIONARY_HINT);
+  assert.ok(Math.abs(slow - L.stationarySeconds) <= 3 * T.simStep, `shown after ${slow} s too slow`);
+  assert.equal(stepId(t), 'steer', 'and the step is still to do');
+  assert.equal(t.turnedLeft, 0);
+  assert.equal(t.turnedRight, 0);
+  assert.equal(tutorialView(t).hint, 'Hold ↑ to get moving, then steer →.');
+});
+
+test('steer: the reminder stays up while the car is still, without flashing, and goes once it moves', () => {
+  const session = stopped();
+  const { t } = session;
+  drive(session, 3, wiggle, { until: (tt) => tt.hint === STATIONARY_HINT });
+  assert.equal(t.hint, STATIONARY_HINT);
+  // Well past the time any other hint would have faded: it holds on every single frame.
+  const held = hintsWhile(session, L.hintSeconds * 2, wiggle);
+  assert.ok(held.length > 400);
+  assert.deepEqual([...new Set(held)], [STATIONARY_HINT]);
+  // Pulling away: gone on the first frame the wheel would count, and not back while moving.
+  drive(session, 5, { up: true }, { until: (_, g) => !tooSlow(g) });
+  assert.equal(t.hint, '');
+  assert.equal(t.stationaryTime, 0);
+  assert.ok(!hintsWhile(session, 1, { up: true }).includes(STATIONARY_HINT));
+  // And the step still asks exactly what it always did.
+  drive(session, 0.6, { up: true, right: true });
+  drive(session, 1.2, { up: true, left: true }, { until: (tt) => stepId(tt) !== 'steer' });
+  assert.equal(stepId(t), 'slide');
+});
+
+test('steer: a moving player never sees the reminder', () => {
+  const session = moving();
+  const { game, t } = session;
+  assert.ok(game.car.forwardSpeed >= L.steerMinSpeed);
+  assert.ok(!hintsWhile(session, 3, { up: true }).includes(STATIONARY_HINT), 'driving on');
+  // A slow roll, kept just above the speed the wheel needs: still moving, so still nothing.
+  drive(session, 10, { down: true }, { until: (_, g) => g.car.forwardSpeed < L.steerMinSpeed + 2 });
+  const rolling = hintsWhile(session, 4, (_, g) => ({ up: g.car.forwardSpeed < L.steerMinSpeed + 1.5 }));
+  assert.ok(game.car.forwardSpeed >= L.steerMinSpeed);
+  assert.ok(!rolling.includes(STATIONARY_HINT), 'rolling slowly');
+  assert.equal(t.stationaryTime, 0);
+});
+
+test('steer: pausing does not move the reminder clock', () => {
+  const session = stopped();
+  const { game, t } = session;
+  drive(session, 0.8, wiggle);
+  const held = t.stationaryTime;
+  assert.ok(held > 0 && held < L.stationarySeconds, `${held} s`);
+  togglePause(game);
+  for (let i = 0; i < 600; i += 1) {
+    advance(game, 1 / 60, { ...NO_INPUT, ...wiggle(i / 60) });
+    updateTutorial(t, game);
+  }
+  assert.equal(t.stationaryTime, held, 'ten paused seconds added nothing');
+  assert.notEqual(t.hint, STATIONARY_HINT);
+  togglePause(game);
+  drive(session, L.stationarySeconds - held + 0.1, wiggle);
+  assert.equal(t.hint, STATIONARY_HINT, 'and the clock carries on from where it was');
+});
+
+test('steer: the reminder is worded for the controller when one is in use', () => {
+  const session = stopped();
+  drive(session, 3, wiggle, { until: (t) => t.hint === STATIONARY_HINT });
+  assert.equal(tutorialView(session.t, 'keyboard').hint, 'Hold ↑ to get moving, then steer →.');
+  assert.equal(tutorialView(session.t, 'controller').hint, 'Hold RT to get moving, then steer right with the left stick.');
+  assert.doesNotMatch(tutorialView(session.t, 'controller').hint, /[↑←→]|SPACE/);
+});
+
+test('steer: once one direction is done, its hint stays and the progress is kept, standing still or not', () => {
+  for (const [side, other] of [['right', '←'], ['left', '→']]) {
+    const session = moving();
+    const { t } = session;
+    drive(session, 0.6, { up: true, [side]: true });
+    assert.equal(t.hint, `Good. Now the other way: ${other}.`);
+    drive(session, 6, { down: true }, { until: (_, g) => g.car.speed < 0.3 });
+    const done = side === 'right' ? t.turnedRight : t.turnedLeft;
+    assert.ok(done >= L.turnedRadians, side);
+    const hints = hintsWhile(session, L.stationarySeconds * 3, wiggle);
+    assert.deepEqual([...new Set(hints)], [`Good. Now the other way: ${other}.`], side);
+    assert.equal(side === 'right' ? t.turnedRight : t.turnedLeft, done, `${side} progress is kept`);
+    assert.equal(stepId(t), 'steer');
+  }
+});
+
+test('steer: a restart and a change of step both clear the reminder and its clock', () => {
+  let session = stopped();
+  drive(session, 3, wiggle, { until: (t) => t.hint === STATIONARY_HINT });
+  restartRun(session.game, { ghost: false, mode: 'tutorial' });
+  drive(session, 0.1);
+  assert.equal(session.t.stationaryTime, 0);
+  assert.equal(session.t.hint, 'Hold ↑ to get rolling.', 'the grid keeps its own prompt');
+  // Waiting on the grid is not the run: the grid's prompt stays, and nothing builds up.
+  const grid = hintsWhile(session, L.stationarySeconds * 3, wiggle);
+  assert.deepEqual([...new Set(grid)], ['Hold ↑ to get rolling.']);
+  assert.equal(session.t.stationaryTime, 0);
+  // Off the grid and stopped again: the clock starts from nothing.
+  drive(session, 3, { up: true }, { until: (_, g) => !tooSlow(g) });
+  drive(session, 6, { down: true }, { until: (_, g) => g.car.speed < 0.3 });
+  drive(session, 3, wiggle, { until: (t) => t.hint === STATIONARY_HINT });
+  assert.equal(session.t.hint, STATIONARY_HINT);
+
+  // Skipping the step takes the reminder with it, and the slide step never shows it.
+  skipStep(session.t);
+  assert.equal(stepId(session.t), 'slide');
+  assert.equal(session.t.hint, '');
+  assert.equal(session.t.stationaryTime, 0);
+  assert.ok(!hintsWhile(session, L.stationarySeconds * 2, wiggle).includes(STATIONARY_HINT));
+
+  // Passing the step by driving does the same.
+  session = stopped();
+  drive(session, 3, wiggle, { until: (t) => t.hint === STATIONARY_HINT });
+  drive(session, 5, { up: true }, { until: (_, g) => !tooSlow(g) });
+  drive(session, 0.6, { up: true, right: true });
+  drive(session, 1.2, { up: true, left: true }, { until: (t) => stepId(t) !== 'steer' });
+  assert.equal(stepId(session.t), 'slide');
+  assert.equal(session.t.stationaryTime, 0);
+  assert.notEqual(session.t.hint, STATIONARY_HINT);
+});
+
+test('a lesson that stalls in the steer step, and follows the reminder, still finishes all five steps', () => {
+  const session = stopped();
+  const { game, t } = session;
+  drive(session, 3, wiggle, { until: (tt) => tt.hint === STATIONARY_HINT });
+  const driver = lessonDriver();
+  const seen = ['accelerate', 'steer'];
+  for (let i = 0; i < 300 * 120 && t.phase !== 'complete'; i += 1) {
+    tick(game, driver(game, stepId(t)));
+    if (i % 2 === 1) {
+      updateTutorial(t, game);
+      if (seen.at(-1) !== stepId(t)) seen.push(stepId(t));
+    }
+  }
+  assert.equal(t.phase, 'complete');
+  assert.deepEqual(seen, TUTORIAL_STEPS.map((step) => step.id));
+  assert.deepEqual(t.skipped, []);
+  assert.equal(tutorialEnding(t).qualified, true);
 });
 
 // --- 4. Start a drift ------------------------------------------------------------------
