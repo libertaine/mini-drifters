@@ -209,6 +209,7 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 | Document | About |
 |---|---|
 | [DEVELOPMENT](docs/DEVELOPMENT.md) | Running, testing, project layout, the car model and tuning |
+| [CI-TESTING](docs/CI-TESTING.md) | Which tests a pull request runs, the three tiers, and asking for the full regression |
 | [SWITCHBACK](docs/SWITCHBACK.md), [DOCKYARD](docs/DOCKYARD.md) | The second and third circuits |
 | [GYMKHANA](docs/GYMKHANA.md) | Challenge rules, records and acceptance steps |
 | [WHEELSPIN](docs/WHEELSPIN.md) | Power's smoke, rubber and engine feedback |

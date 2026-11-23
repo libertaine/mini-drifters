@@ -49,7 +49,7 @@ npm run test:browser
 
 To run `test:browser` against the live site, set `TEST_URL=https://libertaine.github.io/mini-drifters/` first. It also confirms the live files match your checkout.
 
-Each script below runs in Chromium and Firefox, and CI runs all of them on every pull request. Several take a few minutes.
+Each script below runs in Chromium and Firefox. CI chooses which of them a pull request needs from the files it changes, and runs all of them on every push to `main` and on request: see [CI-TESTING](CI-TESTING.md). Several take a few minutes. Each still runs on its own with `npm run`.
 
 | Script | Checks |
 |---|---|
@@ -78,7 +78,7 @@ Screenshots and a report go to `artifacts/`, which isn't tracked.
 
 ### Pull requests and Pages
 
-Changes reach `main` through a pull request, and the `test` check must pass before it can merge. Every push to `main`, including a documentation-only merge, runs the full check again and then redeploys GitHub Pages from `.github/workflows/ci.yml`. Pages publishes only the files the game needs: not the README, the docs, the tests or the audio lab page.
+Changes reach `main` through a pull request, and the `test` check must pass before it can merge. A pull request runs the unit suite and the browser suites its files need (tier 1, 2 or 3; see [CI-TESTING](CI-TESTING.md)). Every push to `main`, including a documentation-only merge, runs the full regression and only then redeploys GitHub Pages from `.github/workflows/ci.yml`. To run the full regression on a branch, use *Run workflow* on the *CI and Pages* workflow. Pages publishes only the files the game needs: not the README, the docs, the tests or the audio lab page.
 
 ## Project layout
 
