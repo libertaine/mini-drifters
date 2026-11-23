@@ -7,7 +7,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, ci-validation/base]  # VALIDATION ONLY: never merge this commit
   # Release qualification, or a full regression of any branch on request: Actions > CI and
   # Pages > Run workflow. It always runs everything, and it never deploys.
   workflow_dispatch:

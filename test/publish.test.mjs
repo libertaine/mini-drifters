@@ -74,7 +74,7 @@ test('Pages publishes the tire file, the four authorized loops, the radio folder
     `cp ${COYOTE_LOOPS.join(' ')} _site/audio-lab/assets/coyote-local/`,
   ]);
   assert.doesNotMatch(workflow, /Mustang|incar-reference|engine-(low|high)\.wav|\*\.wav/i);
-  assert.equal(workflow.match(/pull_request:\s+branches: \[([^\]]+)\]/)[1], 'main');
+  assert.equal(workflow.match(/pull_request:\s+branches: \[([^\]]+)\]/)[1], 'main, ci-validation/base'); // VALIDATION ONLY
 });
 
 test('the published tire file is the attributed CC0 original', () => {

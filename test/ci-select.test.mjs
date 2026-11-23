@@ -389,7 +389,7 @@ test('the workflow: only a fully tested push to main deploys, with no new permis
   assert.deepEqual(writes, ['pages', 'id-token'], 'only the deploy job writes, as before');
   assert.equal(workflow.match(/actions\/deploy-pages/g).length, 1);
   assert.match(workflow, /^ {2}workflow_dispatch:\n/m);
-  assert.match(workflow, /^ {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {4}branches: \[main\]\n/m);
+  assert.match(workflow, /^ {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {4}branches: \[main, ci-validation\/base\] {2}# VALIDATION ONLY: never merge this commit\n/m); // VALIDATION ONLY
   // Cancelling superseded runs applies to pull requests only.
   assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
 });
