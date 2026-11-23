@@ -211,7 +211,10 @@ export function markdown(p, { mergeBase = null, classifier = null } = {}) {
   const lines = [`## Test plan: tier ${p.tier}${p.full ? ' (full regression)' : ''}`, '', p.summary, ''];
   if (classifier) lines.push(`Classifier: ${classifier}`, '');
   if (mergeBase) lines.push(`Compared with merge base ${code(mergeBase.slice(0, 12))}.`, '');
-  lines.push(`The unit suite (including the publishing checks) runs in every tier. ${p.selected.length} of ${p.selected.length + p.skipped.length} browser suites run, each in Chromium and Firefox.`, '');
+  const total = p.selected.length + p.skipped.length;
+  lines.push(`The unit suite (including the publishing checks) runs in every tier. ${p.selected.length
+    ? `${p.selected.length} of ${total} browser suites run, each in Chromium and Firefox.`
+    : `No browser suite runs (0 of ${total}), so the browser job is skipped.`}`, '');
   if (p.changes.length) {
     lines.push('### Changed files', '', '| Status | File | Tier | Rules | Why |', '|---|---|---|---|---|');
     for (const c of p.changes) {

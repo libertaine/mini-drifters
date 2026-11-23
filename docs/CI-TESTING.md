@@ -102,8 +102,8 @@ nothing is deployed, and the last deployment stays live.
 - **On request, for any branch:** Actions > *CI and Pages* > *Run workflow*, and choose the
   branch. This is `workflow_dispatch`: it runs every suite on that branch and never deploys.
   Its `test` check is attached to the branch's commit, so it also shows on that commit's PR.
-  `gh workflow run ci.yml --ref <branch>` does the same. GitHub only offers *Run workflow*
-  once the workflow with `workflow_dispatch` is on `main`.
+  `gh workflow run ci.yml --ref <branch>` does the same, and works for any branch whose
+  `ci.yml` has the trigger. The *Run workflow* button appears once `main`'s `ci.yml` has it.
 
 A label or a line in the description can't request it. Raising the tier by those means was
 left out to keep one way in, and lowering it isn't possible at all.
@@ -120,8 +120,9 @@ The run's summary page shows:
 - **One table per browser group:** each suite's result and time.
 - **Result:** the required check's verdict, listing every problem it found.
 
-A run shows only the `browser (...)` jobs it needs. A tier 1 run shows no browser job at
-all, and that is expected.
+A run shows only the `browser (...)` jobs it needs. In a tier 1 run the browser job is
+skipped, and GitHub lists it as `browser (${{ matrix.group }})` because a skipped matrix job
+has no group to name. That is expected, and `test` still checks that nothing was planned for it.
 
 ## Adding a browser suite
 
