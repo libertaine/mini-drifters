@@ -12,13 +12,14 @@ A small top-down arcade drifting game for the browser. Throw a muscle car sidewa
 
 It runs in a desktop browser with a keyboard or a standard-mapped controller. There's nothing to install and no account to create.
 
-**Current version: v0.8.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
+**Current version: v0.9.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
 
 ## What's in it
 
 Mini Drifters is an early playable prototype: one car, built to find out whether the driving is fun. Handling and scoring may still change. It has:
 
-- **Three circuits:** Original, Switchback and Dockyard, each a three-lap run scored on drifting.
+- **Seven circuits:** Original, Switchback, Dockyard, Runway 27, Redline Mesa, Headland Run and Nightshift Viaduct, each a three-lap run scored on drifting.
+- **Circuit Tour:** a short championship against five rival drifters, across four or all seven circuits.
 - **Four Gymkhana challenges:** Precision 180, Linked Drift, One Drift and Slalom Sprint.
 - **Two handling modes:** forgiving Classic, and Power, where the throttle can break the rear loose.
 - **Personal bests** for every track and handling pair, and for every challenge, kept in your browser.
@@ -32,7 +33,7 @@ Gymkhana and Getaway medals are derived from saved personal bests.
 ## Getting started
 
 1. Open [the game](https://libertaine.github.io/mini-drifters/) in a desktop browser. To run it from a copy of this repository instead, see [Run it locally](#run-it-locally).
-2. Choose Classic or Power, then open **Tracks**, **Gymkhana** or **Getaway**. Select the circuit, challenge or mission you want to play.
+2. Choose Classic or Power, then open **Tracks**, **Circuit Tour**, **Gymkhana** or **Getaway**. Select the circuit, Tour, challenge or mission you want to play.
 3. New to it? **How to Play** has the controls and scoring, and its **Try It** button starts a short lesson.
 
 ### Keyboard
@@ -51,7 +52,7 @@ Gymkhana and Getaway medals are derived from saved personal bests.
 | H | Next handling mode, on the title or selection sheets (Shift+H goes back) |
 | D | Debug display |
 
-Enter activates a menu action, starts the selected run or retries from results.
+Enter activates a menu action, starts the selected run or retries from results. In Circuit Tour, Enter drives the round, goes to the next round, or rematches at the end. Up and Down reach **Play Joker** on a round sheet. The Joker has no key of its own.
 
 On the title screen, Up, Down and Tab move through the menu, and Enter or Space presses the selected button. Up from **Tracks** reaches the handling choice. Esc goes back one selection level.
 
@@ -73,15 +74,36 @@ The longer you pull, the bigger the slide. A very short tap only unsettles the c
 
 ## Tracks
 
-Open **Tracks** from the title screen. Press Left or Right to select a circuit, or click one, then choose **Start**. The sheet shows the selected circuit’s personal bests for your handling mode.
+Open **Tracks** from the title screen. The seven circuits are laid out as a grid of cards, each with its silhouette and setting. Press Left or Right to select a circuit, or click one, then choose **Start**. The panel below the cards describes the selected circuit and shows its personal bests for your handling mode.
 
 - **Original:** long bends and a hairpin at a club-racing circuit, with paddock, garages, race control and grandstands.
 - **Switchback:** linked medium corners and one tight right on a wooded hillside, with pines, boulders, retaining walls and guardrails. See [the Switchback notes](docs/SWITCHBACK.md).
 - **Dockyard:** short and technical, with a right-hander that tightens, a quick chicane and one long sweeping bend back onto the quay, among warehouses and containers. See [the Dockyard notes](docs/DOCKYARD.md).
+- **Runway 27:** an abandoned airfield, where wide sweeping bends and fast tarmac chutes reward high-speed slides.
+- **Redline Mesa:** a desert proving ground, with three wide opposing drift hairpins and a flowing canyon-rim return.
+- **Headland Run:** a seaside cliff, with a fast cliff sweeper, a deep marina cove and an opening-radius lighthouse carousel.
+- **Nightshift Viaduct:** a midnight expressway, with a 205° cloverleaf on-ramp into a sweeping freight yard under sodium lamps.
+
+The four newest circuits arrived in v0.9.0. See [the v0.9.0 circuit notes](docs/CIRCUITS-v0.9.0.md).
 
 Reachable solid scenery has collision: Dockyard's containers and concrete barriers, Original's tyre and steel barriers, and Switchback's trees, rocks and retaining walls. Warehouses are solid but lie outside normal reachable play. Dockyard's concrete apron drives like asphalt but remains off-course for drift scoring. Original and Switchback keep their established loose-surface handling beyond the curbs. Flat markings, paths and ground details are decorative.
 
 A new visit starts on Original, and the track choice isn't saved. Restart and Drive Again stay on the same track, and changing track starts a fresh run with no score, laps or ghost carried over.
+
+## Circuit Tour
+
+**Circuit Tour** on the title is a short championship. Five fictional rival drifters post their scores for each round first, and you drive last, knowing exactly what it takes.
+
+- **Sprint Tour** (4 circuits, about 10 minutes) or **Grand Tour** (all 7, about 20 minutes). The circuits are drawn at random, without repeats.
+- **Club**, **National** or **Pro** field. Handling is fixed for the Tour, from the title.
+- Each round is an ordinary three-lap circuit run. During it, the HUD shows your place among the posted scores, the next score to beat, and **Bank it → P2** when banking your combo would move you up.
+- Finishing places score **10, 7, 5, 3, 2, 1** championship points. **The final round counts double for everyone.**
+- **JOKER: double your championship points in one round. Choose wisely.** You get one per Tour. Choose **Play Joker** on a round's sheet before you drive, in any round but the final, which already counts double. It is spent only when that round's result is recorded, and every round sheet shows whether it is available, selected or used.
+- **Restarts belong to the whole Tour**: 2 in a Sprint, 3 in a Grand. R on the grid, and leaving from the grid, are free. Once the car has moved, restarting or leaving uses one, and with none left, leaving is a DNF.
+- The Tour is saved between rounds, and **Continue** resumes it, even after closing the browser. At the end, **Rematch** replays the same circuits against the same posted scores, and **New Tour** draws a new one.
+- Tour rounds can set the ordinary circuit records and saved reference ghosts, just as Tracks runs do.
+
+See [Circuit Tour](docs/CIRCUIT-TOUR.md) for the full rules, the Joker's states, storage and calibration.
 
 ## Gymkhana
 
@@ -114,7 +136,7 @@ In Power, spinning rear wheels give themselves away: the tyres smoke, leave rubb
 Press **H** (Shift+H goes back), click one, or press Up from **Tracks** and then Left or Right. On a controller, use D-pad Up from Tracks.
 
 - A first visit starts on Classic. After that the game remembers the handling you chose last, in this browser.
-- A run keeps its handling through Restart and Drive Again. Use **Return to Title** to change it.
+- A run keeps its handling through Restart and Drive Again. Use **Return to Title** to change it. A Circuit Tour keeps the handling it started with.
 - The HUD names the handling, and the results say which track and handling the run used.
 - Scores from different handling modes aren't comparable, so each keeps its own records.
 
@@ -142,7 +164,8 @@ The Tracks sheet shows the saved bests for the selected track and handling (`--`
 
 - Records saved by v0.2.0 appear under Classic.
 - Scores and combos set before slow slides started paying less are shown as **legacy scoring** records, in one small line under the current bests. They aren't comparable with current scores, and no run competes with them. Fastest laps aren't affected by scoring, so each track and handling pair keeps one fastest lap, old or new.
-- v0.6.0 and v0.7.0 keep the existing record identities, including Dockyard. Older bests remain until beaten through the normal saving process; handling modes stay separate.
+- v0.6.0 to v0.9.0 keep the existing record identities, including Dockyard. Older bests remain until beaten through the normal saving process; handling modes stay separate. The four v0.9.0 circuits add records and reference ghosts of their own beside them.
+- Circuit Tour rounds set these records like any circuit run. The Tour keeps its own progress and bests under a separate key, `mini-drifters-tour-v1`.
 - Records live in this browser's localStorage. They survive reloads and restarts, but clearing browser storage removes them, and they don't sync between browsers or devices.
 - If storage is unavailable or full, driving continues and a note explains that new improvements can't be saved. The displayed records stay at the last saved values.
 
@@ -196,6 +219,7 @@ npm test
 
 | Version | Highlights |
 |---|---|
+| v0.9.0 | Four new circuits (Runway 27, Redline Mesa, Headland Run, Nightshift Viaduct) for seven in all, a redesigned Tracks sheet, and Circuit Tour: a championship against five rivals with a Joker and a double-points final |
 | [v0.8.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.8.0) | Getaway Driver, dusk city/pursuit overhaul & Busted announcer voice, Tracks/Practice Pad/Gymkhana visual & audio polish, Umami analytics, tutorial steering hint, and risk-based CI |
 | [v0.7.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.7.0) | Gymkhana medals, saved reference ghosts, Getaway: Get the Footage, and Tracks, Gymkhana and Getaway menus |
 | [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0) | Functional environments: solid scenery on all three circuits |
@@ -214,6 +238,8 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 | [DEVELOPMENT](docs/DEVELOPMENT.md) | Running, testing, project layout, the car model and tuning |
 | [CI-TESTING](docs/CI-TESTING.md) | Which tests a pull request runs, the three tiers, and asking for the full regression |
 | [SWITCHBACK](docs/SWITCHBACK.md), [DOCKYARD](docs/DOCKYARD.md) | The second and third circuits |
+| [v0.9.0 circuits](docs/CIRCUITS-v0.9.0.md) | Runway 27, Redline Mesa, Headland Run and Nightshift Viaduct, and the seven-circuit Tracks sheet |
+| [CIRCUIT-TOUR](docs/CIRCUIT-TOUR.md) | Circuit Tour: rules, the Joker, restarts, storage and calibration |
 | [GYMKHANA](docs/GYMKHANA.md) | Challenge rules, records and acceptance steps |
 | [WHEELSPIN](docs/WHEELSPIN.md) | Power's smoke, rubber and engine feedback |
 | [RECORDS](docs/RECORDS.md) | Personal bests: qualification, storage schema and acceptance steps |
@@ -225,6 +251,7 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |
 | [ANALYTICS](docs/ANALYTICS.md) | What the published game counts, the event contract, and how to opt out |
 | [ROADMAP](docs/ROADMAP.md) | What each version contained, and what might come next |
+| [v0.9.0 release notes](docs/RELEASE-v0.9.0.md) | Seven circuits, the Tracks redesign and Circuit Tour: compatibility, qualification and known limits |
 | [v0.8.0 release notes](docs/RELEASE-v0.8.0.md) | Getaway Driver, visual/audio polish across cities, circuits, Practice Pad & Gymkhana, analytics, compatibility and known limits |
 | [v0.7.0 release notes](docs/RELEASE-v0.7.0.md) | Medals, reference ghosts, Getaway and menus: compatibility and known limits |
 | [v0.6.0 release notes](docs/RELEASE-v0.6.0.md) | Functional environments, compatibility and known limits |
@@ -234,12 +261,13 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 
 - It's for desktop browsers with a keyboard or a standard-mapped controller. There are no touch controls.
 - Grass affects the whole car at once, based on its centre, so there's no two-wheels-off behaviour.
+- Circuit Tour's rivals are posted scores, not cars on the track. Their strength was calibrated from scripted drivers and accepted after the owner's playtest. Tour history is kept but not yet shown.
 - Dockyard's chicane shortcut across the concrete remains an accepted known limitation, approximately 1.6–1.8 seconds faster in scripted runs. Its regression test is explicitly TODO.
 - Dockyard's loading markings and corner boards are decorative. Switchback's gravel shoulders and bare earth retain the existing grass-surface behavior.
 - Fishtailing down a straight still scores. It costs speed, but it isn't prevented.
 - A careful driver can occasionally slide by accident and score, and a bad drifting run can score less than a good reckless one.
 - Drifting is slower than grip driving in the scripted test runs, so points and lap time pull in different directions.
-- The track choice isn't saved. The handling choice and personal records stay local to this browser.
+- The track choice isn't saved. The handling choice, personal records and Circuit Tours stay local to this browser.
 - Records are saved to a new storage key from v0.3.0. If an older version is opened, it shows only the records it saved itself. Nothing is lost, and the newer version shows both.
 - Scoring was tuned for Classic. Power uses the same scoring rules, so its scores aren't comparable with Classic's, and each keeps its own records.
 - The Gymkhana challenges were sized from scripted test drives. Linked Drift has a higher scoring ceiling in Power than in Classic.

@@ -1,6 +1,6 @@
 # Local personal records
 
-Records are independent for every track and handling mode: a record's identity is
+Records are independent for every track and handling mode, on all seven circuits: a record's identity is
 track + handling mode + record type (Original with Power never shares a record with
 Original with Classic, or with Switchback with Power). The public modes are Classic
 (id `classic`) and Power (id `revised`); records use the id, never the display name. They live only in this
@@ -227,3 +227,18 @@ Getaway bests (`src/getaway-records.js`) use their own localStorage key, `mini-d
 - **Best.** The highest whole-number Showmanship from 0 to 1,000,000 is kept (a run can't score above about 51,000). Ties and lower scores write nothing. Zero is a record; `null` is no record.
 - **Medals** are derived from the best with the environment's accepted targets and never stored. A stored medal field would be ignored.
 - **Robustness.** The key is re-read before each comparison, so another tab's bests are kept. Nothing is written on load. Unparseable or shapeless data, or an unknown older version, is ignored and replaced by the next qualifying write. Invalid values (negative, fractional, too large, wrongly typed) are ignored. Missions, environments, modes, rules ids and fields this version doesn't know are carried through every write untouched. An integer version above 1 is never written, shown or claimed as `NEW BEST`. If storage can't be opened, read or written (including quota), play continues and the sheets say improvements can't be saved. No other key is read, written, migrated or cleared.
+
+## Circuit Tour (v0.9.0)
+
+A [Circuit Tour](CIRCUIT-TOUR.md) round is a normal three-lap run, so it qualifies for the
+circuit records above under exactly the same rules: the same key, scoring version, track and
+handling identity, and lap validity. Nothing about a record says it came from a Tour. A round
+left mid-run, restarted or ended as a DNF is an abandoned run, and sets only the valid laps it
+completed, as anywhere else.
+
+The Tour's own progress and bests (Tours finished, titles, best finish, best points) are kept
+apart under `mini-drifters-tour-v1`. The Tour code never reads or writes `mini-drifters-records-v3`,
+and the records code never reads or writes the Tour's key.
+
+The seven circuits share the record format. The four circuits added in v0.9.0 simply add track
+ids to it, and saves from v0.8.0 load unchanged.

@@ -175,14 +175,14 @@ itself, judged by the old rules. The new rules apply to the PRs after it merges.
 
 ## Parallel groups
 
-The browser suites run in four jobs, balanced by measured time (seconds on GitHub's runners):
+The 28 browser suites (v0.9.0) run in four jobs, balanced by measured time (seconds on GitHub's runners). A tier 3 run, on `main` or when asked for, runs all of them:
 
 | Group | Suites | Measured |
 |---|---|---|
-| `circuits` | tracks, records, ghost, reference ghost, scoring, environment | 483 s |
+| `circuits` | tracks, records, ghost, reference ghost, scoring, environment, v0.8.0 R2 polish, v0.9.0 seven-circuit integration | 545 s |
 | `menus-input` | handling, controller, menus, the smoke test, analytics | 500 s |
 | `gymkhana-getaway` | gymkhana, medals, categories, getaway, showmanship, Getaway records, Dockyard/Slalom | 503 s |
-| `audio-lessons` | tutorial, gameplay audio, radio, wheelspin, audio lab, Coyote, Getaway Driver, Circuit Tour (in the shortest group, so the slowest job does not grow) | 538 s (Circuit Tour's 40 s estimated) |
+| `audio-lessons` | tutorial, gameplay audio, radio, wheelspin, audio lab, Coyote, Getaway Driver, Circuit Tour | 538 s (Circuit Tour's 40 s estimated) |
 
 Each job repeats the setup: about 25 s to start the Playwright container, a few seconds for
 checkout, Node and Playwright. Each job is its own virtual machine, so ports, artifacts and

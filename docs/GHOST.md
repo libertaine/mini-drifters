@@ -120,7 +120,7 @@ One key, `mini-drifters-ghosts-v1`, separate from the records and every preferen
 } } } }
 ```
 
-A typical lap is 8–20k characters; the five-minute cap is about 120k; all six slots at that worst case are about 1 MiB, against a measured 5 MiB-per-origin quota. Laps over five minutes still play as the previous-lap ghost but aren't saved.
+A typical lap is 8–20k characters; the five-minute cap is about 120k. With seven circuits from v0.9.0 there are fourteen slots, about 1.7 million characters at that worst case, so v0.9.0 raised the whole-key cap (`MAX_STORE_CHARS`) from 2,000,000 to 2,500,000 characters. That still sits within the measured 5 MiB-per-origin quota. Laps over five minutes still play as the previous-lap ghost but aren't saved.
 
 Rules: nothing is written on load; the key is re-read before every write, and every other track, mode and unknown field is kept; a save is only reported once `setItem` returns; an unparseable key, or an entry failing any check (shape, lengths, integer columns, sample count against duration, lap time against duration, positions, headings, speed between samples, checksum), reads as "no reference" and is replaced by the next qualifying lap; a later store version, or an entry from a later compatibility version, is kept and never written. The checksum only catches accidental damage. **A saved lap is a picture, not proof**: anyone can write one by hand.
 

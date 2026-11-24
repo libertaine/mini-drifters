@@ -46,10 +46,9 @@ repository's own files. So "production" is the address itself. Local play
 `navigator.webdriver`), a copy on any other host, another path on the same host, plain
 HTTP and `file://` all fail the first two rows.
 
-The game reads one URL parameter of its own, through `researchScenario()` in the analytics gate:
-`?research=tour` shows the v0.9.0 R2 Circuit Tour research build ([CIRCUIT-TOUR](CIRCUIT-TOUR.md)).
-`research` is a scenario parameter, so such a page is never counted, and no Tour data is ever
-sent. Apart from that the game reads no URL parameters. `?debug` and `?driver` (the retired Getaway
+The game itself reads no URL parameters today. Circuit Tour, a research build behind
+`?research=tour` during v0.9.0 R2, is a normal title-menu mode from v0.9.0 and reads none.
+`?research` stays a scenario parameter, so such a page is still never counted. `?debug` and `?driver` (the retired Getaway
 Driver research switch, which no longer does anything) are listed so that they stay uncounted. A unit test
 fails if any source file starts reading a URL parameter that is not sorted into
 `SCENARIO_PARAMS` or `PREFERENCES`. The in-game debug display (the `D` key) is not a
@@ -100,7 +99,7 @@ frame loop, never from what is drawn on the screen.
 
 | `category` | Session |
 |---|---|
-| `tracks` | A scored circuit run (`game.mode === 'normal'`): Original, Switchback or Dockyard |
+| `tracks` | A scored circuit run (`game.mode === 'normal'`) on any of the seven circuits, from the Tracks sheet or as a Circuit Tour round |
 | `gymkhana` | A Gymkhana challenge |
 | `getaway` | A Getaway mission (a challenge on the `urban` layout): Get the Footage or Getaway Driver |
 | none | The driving lesson (Try It) and the practice pad. Nothing is sent for them, and their time is not counted |
@@ -108,6 +107,23 @@ frame loop, never from what is drawn on the screen.
 The circuit, challenge, mission, environment and handling mode are not sent. Nor is a Getaway
 Driver outcome (Ghost run, Low profile, Lost them) or its completion counts: those stay in the
 browser (see [GETAWAY-DRIVER](GETAWAY-DRIVER.md)).
+
+### Circuit Tour
+
+Decided in v0.9.0, without changing the contract. A Circuit Tour round is an ordinary circuit
+run, so it is counted exactly as a Tracks run is, and only once:
+
+- The Tour sheet, a round's sheet and the paused grid send nothing. The round's `md_run_start`
+  `{ category: 'tracks' }` is sent at its first press off the grid, as for any circuit run.
+- Its laps send the usual `md_lap_milestone`, and a finished round sends one `md_run_complete`
+  `{ category: 'tracks' }`.
+- A restart once moving is a new run, and a round left mid-run completes nothing, as in Tracks.
+- There is no Tour event, property or category. Rival names, posted scores, places, points,
+  standings, the Joker, restarts, lengths, fields and Tour results are never sent.
+
+So the `tracks` counts include Tour rounds and can't tell them apart. Counting Tours separately
+would need a new event or category value, which needs the owner's approval first.
+`test/analytics-browser.mjs` drives a Tour round on the published address to check all of this.
 
 ### `md_game_start` and `md_run_start`
 
