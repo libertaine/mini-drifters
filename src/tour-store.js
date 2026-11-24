@@ -1,17 +1,18 @@
-// Circuit Tour storage (v0.9.0 R2 research build). One key of its own, never another's:
+// Circuit Tour storage (v0.9.0). One key of its own, never another's:
 //
 //   TOUR_STORE_KEY  { version: 1, active, history, bests }
 //     active   the Tour in progress (tour.js state, plus `driving`: the round whose car has
 //              moved, so a page closed mid-round is noticed on the next visit), or null
 //     history  the last HISTORY_LIMIT finished or retired Tours, newest first: settings, outcome
 //              and each round's score, place and points
-//     bests    per "<format>|<length>|<field>|<handling>": { finished, champion, podium,
-//              bestPlace, bestPoints, sweeps } (Targets: champion is a Gold Tour)
+//     bests    per "<length>|<field>|<handling>": { finished, champion, podium, sweeps,
+//              bestPlace, bestTrophy, bestPoints }
 //
-// The key name says "r2": it is research storage, kept apart so the production format can be
-// chosen later without migrating anything. It is never read or written by records.js, the ghost
-// store or any preference, and it never reads or writes theirs. A Tour round is an ordinary
-// circuit run, so the circuit records and reference ghosts see it exactly as they see any run.
+// The v0.9.0 R2 research build kept its Tours under 'mini-drifters-r2-tour'. Production never
+// reads, writes or migrates that key: research saves stay where they are, and a production Tour
+// starts clean. This key is never read or written by records.js, the ghost store or any
+// preference, and it never reads or writes theirs. A Tour round is an ordinary circuit run, so
+// the circuit records and reference ghosts see it exactly as they see any run.
 //
 // Rules, as in records.js: nothing is written on load; every write re-reads the key first and
 // keeps what it does not change; a later store version (an integer above 1) is never written;
@@ -21,14 +22,16 @@
 // so a second tab that has moved the Tour on is never overwritten.
 import { isTour, tourOutcome } from './tour.js';
 
-export const TOUR_STORE_KEY = 'mini-drifters-r2-tour';
+export const TOUR_STORE_KEY = 'mini-drifters-tour-v1';
+// The research build's key: named only so tests can prove production leaves it alone.
+export const RESEARCH_TOUR_KEY = 'mini-drifters-r2-tour';
 export const TOUR_STORE_VERSION = 1;
 export const HISTORY_LIMIT = 12;
 
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const empty = () => ({ version: TOUR_STORE_VERSION, active: null, history: [], bests: {} });
 
-export const bestsKey = (t) => `${t.format}|${t.length}|${t.field}|${t.handling}`;
+export const bestsKey = (t) => `${t.length}|${t.field}|${t.handling}`;
 
 // 'empty' | 'ok' | 'corrupt' | 'unsupported', and the data a write would start from.
 export function readTourStore(raw) {
@@ -50,9 +53,9 @@ export function readTourStore(raw) {
 // A finished Tour as history keeps it.
 export function summarise(t) {
   return {
-    code: t.code, seed: t.seed, rules: t.rules, format: t.format, length: t.length, field: t.field, handling: t.handling,
+    code: t.code, seed: t.seed, rules: t.rules, length: t.length, field: t.field, handling: t.handling,
     status: t.status, outcome: t.status === 'complete' ? tourOutcome(t) : null,
-    rounds: t.results.map((r) => ({ trackId: r.trackId, score: r.score, position: r.position, medal: r.medal, points: r.points, joker: r.joker, dnf: r.dnf })),
+    rounds: t.results.map((r) => ({ trackId: r.trackId, score: r.score, position: r.position, points: r.points, joker: r.joker, dnf: r.dnf })),
   };
 }
 
@@ -62,7 +65,7 @@ export function foldBest(bests, t) {
   const key = bestsKey(t);
   const old = object(bests[key]) ? bests[key] : {};
   const o = tourOutcome(t);
-  const place = t.format === 'series' ? o.place : null;
+  const place = o.place;
   const better = (a, b, lower) => (a === null || a === undefined ? b : b === null ? a : lower ? Math.min(a, b) : Math.max(a, b));
   return {
     ...bests,

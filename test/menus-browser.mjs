@@ -37,7 +37,7 @@ const ORIGIN = new URL(BASE).origin;
 
 const SIZES = [[1920, 1080], [1366, 768], [1024, 600]];
 const NO_KEYS = { up: false, down: false, left: false, right: false, handbrake: false };
-const TITLE_CONTROLS = ['#tracks-open', '#gymkhana', '#getaway', '#how-to-play', '#menu .options-open'];
+const TITLE_CONTROLS = ['#tracks-open', '#tour-open', '#gymkhana', '#getaway', '#how-to-play', '#menu .options-open'];
 
 const visible = (page, id) => page.locator(`#${id}`).isVisible();
 const game = (page) => page.evaluate(() => {
@@ -165,7 +165,7 @@ async function check(name, engine) {
     assert.equal((await page.locator('.title').textContent()).replace(/\s+/g, ' '), 'MINI DRIFTERS');
     assert.equal(await page.locator('.tagline').textContent(), 'ONE OVERPOWERED CAR. ZERO GOOD IDEAS.');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['TRACKS', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']);
+    assert.deepEqual(words, ['TRACKS', 'CIRCUIT TOUR', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']); // Circuit Tour: v0.9.0
     // Personal bests add lap/combo names, not driving instructions. Verify that
     // panel explicitly, then retain the original instruction checks everywhere else.
     assert.deepEqual(await page.locator('.personal-bests dt').allTextContents(), ['Best score', 'Fastest lap', 'Best combo']);
@@ -198,8 +198,9 @@ async function check(name, engine) {
         assert.ok(button.reachable, `${button.selector} is covered at ${width}x${height}`);
         assert.equal(overlaps(button, layout.sound), false, `${button.selector} meets Sound`);
       }
-      assert.equal(overlaps(layout.buttons[3], layout.buttons[4]), false, 'How to Play and Options have separate bounds');
-      assert.ok(Math.abs(layout.buttons[3].top - layout.buttons[4].top) < 1, 'How to Play and Options share a row');
+      // TITLE_CONTROLS order: Tracks, Circuit Tour (v0.9.0), Gymkhana, Getaway, How to Play, Options.
+      assert.equal(overlaps(layout.buttons[4], layout.buttons[5]), false, 'How to Play and Options have separate bounds');
+      assert.ok(Math.abs(layout.buttons[4].top - layout.buttons[5].top) < 1, 'How to Play and Options share a row');
       assert.ok(layout.buttons[0].top >= layout.tagline.bottom, 'the menu sits under the title');
       assert.ok(layout.buttons.every((b) => b.right <= width * 0.5), 'the menu stays on the left');
       // The car is the focal point: whole, clear of the panel and large in the frame. Its
@@ -218,8 +219,10 @@ async function check(name, engine) {
     assert.equal(await focused(page), 'tracks-open', 'Start is selected from the first frame');
     assert.ok(await focusRing(page), 'and shows it');
     await page.keyboard.press('ArrowDown');
-    assert.equal(await focused(page), 'gymkhana');
+    assert.equal(await focused(page), 'tour-open', 'v0.9.0: Circuit Tour sits under Tracks');
     assert.ok(await focusRing(page), 'the selection shows while walking the menu');
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await focused(page), 'gymkhana');
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'getaway');
     await page.keyboard.press('ArrowDown');
@@ -240,9 +243,12 @@ async function check(name, engine) {
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
     assert.equal(await focused(page), 'tracks-open');
     assert.deepEqual((await game(page)).input, NO_KEYS, 'menu arrows are not pedals');
 
+    await page.keyboard.press('Tab');
+    assert.equal(await focused(page), 'tour-open');
     await page.keyboard.press('Tab');
     assert.equal(await focused(page), 'gymkhana');
     await page.keyboard.press('Tab');
@@ -259,6 +265,7 @@ async function check(name, engine) {
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Shift+Tab'); // Circuit Tour (v0.9.0)
     assert.equal(await focused(page), 'tracks-open');
     await page.keyboard.press('Shift+Tab');
     assert.equal(await focusedHandling(page), 'classic', 'Shift+Tab from Start reaches the handling choice');
@@ -275,6 +282,7 @@ async function check(name, engine) {
     await page.locator('#tracks-open').focus();
 
     // --- How to Play --------------------------------------------------------------------
+    await page.keyboard.press('ArrowDown'); // Circuit Tour (v0.9.0)
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');

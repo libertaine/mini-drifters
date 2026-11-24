@@ -1,25 +1,25 @@
-// Circuit Tour (v0.9.0 R2 research build): the competition layer over normal circuit runs.
+// Circuit Tour (v0.9.0): the championship layer over normal circuit runs.
 //
 // A Tour is a short championship. Each round is one ordinary three-lap circuit run, driven with
 // the same physics, drift scoring and lap validation as any other run: this file never touches
 // them. It only reads the run's final counted score, and decides what that score is worth in the
 // competition. Everything here is pure: no browser, no storage, no clock, no Math.random.
 //
-// Two formats share one engine. In both, a round has a list of marks to beat, posted before the
-// player drives, and the player always runs last, so they always know what is needed:
-//   'series'   five rival drifters post scores; the finishing position earns series points and
-//              a championship table is kept across rounds. The default, and the recommendation.
-//   'targets'  three fixed marks per circuit (Bronze, Silver, Gold); medals earn Tour points.
-//              The research alternative: the same flow with no rivals and no luck in the field.
+// Five fictional rival drifters post their scores for a round before the player drives, so the
+// player always runs last and always knows what is needed. The finishing position earns
+// championship points, and a table is kept across the rounds. The format was chosen by the v0.9.0
+// R2 research build (Championship, over a Targets alternative that was dropped) and accepted by
+// the owner after human testing; these rules are that build's, unchanged.
 //
-// Rival and target scores are scaled from each circuit's PAR for the chosen handling mode, so a
+// Rival scores are scaled from each circuit's PAR for the chosen handling mode, so a
 // circuit's length or flow and the handling mode never decide the result: the result is how the
 // player drove relative to the field on that circuit. See docs/CIRCUIT-TOUR.md.
 import { TRACKS } from './track.js';
 
 // The rules' identity. A saved Tour or Tour best made under other rules is never compared with
 // these. Raise it with any change to PAR, the field, the points or what a round is worth.
-export const TOUR_RULES_ID = 'tour-r2-1';
+// 'tour-1' is the R2 research build's rules ('tour-r2-1') unchanged, without the Targets format.
+export const TOUR_RULES_ID = 'tour-1';
 
 // The scripted median counted score of a full three-lap run, per circuit and handling mode
 // (research sweep: 3,584 runs by 64 scripted drift drivers, 4 runs each, all 7 circuits, both
@@ -34,12 +34,6 @@ export const PAR = Object.freeze({
   'headland-run': Object.freeze({ classic: 5769, revised: 7614 }),
   'nightshift-viaduct': Object.freeze({ classic: 6245, revised: 7325 }),
 });
-
-export const TOUR_FORMATS = Object.freeze({
-  series: Object.freeze({ id: 'series', name: 'Championship', summary: 'Five rivals post their scores first. Beat them for series points.' }),
-  targets: Object.freeze({ id: 'targets', name: 'Targets', summary: 'Fixed Bronze, Silver and Gold scores on every circuit. No rivals.' }),
-});
-export const FORMAT_IDS = Object.freeze(Object.keys(TOUR_FORMATS));
 
 // Restarts are shared by the whole Tour. Leaving a round while driving uses one.
 export const TOUR_LENGTHS = Object.freeze({
@@ -73,32 +67,42 @@ export const RIVALS = Object.freeze([
 ]);
 export const PLAYER_ID = 'you';
 
-// Series points by finishing position in a round of six. A round you leave with no restart left
-// is a DNF: last, and no points.
+// Championship points by finishing position in a round of six. A round you leave with no restart
+// left is a DNF: last, and no points.
 export const SERIES_POINTS = Object.freeze([10, 7, 5, 3, 2, 1]);
-// Targets: each mark as a multiple of the field's scale, and what it is worth.
-export const TARGET_MARKS = Object.freeze([
-  Object.freeze({ id: 'gold', name: 'Gold', share: 1.3, points: 3 }),
-  Object.freeze({ id: 'silver', name: 'Silver', share: 1.0, points: 2 }),
-  Object.freeze({ id: 'bronze', name: 'Bronze', share: 0.7, points: 1 }),
-]);
-// A Targets Tour's own medal, from the share of the maximum points it earned.
-export const TARGET_TOUR_MEDALS = Object.freeze([
-  Object.freeze({ id: 'gold', name: 'Gold', share: 0.8 }),
-  Object.freeze({ id: 'silver', name: 'Silver', share: 0.55 }),
-  Object.freeze({ id: 'bronze', name: 'Bronze', share: 0.3 }),
-]);
-// The Joker doubles your points in the one round you play it in, chosen before that round starts.
+// The Joker doubles the player's own points in the one round they play it in. It is chosen on the
+// round's sheet before the car moves, once per Tour, and it is only spent when that round's result
+// is recorded: a round that is left (a restart, a page closed, a DNF) leaves it unplayed.
 export const JOKER_MULTIPLIER = 2;
 // With `finalDouble` (the default), the last round counts double for every driver, and the Joker
-// can be played in any round but that one. The research Monte Carlo found it makes the last round
-// decide the title far more often (docs/CIRCUIT-TOUR.md).
+// can be played in any round but that one, so no round is ever worth more than double. The
+// research Monte Carlo found it makes the last round decide the title far more often
+// (docs/CIRCUIT-TOUR.md).
 export const FINAL_MULTIPLIER = 2;
 
 // What every driver's points in a round are multiplied by (the Joker is the player's own, on top).
 export const roundMultiplier = (tour, round) => (tour.finalDouble && round === tour.lineup.length - 1 ? FINAL_MULTIPLIER : 1);
 // Can the Joker be played in this round?
 export const jokerAllowed = (tour, round = tour.round) => tour.status === 'active' && tour.jokerRound === null && roundMultiplier(tour, round) === 1;
+
+// The Joker as the round sheet shows it, for the round about to be driven:
+//   'available'  unplayed, and it can be played in this round
+//   'selected'   chosen for this round (`armed`); spent when the round's result is recorded
+//   'used'       played in an earlier round (`round` says which)
+//   'locked'     unplayed, but this is the double-points final, where it cannot be played
+// `lastChance` is true when no later round will allow it.
+export function jokerState(tour, { armed = false } = {}) {
+  if (tour.jokerRound !== null) return { state: 'used', round: tour.jokerRound, lastChance: false };
+  if (!jokerAllowed(tour)) return { state: 'locked', round: null, lastChance: false };
+  const later = tour.lineup.some((_, k) => k > tour.round && roundMultiplier(tour, k) === 1);
+  return { state: armed ? 'selected' : 'available', round: null, lastChance: !later };
+}
+
+// How a recorded round's points were made: the place's points, then each multiplier.
+export function pointsBreakdown(tour, round) {
+  const r = tour.results[round];
+  return { base: r.basePoints, joker: r.joker ? JOKER_MULTIPLIER : 1, final: roundMultiplier(tour, round), total: r.points };
+}
 
 const TRACK_IDS = TRACKS.map((t) => t.id);
 
@@ -144,12 +148,8 @@ export function rivalScore(r, rival, trackId, handlingId, fieldScale) {
   return Math.max(0, Math.round(score));
 }
 
-// The marks of one round: rivals' posted scores, or the three targets. Best first.
-function roundMarks(r, format, trackId, handlingId, fieldScale) {
-  if (format === 'targets') {
-    const par = PAR[trackId][handlingId];
-    return TARGET_MARKS.map((m) => ({ id: m.id, name: m.name, score: Math.round(par * fieldScale * m.share / 10) * 10 }));
-  }
+// The marks of one round: the rivals' posted scores, best first.
+function roundMarks(r, trackId, handlingId, fieldScale) {
   return RIVALS.map((rival) => ({ id: rival.id, name: rival.name, score: rivalScore(r, rival, trackId, handlingId, fieldScale) }))
     .sort((a, b) => b.score - a.score);
 }
@@ -158,18 +158,18 @@ const known = (table, id) => Object.hasOwn(table, id);
 
 // A new Tour. Everything about it is decided here, from the seed, and kept in the state, so a
 // saved Tour never changes if this file later does.
-export function createTour({ seed, format = 'series', length = 'sprint', field = 'club', handling = 'classic', finalDouble = true }) {
-  if (!known(TOUR_FORMATS, format) || !known(TOUR_LENGTHS, length) || !known(TOUR_FIELDS, field)) throw new Error('Unknown Tour settings');
+export function createTour({ seed, length = 'sprint', field = 'club', handling = 'classic', finalDouble = true }) {
+  if (!known(TOUR_LENGTHS, length) || !known(TOUR_FIELDS, field)) throw new Error('Unknown Tour settings');
   if (!['classic', 'revised'].includes(handling)) throw new Error(`Unknown handling: ${handling}`);
   const s = seed >>> 0;
   const lineup = tourLineup(s, TOUR_LENGTHS[length].rounds);
   const r = seededRandom(s);
-  const marks = lineup.map((trackId) => roundMarks(r, format, trackId, handling, TOUR_FIELDS[field].scale));
+  const marks = lineup.map((trackId) => roundMarks(r, trackId, handling, TOUR_FIELDS[field].scale));
   return {
     rules: TOUR_RULES_ID,
     seed: s,
     code: tourCode(s),
-    format, length, field, handling,
+    length, field, handling,
     lineup,
     marks,               // marks[round] = [{ id, name, score }], best first
     round: 0,            // the next round to drive
@@ -182,7 +182,7 @@ export function createTour({ seed, format = 'series', length = 'sprint', field =
 }
 
 // Where a score stands among a round's marks, live during the run or at the line.
-//   position  1-based place among the player and the marks (Series), or the medal held (Targets)
+//   position  1-based place among the player and the five posted scores
 //   next      the next mark up, or null when there is none above
 //   gap       points needed to pass `next` (beating it means strictly more)
 export function standing(tour, round, score) {
@@ -190,11 +190,7 @@ export function standing(tour, round, score) {
   const above = marks.filter((m) => m.score >= score);
   const next = above.length ? above[above.length - 1] : null;
   const gap = next ? next.score - score + 1 : 0;
-  if (tour.format === 'targets') {
-    const medal = TARGET_MARKS.find((m) => score > (marks.find((x) => x.id === m.id)?.score ?? Infinity)) ?? null;
-    return { position: null, medal: medal?.id ?? null, next, gap };
-  }
-  return { position: above.length + 1, medal: null, next, gap };
+  return { position: above.length + 1, next, gap };
 }
 
 // What a round is worth once the run is over. `score` is the run's final counted score, or null
@@ -203,17 +199,12 @@ export function roundResult(tour, round, { score, joker = false, run = null }) {
   const dnf = score === null;
   const value = dnf ? 0 : Math.max(0, Math.round(score));
   const mult = (joker ? JOKER_MULTIPLIER : 1) * roundMultiplier(tour, round);
-  if (tour.format === 'targets') {
-    const { medal } = dnf ? { medal: null } : standing(tour, round, value);
-    const base = TARGET_MARKS.find((m) => m.id === medal)?.points ?? 0;
-    return { trackId: tour.lineup[round], score: value, dnf, joker, medal, position: null, basePoints: base, points: base * mult, run };
-  }
   const position = dnf ? RIVALS.length + 1 : standing(tour, round, value).position;
   const base = dnf ? 0 : SERIES_POINTS[position - 1];
-  return { trackId: tour.lineup[round], score: value, dnf, joker, medal: null, position, basePoints: base, points: base * mult, run };
+  return { trackId: tour.lineup[round], score: value, dnf, joker, position, basePoints: base, points: base * mult, run };
 }
 
-// The rivals' places and points in a round (Series), with the player placed among them.
+// The rivals' places and points in a round, with the player placed among them.
 export function roundTable(tour, round) {
   const result = tour.results[round] ?? null;
   const rows = tour.marks[round].map((m) => ({ id: m.id, name: m.name, score: m.score, player: false }));
@@ -225,7 +216,7 @@ export function roundTable(tour, round) {
   return rows.map((row, i) => ({
     ...row,
     position: i + 1,
-    points: row.player ? (result?.points ?? 0) : (tour.format === 'series' ? (SERIES_POINTS[i] ?? 0) * roundMultiplier(tour, round) : 0),
+    points: row.player ? (result?.points ?? 0) : (SERIES_POINTS[i] ?? 0) * roundMultiplier(tour, round),
   }));
 }
 
@@ -262,7 +253,7 @@ export function leaveRound(tour) {
 
 export const retireTour = (tour) => ({ ...tour, status: 'retired' });
 
-// The championship table after the rounds driven so far (Series), best first. Ties go to more
+// The championship table after the rounds driven so far, best first. Ties go to more
 // round wins, then more second places, and so on, then the higher total drift score.
 export function standings(tour, rounds = tour.results.length) {
   const rows = new Map();
@@ -290,7 +281,7 @@ function comparePlaces(a, b) {
   return 0;
 }
 
-// What this round can do to the championship (Series). Every rival's score for the round is
+// What this round can do to the championship. Every rival's score for the round is
 // posted before the player drives, so the table after it depends only on where the player
 // finishes: places[p - 1] is the player's championship place if they finish the round in P(p)
 // (null when no score can give that round place, as when two posted scores tie). From it:
@@ -298,7 +289,7 @@ function comparePlaces(a, b) {
 //   lead      the worst round place that puts the player top of the table (any other round)
 //   podium    the worst round place that keeps a championship podium in reach at the end
 export function roundStakes(tour, { joker = false } = {}) {
-  if (tour.format !== 'series' || tour.status !== 'active') return null;
+  if (tour.status !== 'active') return null;
   joker = joker && jokerAllowed(tour);
   const i = tour.round;
   const marks = tour.marks[i];
@@ -323,7 +314,7 @@ export function roundStakes(tour, { joker = false } = {}) {
 // the player). Used to say whether the title is still open.
 export function pointsStillAvailable(tour, forPlayer) {
   const left = tour.lineup.length - tour.results.length;
-  const top = tour.format === 'series' ? SERIES_POINTS[0] : TARGET_MARKS[0].points;
+  const top = SERIES_POINTS[0];
   let most = 0;
   let jokerLeft = forPlayer && tour.jokerRound === null;
   for (let i = tour.results.length; i < tour.lineup.length; i += 1) {
@@ -334,57 +325,26 @@ export function pointsStillAvailable(tour, forPlayer) {
   return most;
 }
 
-// Series: can the player still finish first? Targets: the best medal still possible.
+// Can the player still finish first?
 export function titleOpen(tour) {
-  if (tour.format !== 'series') return null;
   const table = standings(tour);
   const leader = table[0];
   const you = table.find((r) => r.player);
   return you.points + pointsStillAvailable(tour, true) >= leader.points;
 }
 
-// A Targets Tour's points out of the most it could earn (all Gold, with the Joker).
-export function targetsMaximum(tour) {
-  const top = TARGET_MARKS[0].points;
-  const rounds = tour.lineup.reduce((sum, _, i) => sum + top * roundMultiplier(tour, i), 0);
-  const jokerRounds = tour.lineup.filter((_, i) => roundMultiplier(tour, i) === 1).length;
-  return rounds + (jokerRounds > 0 ? top * (JOKER_MULTIPLIER - 1) : 0);
-}
-
 export function tourPoints(tour) {
   return tour.results.reduce((sum, r) => sum + r.points, 0);
 }
 
-// How a finished Tour ended: { place, trophy, points, champion, sweep }. A Series trophy is the
-// championship podium; a Targets trophy is its medal for the share of the maximum earned.
+// How a finished Tour ended: { place, trophy, points, champion, sweep }. The trophy is the
+// championship podium: gold, silver or bronze for P1 to P3.
 export function tourOutcome(tour) {
   const points = tourPoints(tour);
-  if (tour.format === 'targets') {
-    const share = points / targetsMaximum(tour);
-    const medal = TARGET_TOUR_MEDALS.find((m) => share >= m.share) ?? null;
-    return { place: null, trophy: medal?.id ?? null, points, champion: medal?.id === 'gold',
-      sweep: tour.results.every((r) => r.medal === 'gold') };
-  }
   const table = standings(tour);
   const place = table.find((r) => r.player).position;
   return { place, trophy: ['gold', 'silver', 'bronze'][place - 1] ?? null, points, champion: place === 1,
     sweep: tour.results.length === tour.lineup.length && tour.results.every((r) => r.position === 1) };
-}
-
-// The research comparison: what the same drives would be worth under other Tour scoring rules.
-//   raw         the sum of drift scores (what a plain playlist would show)
-//   normalised  each score as a share of its circuit's PAR for the mode, x1000, summed
-//   medals      Gold/Silver/Bronze against this Tour's field, 3/2/1 (no Joker)
-export function scoringComparison(tour) {
-  const scale = TOUR_FIELDS[tour.field].scale;
-  const raw = tour.results.reduce((s, r) => s + r.score, 0);
-  const normalised = Math.round(tour.results.reduce((s, r) => s + 1000 * r.score / PAR[r.trackId][tour.handling], 0));
-  const medals = tour.results.reduce((s, r) => {
-    const par = PAR[r.trackId][tour.handling] * scale;
-    const m = TARGET_MARKS.find((x) => r.score > Math.round(par * x.share / 10) * 10);
-    return s + (m?.points ?? 0);
-  }, 0);
-  return { raw, normalised, medals, medalsMax: tour.results.length * TARGET_MARKS[0].points };
 }
 
 // Is this a Tour this version can carry on with? A saved Tour from other rules, or one that has
@@ -392,7 +352,7 @@ export function scoringComparison(tour) {
 export function isTour(t) {
   const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
   if (!object(t) || t.rules !== TOUR_RULES_ID) return false;
-  if (!known(TOUR_FORMATS, t.format) || !known(TOUR_LENGTHS, t.length) || !known(TOUR_FIELDS, t.field)) return false;
+  if (!known(TOUR_LENGTHS, t.length) || !known(TOUR_FIELDS, t.field)) return false;
   if (!['classic', 'revised'].includes(t.handling) || !Number.isSafeInteger(t.seed)) return false;
   if (!Array.isArray(t.lineup) || t.lineup.length !== TOUR_LENGTHS[t.length].rounds) return false;
   if (!t.lineup.every((id) => TRACK_IDS.includes(id)) || new Set(t.lineup).size !== t.lineup.length) return false;

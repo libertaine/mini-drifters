@@ -92,6 +92,8 @@ async function check(name, engine) {
     await press(1);
     assert.equal(await focus(), 'tracks-open');
     await press(13);
+    assert.equal(await focus(), 'tour-open', 'v0.9.0: Circuit Tour sits under Tracks');
+    await press(13);
     assert.equal(await focus(), 'gymkhana');
     await press(13);
     assert.equal(await focus(), 'getaway');

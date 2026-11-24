@@ -1,15 +1,17 @@
-// Circuit Tour (v0.9.0 R2 research build): the competition layer, its storage, and that a Tour
-// round is an ordinary circuit run. See docs/CIRCUIT-TOUR.md.
+// Circuit Tour (v0.9.0): the championship layer, its storage, and that a Tour round is an
+// ordinary circuit run. See docs/CIRCUIT-TOUR.md.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import * as TOUR from '../src/tour.js';
 import {
-  TOUR_RULES_ID, PAR, TOUR_FORMATS, TOUR_LENGTHS, TOUR_FIELDS, RIVALS, SERIES_POINTS, TARGET_MARKS, JOKER_MULTIPLIER, PLAYER_ID,
+  TOUR_RULES_ID, PAR, TOUR_LENGTHS, TOUR_FIELDS, RIVALS, SERIES_POINTS, JOKER_MULTIPLIER, PLAYER_ID,
   createTour, tourLineup, standing, roundResult, roundTable, recordRound, useRestart, leaveRound, retireTour, standings,
-  titleOpen, tourOutcome, tourPoints, scoringComparison, targetsMaximum, isTour, tourCode, seedFromCode, seededRandom, rivalScore, roundStakes,
-  FINAL_MULTIPLIER, roundMultiplier, jokerAllowed, pointsStillAvailable,
+  titleOpen, tourOutcome, tourPoints, isTour, tourCode, seedFromCode, seededRandom, rivalScore, roundStakes,
+  FINAL_MULTIPLIER, roundMultiplier, jokerAllowed, jokerState, pointsBreakdown, pointsStillAvailable,
 } from '../src/tour.js';
-import { createTourStore, readTourStore, foldBest, bestsKey, TOUR_STORE_KEY, TOUR_STORE_VERSION, HISTORY_LIMIT } from '../src/tour-store.js';
+import { createTourStore, readTourStore, foldBest, bestsKey, TOUR_STORE_KEY, RESEARCH_TOUR_KEY, TOUR_STORE_VERSION, HISTORY_LIMIT } from '../src/tour-store.js';
 import { TRACKS, trackById } from '../src/track.js';
 import { HANDLING_IDS, handlingById } from '../src/handling.js';
 import { createGame, startRun, tick } from '../src/game.js';
@@ -40,7 +42,7 @@ test('PAR covers every circuit in both public handling modes, frozen, with the r
     for (const h of HANDLING_IDS) assert.ok(Number.isSafeInteger(PAR[id][h]) && PAR[id][h] > 1000, `${id} ${h}`);
   }
   // A change to these is a change of the Tour's rules: it needs a new TOUR_RULES_ID.
-  assert.equal(TOUR_RULES_ID, 'tour-r2-1');
+  assert.equal(TOUR_RULES_ID, 'tour-1');
   assert.deepEqual(PAR, {
     original: { classic: 7841, revised: 9850 }, switchback: { classic: 7431, revised: 8829 }, dockyard: { classic: 4102, revised: 5857 },
     'runway-27': { classic: 7154, revised: 7673 }, 'redline-mesa': { classic: 4165, revised: 7137 },
@@ -68,15 +70,55 @@ test('the Tour layer is pure and never reaches into the simulation, scoring or o
   for (const key of [RECORDS_KEY, GHOST_STORE_KEY, 'mini-drifters-gymkhana', 'mini-drifters-getaway']) {
     assert.ok(!storeSource.includes(key), `the Tour store never names ${key}`);
   }
-  assert.equal(TOUR_STORE_KEY, 'mini-drifters-r2-tour');
+  assert.equal(TOUR_STORE_KEY, 'mini-drifters-tour-v1');
+  assert.equal(RESEARCH_TOUR_KEY, 'mini-drifters-r2-tour');
+});
+
+// The accepted R2 research build's Championship, run over 200 seeds x every length, field and
+// handling mode with a Joker and DNFs: lineups, posted scores, stakes, standings and outcomes.
+// The hash was taken from research/v0.9.0-r2-circuit-tour (e5a5a33). Production removed the
+// Targets format and must not have moved anything else.
+test('the Championship is exactly the human-accepted R2 research build', () => {
+  const out = [];
+  for (let seed = 1; seed <= 200; seed += 1) {
+    for (const length of ['sprint', 'grand']) for (const field of ['club', 'national', 'pro']) for (const handling of ['classic', 'revised']) {
+      let t = createTour({ seed: seed * 7919, length, field, handling });
+      out.push([t.lineup, t.marks.map((m) => m.map((x) => [x.id, x.score]))]);
+      const jokerAt = seed % t.lineup.length === t.lineup.length - 1 ? 0 : seed % t.lineup.length;
+      while (t.status === 'active') {
+        const st = roundStakes(t, { joker: t.round === jokerAt });
+        const marks = t.marks[t.round];
+        const k = (seed + t.round) % 6;
+        const score = k === 5 ? 0 : marks[k].score + (seed % 2);
+        t = recordRound(t, { score: seed % 11 === 0 && t.round === 1 ? null : score, joker: t.round === jokerAt && jokerAllowed(t) });
+        out.push([st?.places, st?.champion, st?.lead, st?.podium]);
+      }
+      out.push(standings(t).map((r) => [r.id, r.points, r.position]), tourOutcome(t));
+    }
+  }
+  assert.equal(out.length, 20400);
+  assert.equal(createHash('sha256').update(JSON.stringify(out)).digest('hex'), '665e26b934fca78a0776e0a62c1fcefd77c9cda2f0c67272fabd9135c5732c5f');
+});
+
+test('production has no research formats: no Targets, no scoring comparison, no format setting', () => {
+  for (const name of ['TOUR_FORMATS', 'FORMAT_IDS', 'TARGET_MARKS', 'TARGET_TOUR_MEDALS', 'targetsMaximum', 'scoringComparison']) {
+    assert.equal(name in TOUR, false, name);
+  }
+  const t = createTour({ seed: 9, format: 'targets' });
+  assert.equal('format' in t, false, 'a format setting is ignored, never stored');
+  assert.equal(t.marks[0].length, RIVALS.length, 'every Tour is the Championship');
+  for (const file of ['../src/tour.js', '../src/tour-ui.js', '../src/tour-store.js', '../src/main.js', '../index.html']) {
+    const text = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.doesNotMatch(text, /research=tour|TOUR_RESEARCH|tour-markup|tour-formats|tour-compare/, file);
+  }
 });
 
 // --- 2. Making a Tour ---------------------------------------------------------------------------
 test('a Tour is decided entirely by its seed: same seed, same circuits and posted scores', () => {
-  const a = createTour({ seed: 12345, format: 'series', length: 'grand', field: 'national', handling: 'revised' });
-  const b = createTour({ seed: 12345, format: 'series', length: 'grand', field: 'national', handling: 'revised' });
+  const a = createTour({ seed: 12345, length: 'grand', field: 'national', handling: 'revised' });
+  const b = createTour({ seed: 12345, length: 'grand', field: 'national', handling: 'revised' });
   assert.deepEqual(a, b);
-  const c = createTour({ seed: 12346, format: 'series', length: 'grand', field: 'national', handling: 'revised' });
+  const c = createTour({ seed: 12346, length: 'grand', field: 'national', handling: 'revised' });
   assert.notDeepEqual(a.marks, c.marks);
   assert.equal(a.lineup.length, 7);
   assert.deepEqual([...a.lineup].sort(), [...TRACK_IDS].sort(), 'a Grand Tour drives every circuit once');
@@ -107,16 +149,10 @@ test('Sprint lineups vary: every circuit appears, in many different orders', () 
   for (const [id, n] of Object.entries(counts)) assert.ok(n > 150 && n < 310, `${id} drawn ${n} times in 400`);
 });
 
-test('settings are validated, and a Targets Tour posts three fixed marks per circuit', () => {
-  assert.throws(() => createTour({ seed: 1, format: 'bogus' }));
+test('settings are validated', () => {
+  assert.throws(() => createTour({ seed: 1, length: 'marathon' }));
   assert.throws(() => createTour({ seed: 1, field: 'legend' }));
   assert.throws(() => createTour({ seed: 1, handling: 'tuned' }), /handling/);
-  const t = createTour({ seed: 9, format: 'targets', field: 'club', handling: 'classic' });
-  for (const [i, marks] of t.marks.entries()) {
-    assert.deepEqual(marks.map((m) => m.id), ['gold', 'silver', 'bronze']);
-    const par = PAR[t.lineup[i]].classic * TOUR_FIELDS.club.scale;
-    assert.deepEqual(marks.map((m) => m.score), TARGET_MARKS.map((m) => Math.round(par * m.share / 10) * 10));
-  }
 });
 
 test('rival scores follow the field: stronger fields post higher, specialists shine at home', () => {
@@ -138,7 +174,7 @@ test('rival scores follow the field: stronger fields post higher, specialists sh
 
 // --- 3. Rounds, points and standings ----------------------------------------------------------------
 test('a round: where a score stands, strictly beating a mark to pass it, and the points it earns', () => {
-  const t = createTour({ seed: 4, format: 'series' });
+  const t = createTour({ seed: 4 });
   const marks = t.marks[0];
   assert.equal(standing(t, 0, 0).position, 6);
   assert.equal(standing(t, 0, marks[0].score + 1).position, 1);
@@ -256,7 +292,6 @@ test('round stakes come straight from the posted scores: what each round place w
   const plain = roundStakes(mid);
   const doubled = roundStakes(mid, { joker: true });
   plain.places.forEach((place, k) => { if (place !== null) assert.ok(doubled.places[k] <= place); });
-  assert.equal(roundStakes(createTour({ seed: 3, format: 'targets' })), null);
 });
 
 test('the final round counts double for everyone, and the Joker is for the other rounds', () => {
@@ -279,19 +314,65 @@ test('the final round counts double for everyone, and the Joker is for the other
   assert.ok(isTour(plain));
 });
 
-test('a Targets Tour: medals per round, Tour points out of the maximum, and the Tour medal', () => {
-  const t = createTour({ seed: 8, format: 'targets', field: 'national' });
-  assert.equal(targetsMaximum(t), 3 * 3 + 3 * 2 + 3, 'three rounds, a double final and the Joker');
-  const gold = play(t, (tour, i) => tour.marks[i][0].score + 1, { joker: 0 });
-  assert.equal(tourPoints(gold), 18);
-  assert.deepEqual(tourOutcome(gold), { place: null, trophy: 'gold', points: 18, champion: true, sweep: true });
-  const bronze = play(t, (tour, i) => tour.marks[i][2].score + 1);
-  assert.equal(tourPoints(bronze), 5);
-  assert.equal(tourOutcome(bronze).trophy, null, '5 of 18 is under the Bronze share');
-  const silver = play(t, (tour, i) => tour.marks[i][1].score + 1);
-  assert.equal(tourPoints(silver), 10);
-  assert.equal(tourOutcome(silver).trophy, 'silver', '10 of 18 is a Silver Tour');
-  assert.equal(standing(t, 0, t.marks[0][1].score).medal, 'bronze', 'equalling a mark does not earn it');
+test('the Joker as the round sheet shows it: available, selected, used, or locked in the final', () => {
+  const t = createTour({ seed: 14 });
+  assert.deepEqual(jokerState(t), { state: 'available', round: null, lastChance: false });
+  assert.deepEqual(jokerState(t, { armed: true }), { state: 'selected', round: null, lastChance: false });
+  // Round 3 of a Sprint is the last round before the double final: the last chance.
+  const third = [0, 1].reduce((tour) => recordRound(tour, { score: 0 }), t);
+  assert.deepEqual(jokerState(third), { state: 'available', round: null, lastChance: true });
+  const final = recordRound(third, { score: 0 });
+  assert.deepEqual(jokerState(final), { state: 'locked', round: null, lastChance: false }, 'never in the final');
+  assert.deepEqual(jokerState(final, { armed: true }).state, 'locked', 'a stray armed flag cannot select it there');
+  const played = recordRound(t, { score: t.marks[0][1].score + 1, joker: true });
+  assert.deepEqual(jokerState(played), { state: 'used', round: 0, lastChance: false });
+  assert.deepEqual(jokerState(recordRound(recordRound(recordRound(played, { score: 0 }), { score: 0 }), { score: 0 })).state, 'used');
+  // A Grand Tour: rounds 1 to 6 allow it, the seventh is the final.
+  const grand = createTour({ seed: 14, length: 'grand' });
+  const sixth = [0, 1, 2, 3, 4].reduce((tour) => recordRound(tour, { score: 0 }), grand);
+  assert.equal(jokerState(sixth).lastChance, true);
+  assert.equal(jokerState(recordRound(sixth, { score: 0 })).state, 'locked');
+});
+
+test('a round\'s points spelt out: place points, then the Joker and the double final, never both', () => {
+  const t = createTour({ seed: 14 });
+  const p2 = recordRound(t, { score: t.marks[0][1].score + 1, joker: true });
+  assert.deepEqual(pointsBreakdown(p2, 0), { base: 7, joker: 2, final: 1, total: 14 });
+  const plain = recordRound(p2, { score: p2.marks[1][0].score + 1 });
+  assert.deepEqual(pointsBreakdown(plain, 1), { base: 10, joker: 1, final: 1, total: 10 });
+  const toFinal = recordRound(plain, { score: 0 });
+  const done = recordRound(toFinal, { score: toFinal.marks[3][2].score + 1 });
+  assert.deepEqual(pointsBreakdown(done, 3), { base: 5, joker: 1, final: 2, total: 10 });
+  assert.equal(tourPoints(done), 14 + 10 + 1 + 10);
+  for (const [i, r] of done.results.entries()) {
+    const b = pointsBreakdown(done, i);
+    assert.equal(b.base * b.joker * b.final, r.points);
+    assert.ok(b.joker * b.final <= 2, 'no round is ever worth more than double');
+  }
+  // Rivals never get the Joker: only the player's row is doubled.
+  assert.deepEqual(roundTable(p2, 0).filter((r) => !r.player).map((r) => r.points), [10, 5, 3, 2, 1]);
+});
+
+test('the Joker is only spent by a recorded round: leaving, restarting or a DNF keeps it', () => {
+  const t = createTour({ seed: 22 });
+  assert.equal(useRestart(t).jokerRound, null);
+  assert.equal(leaveRound(t).tour.jokerRound, null, 'a round left with a restart');
+  const noRestarts = useRestart(useRestart(t));
+  const dnf = leaveRound(noRestarts);
+  assert.equal(dnf.cost, 'dnf');
+  assert.equal(dnf.tour.results[0].joker, false);
+  assert.equal(dnf.tour.jokerRound, null, 'a DNF never plays the Joker');
+  assert.equal(jokerState(dnf.tour).state, 'available');
+  // Saved and read back, the Joker's round survives, and a played Joker stays played.
+  const storage = memory();
+  const store = createTourStore(() => storage);
+  store.begin(t);
+  const played = recordRound(t, { score: 5000, joker: true });
+  assert.deepEqual(store.update(t, played), { ok: true });
+  const reloaded = createTourStore(() => storage).load().active;
+  assert.equal(reloaded.jokerRound, 0);
+  assert.equal(jokerState(reloaded).state, 'used');
+  assert.throws(() => recordRound(reloaded, { score: 1, joker: true }), /Joker/);
 });
 
 test('skill decides a Tour: twice the field wins almost always, half the field almost never podiums', () => {
@@ -313,20 +394,12 @@ test('consistency beats one spike: the same normalised total wins far more often
     const t = createTour({ seed, field: 'national' });
     const even = play(t, parScore(1.2));
     const peaky = play(t, (tour, i) => parScore(i === 2 ? 3.0 : 0.6)(tour, i));
-    assert.ok(Math.abs(scoringComparison(even).normalised - scoringComparison(peaky).normalised) < 20);
+    const normalised = (x) => Math.round(x.results.reduce((s, r) => s + 1000 * r.score / PAR[r.trackId][x.handling], 0));
+    assert.ok(Math.abs(normalised(even) - normalised(peaky)) < 20);
     if (tourOutcome(even).champion) steady += 1;
     if (tourOutcome(peaky).champion) spike += 1;
   }
   assert.ok(steady > 200 && spike < 30, `steady ${steady}, spike ${spike}`);
-});
-
-test('the research comparison: raw, normalised and medal totals of the same drives', () => {
-  const t = play(createTour({ seed: 2, field: 'club' }), parScore(0.99));
-  const c = scoringComparison(t);
-  assert.equal(c.raw, t.results.reduce((s, r) => s + r.score, 0));
-  assert.ok(Math.abs(c.normalised - 4 * 990 * TOUR_FIELDS.club.scale) <= 4);
-  assert.equal(c.medalsMax, 12);
-  assert.equal(c.medals, 4 * 1, 'just under the field scale is Bronze (0.7x) but not Silver (1.0x)');
 });
 
 test('isTour accepts what createTour makes and rejects damaged or foreign Tours', () => {
@@ -334,7 +407,7 @@ test('isTour accepts what createTour makes and rejects damaged or foreign Tours'
   assert.ok(isTour(t));
   assert.ok(isTour(JSON.parse(JSON.stringify(t))));
   const bad = [
-    { ...t, rules: 'tour-r9' }, { ...t, format: 'x' }, { ...t, lineup: ['original', 'original', 'dockyard', 'switchback'] },
+    { ...t, rules: 'tour-r9' }, { ...t, rules: 'tour-r2-1' }, { ...t, length: 'marathon' }, { ...t, lineup: ['original', 'original', 'dockyard', 'switchback'] },
     { ...t, lineup: [...t.lineup.slice(0, 3), 'exp-runway-27'] }, { ...t, round: 2 }, { ...t, results: [] },
     { ...t, restartsLeft: -1 }, { ...t, restartsLeft: 9 }, { ...t, jokerRound: 3 }, { ...t, status: 'paused' },
     { ...t, marks: t.marks.slice(1) }, { ...t, marks: [[{ id: 'kit', name: 'Kit', score: -5 }], ...t.marks.slice(1)] },
@@ -395,6 +468,15 @@ test('the Tour store reads damaged, foreign and later data safely', () => {
   assert.equal(readTourStore('[]').status, 'corrupt');
   assert.equal(readTourStore('{"version":0}').status, 'corrupt');
   assert.equal(readTourStore(JSON.stringify({ version: TOUR_STORE_VERSION + 1 })).status, 'unsupported');
+  // The R2 research build's key is never read, written or migrated.
+  const research = JSON.stringify({ version: 1, active: { ...createTour({ seed: 1 }), rules: 'tour-r2-1', format: 'series' }, history: [], bests: {} });
+  const both = memory({ [RESEARCH_TOUR_KEY]: research });
+  const production = createTourStore(() => both);
+  assert.equal(production.load().active, null, 'a research save does not appear as a Tour to continue');
+  assert.equal(production.load().setAside, false);
+  assert.ok(production.begin(createTour({ seed: 2 })));
+  assert.equal(both.getItem(RESEARCH_TOUR_KEY), research, 'the research save is left exactly as it was');
+  assert.deepEqual([...both.map.keys()].sort(), [RESEARCH_TOUR_KEY, TOUR_STORE_KEY].sort());
   // A damaged active Tour is set aside, never resumed.
   const damaged = memory({ [TOUR_STORE_KEY]: JSON.stringify({ version: 1, active: { ...createTour({ seed: 1 }), rules: 'old' }, history: [], bests: {} }) });
   const store = createTourStore(() => damaged);
@@ -444,8 +526,7 @@ test('a Tour round is a normal three-lap run: same score, and the circuit record
   assert.ok(isTour(tourStore.load().active));
 });
 
-test('formats and lengths exist as the sheet offers them', () => {
-  assert.deepEqual(Object.keys(TOUR_FORMATS), ['series', 'targets']);
+test('lengths and fields exist as the sheet offers them', () => {
   assert.deepEqual(Object.keys(TOUR_LENGTHS), ['sprint', 'grand']);
   assert.deepEqual(Object.keys(TOUR_FIELDS), ['club', 'national', 'pro']);
 });

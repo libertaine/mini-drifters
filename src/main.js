@@ -24,9 +24,9 @@ import { createGhostStore } from './ghost-store.js';
 import { createReferenceGhosts, slotState } from './reference-ghost.js';
 import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
 import { categoryOf } from './analytics.js';
-import { startAnalytics, researchScenario } from './analytics-tracker.js';
-import { createTour, recordRound, useRestart, leaveRound, retireTour, standings, jokerAllowed } from './tour.js';
-import { createTourStore } from './tour-store.js';
+import { startAnalytics } from './analytics-tracker.js';
+import { createTour, recordRound, useRestart, leaveRound, retireTour, standings, jokerAllowed, tourOutcome } from './tour.js';
+import { createTourStore, bestsKey } from './tour-store.js';
 import { createTourUi } from './tour-ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -57,9 +57,6 @@ const referenceGhosts = createReferenceGhosts({ store: createGhostStore(),
 // Anonymous counts, on the published page only: null everywhere else (docs/ANALYTICS.md). An
 // observer that hears the run events last and the frame loop after the simulation, and changes nothing.
 const analytics = startAnalytics(window);
-// Circuit Tour, the v0.9.0 R2 research build, appears only with ?research=tour. `research` is
-// an analytics scenario parameter, so such a page is never counted (analytics-tracker.js).
-const TOUR_RESEARCH = researchScenario(window) === 'tour';
 const analyticsCategory = () => categoryOf({ mode: game.mode, layout: game.challengeDef?.layout });
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
@@ -457,7 +454,7 @@ const PICKER_SHEETS = {
   tracks: 'tracks-menu', challenges: 'gymkhana-menu',
   missions: 'getaway-menu', environments: 'gymkhana-menu', tour: 'tour-menu',
 };
-const CATEGORY_BUTTON = { tracks: 'tracks-open', challenges: 'gymkhana', missions: 'getaway', ...(TOUR_RESEARCH ? { tour: 'tour-open' } : {}) };
+const CATEGORY_BUTTON = { tracks: 'tracks-open', tour: 'tour-open', challenges: 'gymkhana', missions: 'getaway' };
 let picker = null;
 let mission = null;
 const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, driverRecords, onChoose: () => showGymkhanaMenu() });
@@ -646,29 +643,16 @@ function skipTutorialStep() {
   audio.gesture(game);
 }
 
-// --- Circuit Tour (v0.9.0 R2 research build) ------------------------------------------
-// Only with ?research=tour. A Tour round is an ordinary circuit run (mode 'normal'), so the
-// records, reference ghosts, audio and HUD treat it exactly like any run. This block chooses the
-// next circuit, shows the Tour's sheets, and hands each run's final counted score to tour.js.
-// Saving is tour-store.js, under its own key.
+// --- Circuit Tour (v0.9.0) ---------------------------------------------------------------
+// A Tour round is an ordinary circuit run (mode 'normal'), so the records, reference ghosts,
+// audio, analytics and HUD treat it exactly like any run. This block chooses the next circuit,
+// shows the Tour's sheets, and hands each run's final counted score to tour.js. Saving is
+// tour-store.js, under its own key (docs/CIRCUIT-TOUR.md).
 const TOUR_SHEETS = Object.freeze({ intro: 'tour-round', result: 'tour-result', final: 'tour-final' });
-
-// The Tour's button, HUD panel and sheets wait in an inert <template> in index.html, so without
-// ?research=tour the page is exactly the R1 page. With it, each part goes where its slot says.
-function installTourMarkup() {
-  const parts = $('tour-markup').content.cloneNode(true);
-  const place = (slot, parent, before) => {
-    for (const el of [...parts.querySelectorAll(`[data-tour-slot="${slot}"]`)]) parent.insertBefore(el, before);
-  };
-  place('title', $('tracks-open').parentElement, $('tracks-open').nextSibling);
-  place('hud', $('hud'), $('ghost-status'));
-  place('sheets', document.body, $('getaway-menu'));
-}
-if (TOUR_RESEARCH) installTourMarkup();
 const TOUR_KEY_GUARD_MS = 500; // a sheet that appears by itself ignores Enter and Space this long
-const tourStore = TOUR_RESEARCH ? createTourStore() : null;
-const tourChoice = { length: 'sprint', field: 'club', format: 'series' };
-const tourUi = !TOUR_RESEARCH ? null : createTourUi({
+const tourStore = createTourStore();
+const tourChoice = { length: 'sprint', field: 'club' };
+const tourUi = createTourUi({
   $,
   trackName: (id) => trackById(id).name,
   trackMeta: (id) => TRACK_DETAILS[id] ?? { venue: 'Circuit', accent: '#ffb627', blurb: '' },
@@ -678,7 +662,7 @@ const tourUi = !TOUR_RESEARCH ? null : createTourUi({
 let tour = null;            // the active Tour as last saved (or as played, if storage failed)
 let tourScreen = null;      // 'intro' | 'result' | 'final' | null
 let tourRoundLive = false;  // this session is a Tour round, from its sheet to its result
-let tourJoker = false;      // the Joker is played on this round
+let tourJoker = false;      // the Joker is selected for this round (spent only when the round is recorded)
 let tourDriving = null;     // the round whose car has moved (and so costs a restart to leave)
 let tourRunId = null;       // the run that is the round in play
 let tourBefore = null;      // the standings before this round, for the movement arrows
@@ -690,7 +674,6 @@ let tourShownAt = 0;
 let tourUnsaved = false;    // this Tour could not be saved when it began: it lives in this window only
 
 const tourActive = () => (tour && tour.status === 'active' ? tour : null);
-const medalRankOf = (medal) => ({ gold: 3, silver: 2, bronze: 1 })[medal] ?? 0;
 
 function endTourSession() {
   tourRoundLive = false;
@@ -724,7 +707,7 @@ const tourPrimary = () => (tourActive() ? $('tour-resume') : $('tour-start'));
 
 function tourMenuStops() {
   const checked = (group) => tourUi.inputs[group].find((input) => input.checked);
-  return [...(tourActive() ? [$('tour-resume'), $('tour-retire')] : []), checked('length'), checked('field'), checked('format'),
+  return [...(tourActive() ? [$('tour-resume'), $('tour-retire')] : []), checked('length'), checked('field'),
     $('tour-start'), $('tour-back')].filter(Boolean);
 }
 
@@ -760,7 +743,7 @@ function newTourSeed() {
 // A new Tour: with a new draw, or a rematch (the same seed and settings: the same circuits in the
 // same order, against the same posted scores).
 function startTour(seed = newTourSeed(), settings = { ...tourChoice, handling: selectedHandlingId }) {
-  const fresh = createTour({ seed, format: settings.format, length: settings.length, field: settings.field, handling: settings.handling });
+  const fresh = createTour({ seed, length: settings.length, field: settings.field, handling: settings.handling });
   tourUnsaved = !(tourStore && tourStore.begin(fresh));
   tour = fresh;
   tourNotice = '';
@@ -822,7 +805,7 @@ function beginTourRound() {
 function showTourIntro() {
   const t = tourActive();
   if (!t) return;
-  tourUi.renderIntro(t, { jokerArmed: tourJoker, pb: records.forTrack(t.lineup[t.round], t.handling).score, device: instructionDevice });
+  tourUi.renderIntro(t, { jokerArmed: tourJoker, pb: records.forTrack(t.lineup[t.round], t.handling).score });
 }
 
 function tourDrive() {
@@ -919,7 +902,7 @@ function settleTourRound() {
   const t = tourActive();
   if (!t || !tourRoundLive) return;
   const next = recordRound(t, { score: done.score, joker: tourJoker, run: done.run });
-  const key = `${t.format}|${t.length}|${t.field}|${t.handling}`;
+  const key = bestsKey(t);
   const previousBest = tourStore ? tourStore.load().bests[key] ?? null : null;
   const saved = saveTour(t, next);
   if (!saved.ok && saved.reason === 'moved') { tourMovedElsewhere(); return; }
@@ -939,7 +922,7 @@ function settleTourRound() {
 
 // The final sheet, reached from the Tour menu when a DNF ends the last round.
 function showTourFinalFromMenu(before) {
-  const key = `${tour.format}|${tour.length}|${tour.field}|${tour.handling}`;
+  const key = bestsKey(tour);
   picker = null;
   tourScreen = 'final';
   tourShownAt = performance.now();
@@ -949,13 +932,8 @@ function showTourFinalFromMenu(before) {
 }
 
 function tourTrophyCue() {
-  const trophy = tour?.status === 'complete' ? tourOutcomeTrophy(tour) : null;
+  const trophy = tour?.status === 'complete' ? tourOutcome(tour).trophy : null;
   return trophy ? `outcome-${trophy}` : 'outcome-circuit';
-}
-function tourOutcomeTrophy(t) {
-  const table = standings(t);
-  if (t.format === 'series') return ['gold', 'silver', 'bronze'][table.find((row) => row.player).position - 1] ?? null;
-  return null;
 }
 
 function tourPauseNote() {
@@ -1012,18 +990,12 @@ function updateTourHud(now) {
   const { combo } = game.scoring;
   const comboValue = combo ? Math.round(combo.points * currentMultiplier(combo)) : 0;
   const s = tourUi.updateHud(t, t.round, { score: countedScore(game), comboValue, jokerArmed: tourJoker });
-  const place = t.format === 'series' ? s.position : medalRankOf(s.medal);
+  const place = s.position;
   if (game.state === 'racing' && tourLivePlace !== null && place !== tourLivePlace) {
-    const better = t.format === 'series' ? place < tourLivePlace : place > tourLivePlace;
-    let text;
-    if (t.format === 'series') {
-      const passed = better ? t.marks[t.round].slice(place - 1, tourLivePlace - 1) : [];
-      const names = passed.map((m) => (m.name.split(' ')[0] ?? m.name).toUpperCase());
-      text = better ? `P${place} — PASSED ${names.length > 2 ? `${names.length} DRIVERS` : names.join(' & ')}` : `DOWN TO P${place}`;
-    } else {
-      const medal = s.medal ? s.medal.toUpperCase() : 'NO MEDAL';
-      text = better ? `${medal} SECURED` : `DOWN TO ${medal}`;
-    }
+    const better = place < tourLivePlace;
+    const passed = better ? t.marks[t.round].slice(place - 1, tourLivePlace - 1) : [];
+    const names = passed.map((m) => (m.name.split(' ')[0] ?? m.name).toUpperCase());
+    const text = better ? `P${place} — PASSED ${names.length > 2 ? `${names.length} DRIVERS` : names.join(' & ')}` : `DOWN TO P${place}`;
     const el = $('banner');
     const justBanked = !el.hidden && el.dataset.kind === 'banked' && banner.until - now > BANNER_TIME - 0.1;
     showBanner(better ? 'tour' : 'void', justBanked && better ? `${el.textContent} · ${text}` : text, now);
@@ -1036,7 +1008,7 @@ function updateTourHud(now) {
   }
 }
 
-if (TOUR_RESEARCH) {
+{
   $('tour-start').addEventListener('click', () => startTour());
   $('tour-resume').addEventListener('click', continueTour);
   $('tour-retire').addEventListener('click', retireActiveTour);
@@ -1300,7 +1272,7 @@ $('practice').addEventListener('click', beginPractice);
 for (const [level, button] of Object.entries(CATEGORY_BUTTON)) {
   $(button).addEventListener('click', () => openPicker(level));
 }
-for (const id of ['tracks-back', 'getaway-back', 'gymkhana-back', ...(TOUR_RESEARCH ? ['tour-back'] : [])]) {
+for (const id of ['tracks-back', 'getaway-back', 'gymkhana-back', 'tour-back']) {
   $(id).addEventListener('click', (e) => closePicker({ restoreFocus: e.detail === 0 }));
 }
 $('gymkhana-start').addEventListener('click', beginGymkhana);
@@ -1548,10 +1520,9 @@ function fitTitle() {
   const padding = getComputedStyle(panel);
   const available = Math.min(innerHeight, panel.clientHeight) - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
   const heading = title.getBoundingClientRect();
-  // The research build's extra title button can push the analytics note off a short window, so
-  // there the whole column is measured. Without ?research=tour this is unchanged.
-  const last = TOUR_RESEARCH ? $('analytics-note') : $('controller-note');
-  const used = last.getBoundingClientRect().bottom - heading.top;
+  // With Circuit Tour the menu has a fourth category button, which can push the analytics note
+  // off a short window, so the whole column is measured (v0.9.0).
+  const used = $('analytics-note').getBoundingClientRect().bottom - heading.top;
   if (used > available) {
     const scale = Math.max(0.2, (heading.height - (used - available) - 4) / heading.height);
     title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * scale}px`;
@@ -1593,14 +1564,12 @@ function syncScreens() {
   $('tracks-menu').hidden = optionsOpen || picker !== 'tracks';
   $('getaway-menu').hidden = optionsOpen || picker !== 'missions';
   $('gymkhana-menu').hidden = optionsOpen || !challengePicker();
-  if (TOUR_RESEARCH) {
-    $('tour-menu').hidden = optionsOpen || picker !== 'tour';
-    for (const [screen, id] of Object.entries(TOUR_SHEETS)) $(id).hidden = optionsOpen || tourScreen !== screen;
-    $('tour-hud').hidden = !tourRoundLive || state === 'menu' || tourScreen === 'result' || tourScreen === 'final';
-    if (tourRoundLive) document.body.dataset.tour = 'round';
-    else delete document.body.dataset.tour;
-    showTourPause();
-  }
+  $('tour-menu').hidden = optionsOpen || picker !== 'tour';
+  for (const [screen, id] of Object.entries(TOUR_SHEETS)) $(id).hidden = optionsOpen || tourScreen !== screen;
+  $('tour-hud').hidden = !tourRoundLive || state === 'menu' || tourScreen === 'result' || tourScreen === 'final';
+  if (tourRoundLive) document.body.dataset.tour = 'round';
+  else delete document.body.dataset.tour;
+  showTourPause();
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
   $('ghost-status').hidden = !!tutorial;
@@ -2103,7 +2072,6 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-if (TOUR_RESEARCH) document.body.dataset.research = 'tour';
 selectTrack(selectedTrackId);
 selectHandling(selectedHandlingId, { remember: false });
 syncScreens();
@@ -2115,6 +2083,6 @@ window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => sele
   selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode,
   referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: challengePicker(), selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial),
   smashSounds: () => ({ ...audio.smashes }), fxAudio: () => ({ ...audio.fx }),
-  tour: () => ({ research: TOUR_RESEARCH, screen: tourScreen, live: tourRoundLive, joker: tourJoker, driving: tourDriving,
+  tour: () => ({ screen: tourScreen, live: tourRoundLive, joker: tourJoker, driving: tourDriving,
     state: tour && structuredClone(tour), choice: { ...tourChoice }, picker }) };
 requestAnimationFrame(frame);

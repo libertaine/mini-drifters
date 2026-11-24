@@ -227,6 +227,8 @@ test('the local server serves the game and nothing else', async () => {
     assert.equal(await status('/src/scenery-mesa.js'), 200);
     assert.equal(await status('/src/scenery-headland.js'), 200);
     assert.equal(await status('/src/scenery-nightshift.js'), 200);
+    // v0.9.0 Circuit Tour: published with the rest of src/ (the Pages step copies all of it).
+    for (const file of ['tour.js', 'tour-store.js', 'tour-ui.js']) assert.equal(await status(`/src/${file}`), 200, file);
     assert.equal(await status('/radio/ATTRIBUTION.md'), 200);
     for (const file of RADIO_FILES) assert.equal(await status(`/${file}`), 200, file);
     for (const path of ['/radio/', '/radio/x.exe', '/radio/test-tracks/../../server.mjs', '/radio/test-tracks/Missing.wav']) assert.equal(await status(path), 404, path);

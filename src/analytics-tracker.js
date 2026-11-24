@@ -21,17 +21,6 @@ export const SCENARIO_PARAMS = Object.freeze(['debug', 'driver', 'replay', 'rese
 // Parameters a player may use without leaving the counts. Only the opt-out exists so far.
 export const PREFERENCES = Object.freeze(['analytics']);
 
-// Which research scenario the address names, if any: `?research=tour` opens the Circuit Tour
-// research build (v0.9.0 R2). `research` is one of SCENARIO_PARAMS, so a page that names one
-// is never counted. The game reads the address only here, so every switch stays in this file.
-export function researchScenario(win) {
-  try {
-    return new URLSearchParams(win.location.search).get('research')?.trim().toLowerCase() || null;
-  } catch {
-    return null;
-  }
-}
-
 function doNotTrack({ navigator: nav, doNotTrack: fromWindow }) {
   const signal = fromWindow || nav.doNotTrack || nav.msDoNotTrack;
   return signal === 1 || signal === '1' || signal === 'yes';

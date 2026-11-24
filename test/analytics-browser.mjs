@@ -302,6 +302,65 @@ async function check(name, engine) {
     await p.close();
     ok('starts count on the first press; the grid, restarts, pause, leaving, the lesson, the pad and a failed challenge send nothing more');
 
+    // --- Circuit Tour (v0.9.0): a round is an ordinary circuit run, counted once as tracks ----------
+    // No Tour event, property or value exists: the round's run sends exactly what a Tracks run does.
+    p = await open();
+    await p.go(SITE);
+    await p.page.locator('#tour-open').click();
+    await p.frames(2);
+    await p.page.locator('#tour-start').click();
+    await p.frames(120);
+    assert.deepEqual(await p.calls(), [], 'the Tour sheet and the round sheet are not a start');
+    await p.page.locator('#tour-round-leave').click(); // leaving from the round sheet is free
+    await p.frames(2);
+    await p.page.locator('#tour-resume').click();
+    await p.frames(2);
+    await p.page.locator('#tour-joker').click();
+    await p.page.locator('#tour-drive').click();
+    await p.frames(60);
+    assert.deepEqual(await p.calls(), [], 'nor is the grid');
+    await p.hold('ArrowUp', 30);
+    const tourStarted = [['md_game_start'], ['md_run_start', { category: 'tracks' }]];
+    assert.deepEqual(await p.calls(), tourStarted, 'a Tour round starts like a Tracks run');
+    await p.page.evaluate(async () => {
+      const { driftDriver } = await import(new URL('test/support/drivers.mjs', document.baseURI).href);
+      const { tick } = await import(new URL('src/game.js', document.baseURI).href);
+      const g = window.__miniDrifters.game;
+      const d = driftDriver();
+      while (g.state !== 'finished' && g.ticks < 120 * 600) tick(g, d(g));
+      window.__frames(3);
+    });
+    assert.equal(await p.page.evaluate(() => window.__miniDrifters.tour().screen), 'result');
+    let tourCalls = (await p.calls()).filter(([n]) => !n.startsWith('md_engaged'));
+    assert.deepEqual(tourCalls.slice(0, 2), tourStarted);
+    assert.deepEqual(tourCalls.at(-1), ['md_run_complete', { category: 'tracks' }], 'and completes like one');
+    const laps = tourCalls.slice(2, -1);
+    assert.ok(laps.every(([n, data]) => n === 'md_lap_milestone' && [1, 2, 3].includes(data.lap)), JSON.stringify(laps));
+    assert.deepEqual(laps.map(([, data]) => data.lap), [...new Set(laps.map(([, data]) => data.lap))].sort(), 'each lap at most once, in order');
+    // The next round: its sheet and a free leave send nothing; a driven round left mid-run completes nothing.
+    await p.page.locator('#tour-result-leave').click();
+    await p.frames(2);
+    await p.page.locator('#tour-resume').click();
+    await p.page.locator('#tour-drive').click();
+    await p.frames(30);
+    await p.hold('ArrowUp', 30);
+    await p.press('KeyP');
+    await p.page.locator('#paused .return-title').click(); // costs a restart: the round is driven again
+    await p.frames(2);
+    assert.equal(await p.page.evaluate(() => window.__miniDrifters.tour().state.restartsLeft), 1);
+    tourCalls = (await p.calls()).filter(([n]) => !n.startsWith('md_engaged'));
+    assert.deepEqual(tourCalls.slice(-2), [['md_run_complete', { category: 'tracks' }], ['md_run_start', { category: 'tracks' }]],
+      'round 2 started once and, left mid-run, completed nothing');
+    assert.equal(tourCalls.filter(([n]) => n === 'md_run_complete').length, 1, 'one complete for one finished round: nothing double-counted');
+    for (const [eventName, data] of await p.calls()) {
+      assert.match(eventName, /^md_/);
+      if (data !== undefined) assert.ok(['category', 'lap'].includes(Object.keys(data).join()), JSON.stringify(data));
+    }
+    assert.doesNotMatch(JSON.stringify(await p.calls()), /tour|joker|kit|marisol|dutch|juno|ozzie|points|place|rival/i, 'nothing of the Tour is sent');
+    assert.deepEqual(p.seen.errors, []);
+    await p.close();
+    ok('a Circuit Tour round counts once as a tracks run; its sheets, a free leave and a left round add nothing; no Tour data is sent');
+
     // --- Engagement --------------------------------------------------------------------------------
     p = await open();
     await p.go(SITE);
@@ -366,7 +425,7 @@ async function check(name, engine) {
         const note = document.getElementById('analytics-note');
         const menu = document.getElementById('menu');
         const r = box(note);
-        const others = ['#tracks-open', '#gymkhana', '#getaway', '#how-to-play', '.options-open', '#sound', '#controller-note']
+        const others = ['#tracks-open', '#tour-open', '#gymkhana', '#getaway', '#how-to-play', '.options-open', '#sound', '#controller-note']
           .map((s) => [s, box(document.querySelector(s))]);
         return { text: note.textContent, visible: note.checkVisibility(), r: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
           others: others.map(([s, b]) => [s, { left: b.left, right: b.right, top: b.top, bottom: b.bottom }]),
