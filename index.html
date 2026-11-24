@@ -326,6 +326,107 @@
 
   <button id="sound" type="button">Sound On</button>
 
+  <!-- Circuit Tour (v0.9.0 R2 research build). Inert unless the page is opened with
+       ?research=tour: main.js then places each part where its data-tour-slot says. -->
+  <template id="tour-markup">
+    <button id="tour-open" type="button" data-tour-slot="title">Circuit Tour <span>R2</span></button>
+    <section id="tour-hud" class="panel tour-hud" data-tour-slot="hud" hidden data-place="6" data-joker="false">
+      <span id="tour-hud-round" class="label">Round 1/4</span>
+      <strong id="tour-hud-place">P6</strong>
+      <span id="tour-hud-next"></span>
+      <span id="tour-hud-bank"></span>
+    </section>
+  <section id="tour-menu" data-tour-slot="sheets" class="overlay" role="dialog" aria-labelledby="tour-title" hidden>
+    <div class="sheet small tour-sheet">
+      <p class="eyebrow">Research build · v0.9.0 R2</p>
+      <div class="tracks-head">
+        <h2 id="tour-title" class="sheet-title">Circuit Tour</h2>
+        <p id="tour-handling" class="stats-note tracks-handling-pill"></p>
+      </div>
+      <p class="tour-pitch">A short championship across the circuits. The field posts its scores first; you drive last, knowing what it takes.</p>
+      <div id="tour-continue" class="tour-continue" hidden>
+        <p id="tour-continue-text"></p>
+        <div class="actions">
+          <button id="tour-resume" type="button">Continue <span>Enter</span></button>
+          <button id="tour-retire" class="quiet" type="button">Retire</button>
+        </div>
+      </div>
+      <div class="tour-options">
+        <span id="tour-length-label" class="track-label">Length</span>
+        <div id="tour-lengths" class="stations tour-choices" role="radiogroup" aria-labelledby="tour-length-label"></div>
+        <span id="tour-field-label" class="track-label">Field</span>
+        <div id="tour-fields" class="stations tour-choices" role="radiogroup" aria-labelledby="tour-field-label"></div>
+        <span id="tour-format-label" class="track-label">Scoring</span>
+        <div id="tour-formats" class="stations tour-choices" role="radiogroup" aria-labelledby="tour-format-label"></div>
+      </div>
+      <p id="tour-choice-note" class="stats-note"></p>
+      <p id="tour-best" class="stats-note tour-best"></p>
+      <p id="tour-notice" class="records-note" role="status"></p>
+      <p id="tour-store-note" class="records-note" role="status"></p>
+      <div class="actions">
+        <button id="tour-start" type="button">Start Tour</button>
+        <button id="tour-back" class="quiet" type="button">Back <span>Esc</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tour-round" data-tour-slot="sheets" class="overlay tour-overlay" role="dialog" aria-labelledby="tour-round-title" hidden>
+    <div class="sheet tour-wide">
+      <p id="tour-round-eyebrow" class="eyebrow"></p>
+      <h2 id="tour-round-title" class="sheet-title"></h2>
+      <p id="tour-round-venue" class="tour-venue"></p>
+      <p id="tour-stakes" class="tour-stakes"></p>
+      <div class="tour-columns">
+        <section><h2 id="tour-marks-head">Scores to beat</h2><ol id="tour-marks" class="tour-table"></ol><p id="tour-round-pb" class="stats-note"></p></section>
+        <section><h2 id="tour-standings-head">Standings</h2><ol id="tour-round-standings" class="tour-table"></ol></section>
+      </div>
+      <p id="tour-lineup" class="tour-lineup"></p>
+      <p id="tour-round-note" class="stats-note"></p>
+      <div class="actions">
+        <button id="tour-drive" type="button">Drive <span>Enter</span></button>
+        <button id="tour-joker" class="quiet" type="button" aria-pressed="false">Play Joker</button>
+        <button id="tour-round-leave" class="quiet" type="button">Save &amp; leave <span>Esc</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tour-result" data-tour-slot="sheets" class="overlay tour-overlay" role="dialog" aria-labelledby="tour-result-title" hidden>
+    <div class="sheet tour-wide">
+      <p id="tour-result-eyebrow" class="eyebrow"></p>
+      <h2 id="tour-result-title" class="sheet-title"></h2>
+      <p id="tour-result-line" class="pitch"></p>
+      <div class="tour-columns">
+        <section><h2 id="tour-result-round-head">Round</h2><ol id="tour-result-round" class="tour-table"></ol></section>
+        <section><h2 id="tour-result-standings-head">Standings</h2><ol id="tour-result-standings" class="tour-table"></ol></section>
+      </div>
+      <p id="tour-result-notes" class="stats-note"></p>
+      <div class="actions">
+        <button id="tour-next" type="button">Next round <span>Enter</span></button>
+        <button id="tour-result-leave" class="quiet" type="button">Save &amp; leave <span>Esc</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tour-final" data-tour-slot="sheets" class="overlay tour-overlay" role="dialog" aria-labelledby="tour-final-title" hidden>
+    <div class="sheet tour-wide">
+      <p id="tour-final-eyebrow" class="eyebrow"></p>
+      <h2 id="tour-final-title" class="sheet-title"></h2>
+      <p id="tour-final-line" class="pitch"></p>
+      <div class="tour-columns">
+        <section><h2 id="tour-final-standings-head">Final standings</h2><ol id="tour-final-standings" class="tour-table"></ol></section>
+        <section><h2>Your rounds</h2><ol id="tour-final-rounds" class="tour-table"></ol></section>
+      </div>
+      <p id="tour-final-best" class="stats-note"></p>
+      <p id="tour-compare" class="tour-compare"></p>
+      <div class="actions">
+        <button id="tour-rematch" type="button">Rematch <span>Enter</span></button>
+        <button id="tour-new" class="quiet" type="button">New Tour</button>
+        <button id="tour-exit" class="quiet" type="button">Tour menu <span>Esc</span></button>
+      </div>
+    </div>
+  </section>
+  </template>
+
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

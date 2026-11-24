@@ -33,6 +33,7 @@
     "test:analytics:browser": "node test/analytics-browser.mjs",
     "test:getaway-driver:browser": "node test/getaway-driver-browser.mjs",
     "test:r2-polish:browser": "node test/r2-polish-browser.mjs",
-    "test:circuits-r1:browser": "node test/circuits-r1-browser.mjs"
+    "test:circuits-r1:browser": "node test/circuits-r1-browser.mjs",
+    "test:tour:browser": "node test/tour-browser.mjs"
   }
 }

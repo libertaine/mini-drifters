@@ -46,7 +46,10 @@ repository's own files. So "production" is the address itself. Local play
 `navigator.webdriver`), a copy on any other host, another path on the same host, plain
 HTTP and `file://` all fail the first two rows.
 
-The game itself reads no URL parameters today. `?debug` and `?driver` (the retired Getaway
+The game reads one URL parameter of its own, through `researchScenario()` in the analytics gate:
+`?research=tour` shows the v0.9.0 R2 Circuit Tour research build ([CIRCUIT-TOUR](CIRCUIT-TOUR.md)).
+`research` is a scenario parameter, so such a page is never counted, and no Tour data is ever
+sent. Apart from that the game reads no URL parameters. `?debug` and `?driver` (the retired Getaway
 Driver research switch, which no longer does anything) are listed so that they stay uncounted. A unit test
 fails if any source file starts reading a URL parameter that is not sorted into
 `SCENARIO_PARAMS` or `PREFERENCES`. The in-game debug display (the `D` key) is not a

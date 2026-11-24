@@ -41,10 +41,14 @@ export const SUITES = Object.freeze({
   'test:r2-polish:browser': { file: 'test/r2-polish-browser.mjs', group: 'circuits', seconds: 30, about: 'v0.8.0 R2 presentation, HUD polish, procedural SFX/siren lifecycle and reduced motion' },
   // v0.9.0 R1 four-circuit production integration checks, placed in `circuits` to keep parallel CI balanced.
   'test:circuits-r1:browser': { file: 'test/circuits-r1-browser.mjs', group: 'circuits', seconds: 32, about: 'v0.9.0 R1 seven-circuit Tracks UI, four new circuits gameplay, records, reference ghosts and layouts' },
+  // v0.9.0 R2 Circuit Tour research build (?research=tour). 23 s locally for both browsers; the
+  // hosted figure is an estimate until a hosted run measures it. In the shortest group.
+  'test:tour:browser': { file: 'test/tour-browser.mjs', group: 'audio-lessons', seconds: 40, about: 'v0.9.0 R2 Circuit Tour research build: sheets, rounds, restarts, resume, records and storage' },
 });
 
 // The parallel jobs, in the order they are listed in the run. Measured totals (s): circuits 483,
-// menus-input 500, gymkhana-getaway 503, audio-lessons 498 (444 + 54 for Getaway Driver).
+// menus-input 500, gymkhana-getaway 503, audio-lessons 498 (444 + 54 for Getaway Driver), plus
+// an estimated 40 for the R2 Circuit Tour suite in audio-lessons.
 export const GROUPS = Object.freeze(['circuits', 'menus-input', 'gymkhana-getaway', 'audio-lessons']);
 
 // Run in every tier 2 change, and in tier 1 when a published file changes: the whole game
@@ -101,6 +105,7 @@ export const RULES = Object.freeze([
     paths: ['src/records.js', 'src/gymkhana-records.js', 'src/getaway-records.js', 'src/getaway-driver-records.js', 'src/ghost.js', 'src/ghost-store.js', 'src/reference-ghost.js',
       'src/ghost-preferences.js', 'src/handling-preferences.js', 'src/audio-preferences.js'] },
   { id: 'radio-catalogue', tier: 3, paths: ['src/radio-stations.js'], why: 'The radio file list, which most browser suites serve files from' },
+  { id: 'tour', tier: 3, paths: ['src/tour.js', 'src/tour-store.js'], why: 'Circuit Tour (R2 research build): what a round is worth, and its saved Tours' },
 
   // --- Tier 2: bounded areas -------------------------------------------------------------------
   { id: 'tutorial', tier: 2, paths: ['src/tutorial.js'], suites: ['test:tutorial:browser'], why: 'The driving lesson: only main.js reads it, only while a lesson runs' },
@@ -122,6 +127,7 @@ export const RULES = Object.freeze([
   { id: 'challenge-ui', tier: 2, paths: ['src/gymkhana-ui.js', 'src/gymkhana-draw.js'], suites: [...CHALLENGE_SUITES, 'test:menus:browser', 'test:controller:browser'],
     why: 'The Gymkhana and Getaway sheets, HUD, results and drawing' },
   { id: 'getaway-draw', tier: 2, paths: ['src/getaway-urban-draw.js'], suites: GETAWAY_SUITES, why: 'Drawing of the Getaway city' },
+  { id: 'tour-ui', tier: 2, paths: ['src/tour-ui.js'], suites: ['test:tour:browser'], why: 'The Circuit Tour sheets and HUD panel (R2 research build), drawn only with ?research=tour' },
 
   // --- Tier 1: nothing the browser runs changes --------------------------------------------------
   { id: 'docs', tier: 1, paths: ['README.md', 'docs/**', 'LICENSE', 'LICENSE-AUDIO.md'], why: 'Documentation, README media and licences (the publishing checks read some of them)' },
