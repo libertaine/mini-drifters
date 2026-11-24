@@ -241,6 +241,70 @@ async function check(name, engine) {
     // No unexpected storage writes occurred during inspection.
     const writes = await page.evaluate(() => window.__writes.filter((k) => k !== 'mini-drifters-sound'));
     assert.deepEqual(writes, [], `no stray storage writes (${writes.join(', ')})`);
+    // --- 1f. R2b Tracks & Gymkhana UI polish: live SVG track preview, balanced 2x2 Gymkhana grid,
+    //         combo multiplier heat/low-grace states, and tiered medal/new-best racing stripes ---
+    await page.keyboard.press('KeyP'); await frames(2);
+    await page.locator('#paused .return-title').click(); await frames(3);
+    await page.click('#tracks-open'); await frames(3);
+    const previewChecks = [];
+    for (const id of ['original', 'switchback', 'dockyard']) {
+      await page.locator(`#tracks input[value="${id}"]`).click({ force: true });
+      await frames(2);
+      previewChecks.push(await page.evaluate(() => ({
+        path: document.getElementById('track-preview-path')?.getAttribute('d') ?? '',
+        blurb: document.getElementById('track-blurb')?.textContent ?? '',
+        labelLines: document.getElementById('track-label')?.getClientRects().length ?? 0,
+      })));
+    }
+    assert.ok(previewChecks.every((c) => c.path.startsWith('M') && c.blurb.length > 10), 'every circuit renders an SVG silhouette and blurb');
+    assert.equal(new Set(previewChecks.map((c) => c.path)).size, 3, 'all three circuit silhouettes are distinct');
+    await page.click('#tracks-back'); await frames(2);
+
+    // Gymkhana menu uses a balanced 2-column grid for its 4 challenges.
+    await page.click('#gymkhana'); await frames(3);
+    const gymGrid = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('#challenges .station')].map((el) => el.getBoundingClientRect());
+      const rows = new Set(cards.map((r) => Math.round(r.top)));
+      return { count: cards.length, rows: rows.size };
+    });
+    assert.deepEqual(gymGrid, { count: 4, rows: 2 }, '4 Gymkhana challenges form a balanced 2x2 grid');
+    await page.click('#gymkhana-back'); await frames(2);
+
+    // Combo multiplier heat (data-mult="2" / "3") & low-grace state + New Best circuit stripe.
+    await page.click('#tracks-open'); await frames(2);
+    await page.click('#start'); await frames(3);
+    const comboHeat = await page.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      g.state = 'racing';
+      g.scoring.combo = { points: 420, tier: 3, grace: 0.3, tierGround: 0, linkGround: 0, stallTimer: 0, stallGround: 0, side: 1 };
+      window.__frames(2);
+      const el = document.getElementById('combo');
+      return { state: el.dataset.state, mult: el.dataset.mult, lowGrace: el.dataset.lowGrace };
+    });
+    assert.deepEqual(comboHeat, { state: 'active', mult: '3', lowGrace: 'true' }, 'x3 combo heat and low-grace warning activate cleanly');
+
+    // Gymkhana Gold medal racing stripe vs Silver stripe on non-urban results.
+    await page.keyboard.press('KeyP'); await frames(2);
+    await page.locator('#paused .return-title').click(); await frames(3);
+    await page.click('#gymkhana'); await frames(2);
+    await page.click('#gymkhana-start'); await frames(3);
+    const gymMedalStripe = await page.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      g.state = 'finished';
+      g.challenge.phase = 'complete';
+      g.challenge.result = { value: 7.2, time: 7.2, penalty: 0, total: 7.2, cones: 0, entrySpeed: 22, depth: 20, peakSlip: 0.6, minSpeed: 8, technique: 'slide' };
+      window.__frames(2);
+      const res = document.getElementById('gymkhana-results');
+      const gold = res.dataset.medal;
+      g.challenge.phase = 'running'; g.state = 'racing'; window.__frames(1);
+      g.challenge.result = { value: 8.0, time: 8.0, penalty: 0, total: 8.0, cones: 0, entrySpeed: 22, depth: 20, peakSlip: 0.6, minSpeed: 8, technique: 'slide' };
+      g.challenge.phase = 'complete'; g.state = 'finished'; window.__frames(2);
+      const silver = res.dataset.medal;
+      return { gold, silver };
+    });
+    assert.deepEqual(gymMedalStripe, { gold: 'gold', silver: 'silver' }, 'Gymkhana results expose tiered medal stripes');
+    ok('R2b Tracks SVG preview, 2x2 Gymkhana grid, combo heat/low-grace and medal stripes verified');
+
     await ctx.close();
 
     // --- 2. Live Web Audio FX & Siren lifecycle ---
@@ -337,7 +401,51 @@ async function check(name, engine) {
     });
     await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 2000 });
     assert.equal((await audioPage.evaluate(() => window.__miniDrifters.fxAudio().bustedPlayed)), 1, 'out of time does not shout BUSTED');
-    ok('Live Web Audio siren, BUSTED offline voice, siren ducking, once-per-bust and R cancellation verified');
+    // 4) Live Web Audio Tracks & Gymkhana cues: apex curb rumble, Turn Zone lock, Slalom weave & Gold fanfare.
+    await audioPage.locator('#gymkhana-results .return-title').click();
+    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'menu', null, { timeout: 2000 });
+    await audioPage.click('#tracks-open');
+    await audioPage.click('#start');
+    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready' && window.__miniDrifters.audio().contextState === 'running' && window.__miniDrifters.audio().mode === 'live', null, { timeout: 4000 });
+    const baseSources = await audioPage.evaluate(() => window.__miniDrifters.audio().sourceCount);
+    await audioPage.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      const p = g.track.points.find((pt) => Math.abs(pt.curvature) > g.track.curbCurvature);
+      g.state = 'racing';
+      g.car.x = p.x - p.ty * (g.track.halfWidth + 1);
+      g.car.y = p.y + p.tx * (g.track.halfWidth + 1);
+      g.car.heading = Math.atan2(p.ty, p.tx);
+      g.car.vx = p.tx * 24;
+      g.car.vy = p.ty * 24;
+      g.car.speed = 24;
+      g.car.surface = 'curb';
+      g.prev.x = g.car.x; g.prev.y = g.car.y;
+      g.trackInfo = window.__miniDrifters.projectOnTrack(g.track, g.car.x, g.car.y);
+      g.trackS = g.trackInfo.s;
+    });
+    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().curbs >= 1, null, { timeout: 3000 });
+    assert.equal(await audioPage.evaluate(() => window.__miniDrifters.audio().sourceCount), baseSources, 'curb rumble adds zero persistent sources');
+
+    // Precision 180 Turn Zone chime & Gold finish fanfare.
+    await audioPage.keyboard.press('KeyP');
+    await audioPage.locator('#paused .return-title').click();
+    await audioPage.click('#gymkhana');
+    await audioPage.click('#gymkhana-start');
+    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready' && window.__miniDrifters.audio().contextState === 'running' && window.__miniDrifters.audio().mode === 'live', null, { timeout: 4000 });
+    await audioPage.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      g.state = 'racing';
+      g.challenge.reached = true;
+    });
+    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().lastCue === 'turn-zone', null, { timeout: 2000 });
+    await audioPage.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      g.challenge.phase = 'complete';
+      g.challenge.result = { value: 7.1, time: 7.1, penalty: 0, total: 7.1, cones: 0, entrySpeed: 22, depth: 20, peakSlip: 0.6, minSpeed: 8, technique: 'slide' };
+      g.state = 'finished';
+    });
+    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().lastCue === 'outcome-gold', null, { timeout: 2000 });
+    ok('Live Web Audio siren, BUSTED offline voice, siren ducking, curb rumble, Turn Zone & Gold fanfare verified');
     await audioCtx.close();
 
     // Missing busted-voice.wav (404) falls back cleanly with zero errors.

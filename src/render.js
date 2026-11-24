@@ -2,12 +2,12 @@
 // minimap. Nothing here feeds back into the simulation.
 import { TUNING } from './tuning.js';
 import { ghostDisplay } from './ghost.js';
-import { drawPad } from './practice-pad.js';
+import { drawPad, drawPadMap } from './practice-pad.js';
 import { drawChallenge, drawChallengeMap } from './gymkhana-draw.js';
 import { TYRE_FX, createTyreEffectState, resetTyreEffectState, tyreEmission } from './tyre-effects.js';
-import { buildDockyardScenery, drawDockyardGround, drawDockyardScenery } from './dockyard-scenery.js';
+import { buildDockyardScenery } from './dockyard-scenery.js';
 import { sceneryFor } from './scenery.js';
-import { buildLandscape, drawLandscapeBelow, drawLandscapeAbove } from './scenery-draw.js';
+import { buildLandscape, drawLandscapeBelow, drawLandscapeAbove, drawDockyardGroundPolished, drawDockyardSceneryPolished } from './scenery-draw.js';
 import { drawUrbanAbove, blockadeCars } from './getaway-urban-draw.js';
 
 const COLORS = {
@@ -185,12 +185,59 @@ function buildScenery(track) {
   return { trees, tufts };
 }
 
+// Pre-baked subtle racing-line rubber grooves through corners and braking streaks on corner entry.
+// Computed once per circuit, zero per-frame allocation, never affects simulation.
+function buildRoadWear(track) {
+  const rubber = new Path2D();
+  const braking = new Path2D();
+  const { points } = track;
+  const n = points.length;
+  if (track.pad || n < 12) return { rubber, braking };
+
+  for (const wheelOff of [-1.05, 1.05]) {
+    let inRubber = false;
+    for (let i = 0; i <= n; i += 1) {
+      const p = points[i % n];
+      const k = Math.abs(p.curvature);
+      if (k > 0.0045) {
+        // Drift groove sweeps slightly toward the outside of each corner exit.
+        const driftShift = -Math.sign(p.curvature) * Math.min(3.6, k * 145) + wheelOff;
+        const x = p.x - p.ty * driftShift;
+        const y = p.y + p.tx * driftShift;
+        if (!inRubber) { rubber.moveTo(x, y); inRubber = true; }
+        else rubber.lineTo(x, y);
+      } else {
+        inRubber = false;
+      }
+    }
+    let inBrake = false;
+    for (let i = 0; i <= n; i += 1) {
+      const p = points[i % n];
+      const ahead = points[(i + 9) % n];
+      const entering = Math.abs(ahead.curvature) > 0.011 && Math.abs(p.curvature) < 0.009;
+      if (entering) {
+        const shift = -Math.sign(ahead.curvature) * 2.2 + wheelOff;
+        const x = p.x - p.ty * shift;
+        const y = p.y + p.tx * shift;
+        if (!inBrake) { braking.moveTo(x, y); inBrake = true; }
+        else braking.lineTo(x, y);
+      } else {
+        inBrake = false;
+      }
+    }
+  }
+  return { rubber, braking };
+}
+
 // Everything drawn for one circuit that only depends on its shape, worked out once.
 function buildCourse(track) {
+  const wear = buildRoadWear(track);
   return {
     track,
     road: buildRoadPath(track),
     curbs: buildCurbPath(track),
+    rubber: wear.rubber,
+    braking: wear.braking,
     scenery: buildScenery(track),
     dockyard: buildDockyardScenery(track),
     landscape: undefined, // Original's and Switchback's (scenery.js), built on first use: see landscapeOf
@@ -239,6 +286,10 @@ export function createRenderer(canvas, track, titleTrack = track) {
     lastImpactTick: -1,
     lastSmashCount: 0,
     lastChallengeRun: null,
+    lastLapSerial: 0,
+    lapFlash: null,
+    launchFlash: 0,
+    wasReady: false,
     celebrate: null,
     fxTime: 0,
     ghostSprite: buildGhostSprite(),
@@ -307,6 +358,10 @@ function clearTyreMarks(r) {
   r.lastImpactTick = -1;
   r.lastSmashCount = 0;
   r.lastChallengeRun = null;
+  r.lastLapSerial = 0;
+  r.lapFlash = null;
+  r.launchFlash = 0;
+  r.wasReady = false;
   r.celebrate = null;
   r.fxTime = 0;
 }
@@ -673,12 +728,19 @@ function drawGrass(r) {
   ctx.fillRect(bounds.maxX, bounds.minY, Math.max(0, cam.x + hw + 1 - bounds.maxX), bounds.maxY - bounds.minY);
 }
 
-function drawRoad(ctx, course, colors = COLORS) {
-  const { track, road, curbs, startPoint } = course;
+function drawRoad(ctx, course, colors = COLORS, isPoster = false, lapFlash = null) {
+  const { track, road, curbs, rubber, braking, startPoint } = course;
   const width = track.halfWidth * 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'butt';
 
+  // Subtle dark outer lip around apex curbs so rumble strips read with sculptural depth.
+  if (!isPoster) {
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(16,18,20,0.45)';
+    ctx.lineWidth = width + track.curbWidth * 2 + 0.7;
+    ctx.stroke(curbs);
+  }
   ctx.setLineDash([]);
   ctx.strokeStyle = colors.curbWhite;
   ctx.lineWidth = width + track.curbWidth * 2;
@@ -695,16 +757,50 @@ function drawRoad(ctx, course, colors = COLORS) {
   ctx.lineWidth = width - 0.9;
   ctx.stroke(road);
 
+  // Subtle asphalt wear crown + smooth corner racing-line rubber grooves (circuits only).
+  if (!isPoster) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+    ctx.lineWidth = width * 0.56;
+    ctx.stroke(road);
+    ctx.strokeStyle = 'rgba(14,15,18,0.22)';
+    ctx.lineWidth = 0.78;
+    ctx.lineCap = 'round';
+    ctx.stroke(rubber);
+    ctx.lineCap = 'butt';
+  }
+
   ctx.setLineDash([5, 9]);
   ctx.strokeStyle = colors.dash;
   ctx.lineWidth = 0.42;
   ctx.stroke(road);
   ctx.setLineDash([]);
 
-  // Chequered start/finish line.
+  // Chequered start/finish line + starting grid stall & gantry ground shadow on real circuits.
   ctx.save();
   ctx.translate(startPoint.x, startPoint.y);
   ctx.rotate(Math.atan2(startPoint.ty, startPoint.tx));
+  if (!isPoster) {
+    // Cast ground shadow from the overhead start/finish gantry set just behind the chequered line.
+    ctx.fillStyle = 'rgba(10,12,15,0.26)';
+    ctx.fillRect(-3.6, -width / 2 - 2.2, 2.4, width + 4.4);
+    // Crisp white timing strips framing the chequered line.
+    ctx.fillStyle = 'rgba(246,241,228,0.62)';
+    ctx.fillRect(-1.55, -width / 2 + 0.4, 0.25, width - 0.8);
+    ctx.fillRect(1.35, -width / 2 + 0.4, 0.25, width - 0.8);
+    // P1 starting grid bracket right around track.start (~6 m ahead of the line).
+    ctx.strokeStyle = 'rgba(246,241,228,0.58)';
+    ctx.lineWidth = 0.34;
+    ctx.beginPath();
+    ctx.moveTo(9.4, -2.6); ctx.lineTo(9.4, 2.6);
+    ctx.moveTo(9.4, -2.6); ctx.lineTo(3.2, -2.6);
+    ctx.moveTo(9.4, 2.6); ctx.lineTo(3.2, 2.6);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(246,241,228,0.24)';
+    ctx.font = 'bold 1.5px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('P1', 4.6, 0);
+  }
   const size = 1.25;
   const across = Math.round(width / size);
   for (let i = 0; i < across; i += 1) {
@@ -712,6 +808,14 @@ function drawRoad(ctx, course, colors = COLORS) {
       ctx.fillStyle = (i + j) % 2 ? '#f7f7f2' : '#121214';
       ctx.fillRect(-size + j * size, -width / 2 + i * (width / across), size, width / across);
     }
+  }
+  // Brief start/finish timing strip glow when completing a lap.
+  if (!isPoster && lapFlash && lapFlash.age < 0.75) {
+    const a = (1 - lapFlash.age / 0.75) * 0.65;
+    ctx.fillStyle = lapFlash.color;
+    ctx.globalAlpha = a;
+    ctx.fillRect(-2.1, -width / 2, 4.2, width);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
@@ -1156,6 +1260,7 @@ function drawMinimap(r, car, ghost, game) {
   ctx.lineJoin = 'round';
   if (!track.pad) ctx.stroke(r.course.road);
   if (game.mode === 'gymkhana' && game.challenge) drawChallengeMap(ctx, game, 1 / scale);
+  else if (game.mode === 'practice') drawPadMap(ctx, track, 1 / scale);
   if (ghost) {
     ctx.fillStyle = GHOST_COLORS.body;
     ctx.beginPath();
@@ -1357,7 +1462,7 @@ function drawTitleScene(r, step) {
   ctx.scale(zoom, zoom);
   ctx.rotate(TITLE.rotation);
   ctx.translate(-TITLE.focus.x, -TITLE.focus.y);
-  drawRoad(ctx, r.titleCourse, TITLE_COLORS);
+  drawRoad(ctx, r.titleCourse, TITLE_COLORS, true);
   drawTitleSkids(ctx, scene.skids);
   drawTitleCar(ctx, scene, r.titleSmoke, time);
   ctx.restore();
@@ -1584,6 +1689,194 @@ function ghostForFrame(game, pose, alpha) {
   return ghostDisplay(game.ghost, tick, pose.x, pose.y);
 }
 
+// Overhead Start/Finish Gantry Arch drawn above the car so the player drives beneath it.
+// Styled per circuit: club truss (Original), timber-steel alpine timing arch (Switchback),
+// industrial port truss with yellow/charcoal hazard plates (Dockyard — safely clear of debug orange).
+function drawStartGantry(r, game) {
+  const { ctx, course, track } = r;
+  if (track.pad) return;
+  const { startPoint } = course;
+  const span = track.halfWidth * 2 + 5.2;
+  const half = span / 2;
+  const id = track.id;
+
+  ctx.save();
+  ctx.translate(startPoint.x, startPoint.y);
+  ctx.rotate(Math.atan2(startPoint.ty, startPoint.tx));
+  // Sit just behind the chequered start/finish tape so both the tape and the gantry read clearly.
+  ctx.translate(-3.1, 0);
+
+  // Side support towers outside the white road lines.
+  const pillarFill = id === 'switchback' ? '#5c4632' : id === 'dockyard' ? '#364142' : '#2a2d33';
+  ctx.fillStyle = '#14161a';
+  ctx.fillRect(-1.55, -half - 1.5, 3.1, 2.6);
+  ctx.fillRect(-1.55, half - 1.1, 3.1, 2.6);
+  ctx.fillStyle = pillarFill;
+  ctx.fillRect(-1.3, -half - 1.25, 2.6, 2.1);
+  ctx.fillRect(-1.3, half - 0.85, 2.6, 2.1);
+
+  // Main overhead steel bridge truss.
+  ctx.fillStyle = '#181a1f';
+  ctx.fillRect(-1.25, -half, 2.5, span);
+  ctx.fillStyle = id === 'dockyard' ? '#2c3537' : id === 'switchback' ? '#323836' : '#23262c';
+  ctx.fillRect(-1.0, -half + 0.3, 2.0, span - 0.6);
+
+  // Circuit-signature gantry livery stripe.
+  if (id === 'dockyard') {
+    ctx.fillStyle = '#e6c542';
+    ctx.fillRect(-0.85, -half + 0.6, 1.7, 3.2);
+    ctx.fillRect(-0.85, half - 3.8, 1.7, 3.2);
+    ctx.fillStyle = '#1c2022';
+    ctx.fillRect(-0.85, -half + 1.7, 1.7, 0.9);
+    ctx.fillRect(-0.85, half - 2.6, 1.7, 0.9);
+  } else if (id === 'switchback') {
+    ctx.fillStyle = '#d4aa42';
+    ctx.fillRect(-0.85, -half + 1.2, 0.35, span - 2.4);
+    ctx.fillStyle = '#f2ede0';
+    ctx.fillRect(0.5, -half + 1.2, 0.35, span - 2.4);
+  } else {
+    // Original club motorsport burnt-orange + amber + cream racing stripe.
+    ctx.fillStyle = '#cf4a1b';
+    ctx.fillRect(-0.85, -half + 1.2, 0.52, span - 2.4);
+    ctx.fillStyle = '#ffb627';
+    ctx.fillRect(-0.22, -half + 1.2, 0.32, span - 2.4);
+    ctx.fillStyle = '#f6f1e4';
+    ctx.fillRect(0.22, -half + 1.2, 0.28, span - 2.4);
+  }
+
+  // Subtle cross-truss bracing bars across the gantry bridge.
+  ctx.strokeStyle = 'rgba(246,241,228,0.16)';
+  ctx.lineWidth = 0.16;
+  ctx.beginPath();
+  for (let y = -half + 2.2; y < half - 2.2; y += 2.6) {
+    ctx.moveTo(-0.9, y); ctx.lineTo(0.9, y + 1.3);
+    ctx.moveTo(0.9, y + 1.3); ctx.lineTo(-0.9, y + 2.6);
+  }
+  ctx.stroke();
+
+  // Five overhead race-light pods reacting to grid / launch / lap / finish state.
+  let lightColor = '#3a3d44';
+  let glowColor = null;
+  if (game.state === 'ready') {
+    lightColor = '#ff5a4f';
+    glowColor = 'rgba(255,90,79,0.45)';
+  } else if (r.lapFlash && r.lapFlash.age < 1.1) {
+    lightColor = r.lapFlash.color;
+    glowColor = r.lapFlash.color;
+  } else if (r.launchFlash > 0) {
+    lightColor = '#5fd38a';
+    glowColor = 'rgba(95,211,138,0.45)';
+  } else if (game.state === 'finished') {
+    lightColor = '#f6f1e4';
+    glowColor = 'rgba(246,241,228,0.42)';
+  } else if (game.laps?.completed >= TUNING.runLaps - 1 && game.mode === 'normal') {
+    lightColor = '#f6f1e4';
+  }
+  for (let i = -2; i <= 2; i += 1) {
+    const ly = i * 2.4;
+    ctx.fillStyle = '#101216';
+    ctx.fillRect(0.55, ly - 0.58, 0.72, 1.16);
+    ctx.fillStyle = lightColor;
+    ctx.beginPath();
+    ctx.arc(0.92, ly, 0.36, 0, Math.PI * 2);
+    ctx.fill();
+    if (glowColor) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = glowColor;
+      ctx.beginPath();
+      ctx.arc(0.92, ly, 0.95, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+// Living trackside atmospheric motion (purely visual, bounded, still under prefers-reduced-motion).
+function drawTracksideLife(r, game, land, yard, view) {
+  const { ctx, fxTime, titleStill } = r;
+
+  // 1. Original: animated fluttering marshal flags reflecting live race state.
+  if (land?.marshals?.length) {
+    const flagKind = game.state === 'finished' ? 'checkered'
+      : game.wrongWayTime > 1.2 || !game.laps?.valid ? 'yellow'
+        : game.laps?.completed >= TUNING.runLaps - 1 && game.mode === 'normal' ? 'white'
+          : game.state === 'racing' ? 'green' : 'amber';
+    for (let i = 0; i < land.marshals.length; i += 1) {
+      const m = land.marshals[i];
+      if (Math.abs(m.x - view.x) > view.hw + 8 || Math.abs(m.y - view.y) > view.hh + 8) continue;
+      const wave = titleStill ? 0.15 : Math.sin(fxTime * 7.2 + i * 1.9) * 0.32;
+      const tip = titleStill ? 0 : Math.cos(fxTime * 9.5 + i * 1.3) * 0.24;
+      ctx.save();
+      ctx.translate(m.x, m.y);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(0.85, wave, 1.65, tip);
+      ctx.lineTo(1.65, 1.0 + tip);
+      ctx.quadraticCurveTo(0.85, 1.0 + wave, 0, 1.0);
+      ctx.closePath();
+      ctx.fillStyle = flagKind === 'green' ? '#49c977'
+        : flagKind === 'yellow' ? '#f2cf3c'
+          : flagKind === 'white' ? '#f6f1e4'
+            : flagKind === 'checkered' ? '#f6f1e4' : '#ffb627';
+      ctx.fill();
+      if (flagKind === 'checkered') {
+        ctx.fillStyle = '#181a1f';
+        ctx.fillRect(0.15, 0.08, 0.45, 0.42);
+        ctx.fillRect(0.65, 0.52, 0.45, 0.42);
+        ctx.fillRect(1.12, 0.12 + tip * 0.5, 0.42, 0.4);
+      }
+      ctx.strokeStyle = 'rgba(20,24,22,0.45)';
+      ctx.lineWidth = 0.12;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 2. Switchback: gentle sunlit hillside breeze motes / autumn leaves drifting across the valley.
+  if (land?.style === 'hillside' && !titleStill) {
+    ctx.save();
+    const spanX = view.hw * 2 + 16;
+    const spanY = view.hh * 2 + 16;
+    for (let i = 0; i < 14; i += 1) {
+      const seed = i * 37.7;
+      const wx = ((seed * 19 + fxTime * (3.2 + (i % 3) * 0.9)) % spanX + spanX) % spanX + view.x - view.hw - 8;
+      const wy = ((seed * 13 + fxTime * (1.8 + (i % 2) * 0.7) + Math.sin(fxTime * 2.1 + i) * 1.4) % spanY + spanY) % spanY + view.y - view.hh - 8;
+      ctx.save();
+      ctx.translate(wx, wy);
+      ctx.rotate(fxTime * 1.8 + seed);
+      ctx.fillStyle = i % 3 === 0 ? 'rgba(232,196,92,0.52)' : 'rgba(218,236,162,0.42)';
+      ctx.fillRect(-0.34, -0.14, 0.68, 0.28);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // 3. Dockyard: quiet harbor gull silhouettes gliding lazily over the open water outside the quay.
+  if (yard && !titleStill) {
+    const seaS = r.track.bounds.maxY + 14;
+    if (view.y + view.hh > seaS - 6) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(232,238,242,0.48)';
+      ctx.lineWidth = 0.24;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i += 1) {
+        const gx = r.track.bounds.minX + (((i * 115 + fxTime * (7 + i * 1.4)) % 420) + 420) % 420;
+        const gy = seaS + 8 + i * 12 + Math.sin(fxTime * 1.3 + i * 2.1) * 4;
+        if (Math.abs(gx - view.x) > view.hw + 8 || Math.abs(gy - view.y) > view.hh + 8) continue;
+        const flap = Math.sin(fxTime * 5.2 + i * 1.8) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(gx - 1.2, gy - flap);
+        ctx.quadraticCurveTo(gx - 0.5, gy - 0.65, gx, gy);
+        ctx.quadraticCurveTo(gx + 0.5, gy - 0.65, gx + 1.2, gy - flap);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+}
+
 // Draw one frame. `alpha` blends between the last two physics steps.
 export function drawFrame(r, game, alpha, dt, debug) {
   const { ctx } = r;
@@ -1597,6 +1890,26 @@ export function drawFrame(r, game, alpha, dt, debug) {
   useTrack(r, game.track);
   const step = Math.min(dt, FX.maxDt);
   if (!game.paused && game.state !== 'finished' && game.state !== 'menu') updateEffects(r, game, pose, step);
+  if (game.state === 'ready') {
+    r.wasReady = true;
+    r.launchFlash = 0;
+  } else if (game.state === 'racing') {
+    if (r.wasReady) { r.wasReady = false; r.launchFlash = 1.6; }
+    else if (!game.paused && r.launchFlash > 0) r.launchFlash = Math.max(0, r.launchFlash - step);
+  }
+  if (game.lapEventSerial !== r.lastLapSerial) {
+    r.lastLapSerial = game.lapEventSerial;
+    if (game.lapEvent === 'lap') {
+      const isBest = game.laps.lastLap === game.laps.bestLap && game.laps.completed > 1;
+      r.lapFlash = { age: 0, color: isBest ? '#ffb627' : '#5fd38a' };
+    } else if (game.lapEvent === 'void') {
+      r.lapFlash = { age: 0, color: '#ff5a4f' };
+    }
+  }
+  if (r.lapFlash && !game.paused) {
+    r.lapFlash.age += step;
+    if (r.lapFlash.age > 1.2) r.lapFlash = null;
+  }
   updateCamera(r, car, pose, step, game);
   if (game.state === 'menu') {
     drawTitleScene(r, step);
@@ -1613,16 +1926,16 @@ export function drawFrame(r, game, alpha, dt, debug) {
   const land = yard ? null : landscapeOf(r.course);
   const view = { x: r.cam.x, y: r.cam.y, hw: r.width / 2 / r.cam.zoom, hh: r.height / 2 / r.cam.zoom };
   if (yard) {
-    drawDockyardGround(ctx, view);
-    drawDockyardScenery(ctx, yard, view);
+    drawDockyardGroundPolished(ctx, view, r.track.bounds, r.fxTime, r.titleStill);
+    drawDockyardSceneryPolished(ctx, yard, view);
   } else if (land) {
     if (land.style === 'grassroots') drawGrass(r);
     drawLandscapeBelow(ctx, r.track, land, view);
   } else drawGrass(r);
   if (r.track.pad) drawPad(ctx, r.track);
-  else drawRoad(ctx, r.course);
+  else drawRoad(ctx, r.course, COLORS, false, r.lapFlash);
   // A gymkhana challenge paints its gates, zones and cones on its pad.
-  if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game, view);
+  if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game, view, r.fxTime, r.titleStill);
   drawSkids(r);
   if (!land && !(game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban')) drawWall(r); // a landscape draws its own perimeter, under its scenery
   if (ghost) drawGhost(r, ghost);
@@ -1645,15 +1958,23 @@ export function drawFrame(r, game, alpha, dt, debug) {
   drawCar(ctx, car, pose, !!urban, r.exhaust.pop);
   drawSmoke(r);
   drawSparksAndPapers(r);
+  if (!r.track.pad) drawStartGantry(r, game);
   if (urban) drawUrbanAbove(ctx, urban, game.challenge, view, r.fxTime);
   else if (land) drawLandscapeAbove(ctx, land, view);
   else if (!yard) drawTrees(r);
-  // Satisfying safehouse / escape arrival light ring on mission completion (reduced-motion safe).
-  if (urban && game.challenge.phase === 'complete') {
-    if (!r.celebrate || r.celebrate.run !== game.challenge) {
-      const outcome = game.challenge.result?.outcome;
-      const color = outcome === 'low profile' ? '#ffb627' : outcome === 'lost them' ? '#ff7a3d' : '#5fd38a';
-      r.celebrate = { run: game.challenge, x: pose.x, y: pose.y, age: 0, color };
+  if (!urban) drawTracksideLife(r, game, land, yard, view);
+  // Satisfying arrival / finish light ring on mission, gymkhana or circuit completion (reduced-motion safe).
+  const wonUrban = urban && game.challenge.phase === 'complete';
+  const wonGymkhana = !urban && game.mode === 'gymkhana' && game.challenge?.phase === 'complete';
+  const wonCircuit = game.mode === 'normal' && game.state === 'finished';
+  if (wonUrban || wonGymkhana || wonCircuit) {
+    const key = wonCircuit ? game.runId : game.challenge;
+    if (!r.celebrate || r.celebrate.run !== key) {
+      const outcome = wonUrban ? game.challenge.result?.outcome : null;
+      const color = wonCircuit ? '#ffb627'
+        : wonGymkhana ? '#5fd38a'
+          : outcome === 'low profile' ? '#ffb627' : outcome === 'lost them' ? '#ff7a3d' : '#5fd38a';
+      r.celebrate = { run: key, x: pose.x, y: pose.y, age: 0, color };
     } else if (!game.paused && !r.titleStill) {
       r.celebrate.age = Math.min(1.4, r.celebrate.age + step);
     }

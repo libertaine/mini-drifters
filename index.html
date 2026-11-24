@@ -117,11 +117,20 @@
       </div>
       <section class="personal-bests" aria-labelledby="records-heading" aria-live="polite">
         <h2 id="records-heading">Original — Personal bests</h2>
-        <dl>
-          <div><dt>Best score</dt><dd id="pb-score">--</dd></div>
-          <div><dt>Fastest lap</dt><dd id="pb-lap">--</dd></div>
-          <div><dt>Best combo</dt><dd id="pb-combo">--</dd></div>
-        </dl>
+        <div class="track-info-row">
+          <dl>
+            <div><dt>Best score</dt><dd id="pb-score">--</dd></div>
+            <div><dt>Fastest lap</dt><dd id="pb-lap">--</dd></div>
+            <div><dt>Best combo</dt><dd id="pb-combo">--</dd></div>
+          </dl>
+          <div class="track-preview-card" aria-hidden="true">
+            <svg id="track-preview" viewBox="0 0 120 76">
+              <path id="track-preview-path" d=""></path>
+              <circle id="track-preview-start" cx="0" cy="0" r="3.4"></circle>
+            </svg>
+          </div>
+        </div>
+        <p id="track-blurb" class="track-blurb"></p>
         <p id="pb-legacy" class="records-legacy" title="Set under the earlier scoring rules. Kept for reference; not comparable with current scores."></p>
         <p id="records-note" class="records-note"></p>
       </section>

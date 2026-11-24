@@ -8,7 +8,7 @@ import { loadBustedVoice } from '../src/audio-voices.js';
 import { GYMKHANA_CHALLENGES } from '../src/gymkhana.js';
 import { GETAWAY_DRIVER } from '../src/getaway-driver.js';
 import { GETAWAY_MISSIONS } from '../src/getaway-missions.js';
-import { CUE_SFX, FX_LIMITS, playImpact, playCone, playCue, playBustedVoice, sirenTarget, createSirenVoice } from '../src/getaway-sfx.js';
+import { CUE_SFX, FX_LIMITS, playImpact, playCone, playCurb, playCue, playBustedVoice, sirenTarget, createSirenVoice } from '../src/getaway-sfx.js';
 
 function deepFreeze(obj, seen = new WeakSet()) {
   if (!obj || typeof obj !== 'object' || seen.has(obj)) return obj;
@@ -465,4 +465,72 @@ test('GameAudio loads BUSTED voice lazily in Getaway, ducks the siren on bust, c
   assert.equal(fallbackAudio.fx.bustedSpoken, 0);
   assert.equal(fallbackAudio.fx.bustedFallback, 1);
   fallbackAudio.dispose();
+});
+
+test('R2b Tracks & Gymkhana audio: curb rumble, laps, combo tier-ups, gates, slalom and medal fanfares disconnect cleanly and obey lifecycle', async () => {
+  const ctx = createMockAudioContext();
+  const dest = { connect() {} };
+
+  // 1. playCurb produces bounded nodes that disconnect cleanly on stop.
+  const curb = playCurb(ctx, dest, 0.8);
+  assert.ok(curb && curb.end > ctx.currentTime && curb.end < ctx.currentTime + 0.15);
+  curb.stop();
+  assert.ok(ctx.sources.every((s) => s.stopped), 'curb stops all sources immediately');
+
+  // 2. Every new Tracks & Gymkhana static and parameterized cue plays and disconnects cleanly.
+  const cues = [
+    ['lap'], ['lap-best'], ['lap-void'], ['combo-lost'], ['turn-zone'], ['wrong-way'],
+    ['combo-up', 2], ['combo-up', 3],
+    ['gate-pass', 0], ['gate-pass', 1],
+    ['slalom-pass', 1], ['slalom-pass', 4], ['slalom-pass', 7],
+    ['outcome-circuit'], ['outcome-record'], ['outcome-gold'], ['outcome-silver'], ['outcome-bronze'],
+  ];
+  for (const [kind, detail] of cues) {
+    const c = createMockAudioContext();
+    const v = playCue(c, dest, kind, detail);
+    assert.ok(v && v.end > c.currentTime && v.end < c.currentTime + 1.2, `${kind} has valid duration`);
+    v.stop();
+    assert.ok(c.sources.every((s) => s.stopped), `${kind} stops all sources on cancel`);
+  }
+
+  // 3. GameAudio.curb respects voice cap, pause, mute, effects volume 0, and restart without adding persistent sources.
+  const contexts = [];
+  const audio = new GameAudio({
+    coyoteEnabled: false,
+    contextFactory: () => { const c = createMockAudioContext(); contexts.push(c); return c; },
+    storage: { getItem: () => null, setItem() {} },
+    tireLoader: () => Promise.resolve({ buffer: null, failures: [] }),
+  });
+  const game = createGame();
+  startRun(game);
+  audio.newRun(game);
+  await new Promise((r) => setTimeout(r, 15));
+  const baselineSources = audio.snapshot().sourceCount;
+  for (let i = 0; i < 6; i += 1) audio.curb(0.75);
+  assert.equal(audio.fx.curbs, FX_LIMITS.curbMaxVoices, 'curb pulses respect voice cap');
+  assert.equal(audio.snapshot().sourceCount, baselineSources, 'curb adds zero persistent engine/tire sources');
+
+  // Pause & mute cancel active curb voices and ignore new ones.
+  togglePause(game);
+  audio.gesture(game);
+  assert.equal(audio.session.curbVoices.length, 0, 'pause cancels active curb voices');
+  audio.curb(0.75);
+  assert.equal(audio.fx.curbs, FX_LIMITS.curbMaxVoices, 'paused curb is ignored');
+  togglePause(game);
+  audio.gesture(game);
+  audio.setEffectsVolume(0);
+  audio.curb(0.75);
+  assert.equal(audio.fx.curbs, FX_LIMITS.curbMaxVoices, 'zero effects volume suppresses curb');
+  audio.setEffectsVolume(100);
+
+  // Outcome medal fanfares cancel immediately on restart.
+  game.state = 'finished';
+  audio.update(game, 1 / 60);
+  audio.cue('outcome-gold');
+  assert.equal(audio.fx.lastCue, 'outcome-gold');
+  assert.equal(audio.session.outcomeVoices.length, 1);
+  restartRun(game);
+  audio.newRun(game);
+  assert.equal(audio.session.outcomeVoices.length, 0, 'restart cancels medal fanfare');
+  audio.dispose();
 });
