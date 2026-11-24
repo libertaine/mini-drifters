@@ -226,11 +226,30 @@ export function createRenderer(canvas, track, titleTrack = track) {
     tyreState: createTyreEffectState(),
     smoke: [],
     smokeCarry: 0,
+    // R2 visual polish state: purely cosmetic, bounded, cleared on reset, frozen on pause.
+    sparks: [],
+    papers: [],
+    policeSkids: [],
+    policeSkidHead: 0,
+    policeSmoke: [],
+    policeVisuals: new WeakMap(),
+    paperCooldown: new Map(),
+    shake: { mag: 0, x: 0, y: 0, phase: 0 },
+    exhaust: { pop: 0, prevThrottle: 0 },
+    lastImpactTick: -1,
+    lastSmashCount: 0,
+    lastChallengeRun: null,
+    celebrate: null,
+    fxTime: 0,
     ghostSprite: buildGhostSprite(),
     titleCourse: buildCourse(titleTrack),
     title: buildTitleScene(titleTrack),
     titleTime: 0,
     titleSmoke: buildSmokeSprite(),
+    dustSprite: buildDustSprite(),
+    glowRed: buildGlowSprite(255, 52, 48),
+    glowBlue: buildGlowSprite(54, 128, 255),
+    glowWarm: buildGlowSprite(255, 232, 168),
     titleStill: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     width: 0,
     height: 0,
@@ -273,6 +292,23 @@ function clearTyreMarks(r) {
   resetTyreEffectState(r.tyreState);
   r.smoke.length = 0;
   r.smokeCarry = 0;
+  r.sparks.length = 0;
+  r.papers.length = 0;
+  r.policeSkids.length = 0;
+  r.policeSkidHead = 0;
+  r.policeSmoke.length = 0;
+  r.policeVisuals = new WeakMap();
+  r.paperCooldown.clear();
+  r.shake.mag = 0;
+  r.shake.x = 0;
+  r.shake.y = 0;
+  r.exhaust.pop = 0;
+  r.exhaust.prevThrottle = 0;
+  r.lastImpactTick = -1;
+  r.lastSmashCount = 0;
+  r.lastChallengeRun = null;
+  r.celebrate = null;
+  r.fxTime = 0;
 }
 
 // A copy of what the effects hold, for the browser checks. Read-only.
@@ -313,6 +349,7 @@ function pushSkid(r, a, b, alpha) {
 }
 
 function updateEffects(r, game, pose, dt) {
+  r.fxTime += dt;
   const { car } = game;
   const emit = tyreEmission(car, r.tyreState);
 
@@ -360,7 +397,9 @@ function updateEffects(r, game, pose, dt) {
       kind,
       strength,
       spin: wheelspinSmoke,
-      size: 0.9 + Math.random() * 0.8,
+      size: 0.95 + Math.random() * 0.85,
+      rot: Math.random() * Math.PI * 2,
+      vrot: (Math.random() - 0.5) * 1.8,
     };
     if (r.smoke.length >= FX.smokeCapacity) r.smoke.shift();
     r.smoke.push(puff);
@@ -373,7 +412,211 @@ function updateEffects(r, game, pose, dt) {
     } else {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+      p.rot += (p.vrot ?? 0) * dt;
     }
+  }
+
+  updatePolishEffects(r, game, pose, dt);
+}
+
+// Secondary cosmetic effects: impact sparks & shake, twin exhaust pops, urban slipstream
+// flyers, and pursuing police skid marks / smoke. Strictly bounded and read-only on `game`.
+const SOFT_IMPACT = new Set(['tree', 'pine', 'stand', 'tyrewall', 'tyres', 'planter']);
+function pushPoliceSkid(r, a, b, alpha) {
+  for (let i = 0; i < 2; i += 1) {
+    const seg = { ax: a[i].x, ay: a[i].y, bx: b[i].x, by: b[i].y, alpha };
+    if (r.policeSkids.length < 320) r.policeSkids.push(seg);
+    else r.policeSkids[r.policeSkidHead] = seg;
+    r.policeSkidHead = (r.policeSkidHead + 1) % 320;
+  }
+}
+
+function addShake(r, amount) {
+  if (r.titleStill) return;
+  r.shake.mag = Math.min(5.2, Math.max(r.shake.mag, amount));
+}
+
+function updatePolishEffects(r, game, pose, dt) {
+  const { car } = game;
+
+  // 1. Twin exhaust backfire pop on sharp throttle lift from high speed/load.
+  if (r.exhaust.prevThrottle > 0.65 && car.throttle < 0.2 && car.speed > 14) {
+    r.exhaust.pop = 0.13;
+  } else {
+    r.exhaust.pop = Math.max(0, r.exhaust.pop - dt);
+  }
+  r.exhaust.prevThrottle = car.throttle;
+
+  // 2. Impact sparks (cream-gold, 0.28 s max life) and micro-camera shake.
+  const hit = game.lastContact;
+  const freshObstacle = hit && hit.tick !== r.lastImpactTick && (game.ticks - hit.tick) <= 4 && hit.impact > 3;
+  const freshBarrier = !freshObstacle && game.lastImpact > 3.5 && game.ticks !== r.lastImpactTick;
+  if (freshObstacle || freshBarrier) {
+    r.lastImpactTick = freshObstacle ? hit.tick : game.ticks;
+    const impact = freshObstacle ? hit.impact : game.lastImpact;
+    const power = Math.min(1, impact / 22);
+    addShake(r, 1.4 + power * 3.6);
+    const soft = freshObstacle && SOFT_IMPACT.has(hit.kind);
+    const sx = freshObstacle ? hit.x : pose.x + Math.cos(pose.heading) * 1.8;
+    const sy = freshObstacle ? hit.y : pose.y + Math.sin(pose.heading) * 1.8;
+    const nx = freshObstacle ? hit.nx : -Math.cos(pose.heading);
+    const ny = freshObstacle ? hit.ny : -Math.sin(pose.heading);
+    const baseAngle = Math.atan2(ny, nx);
+    const count = Math.round(5 + power * 9);
+    for (let i = 0; i < count; i += 1) {
+      const spread = (Math.random() - 0.5) * 1.9;
+      const spd = (6 + Math.random() * 14) * (0.5 + 0.7 * power);
+      const a = baseAngle + spread;
+      if (r.sparks.length >= 48) r.sparks.shift();
+      r.sparks.push({
+        x: sx + (Math.random() - 0.5) * 0.6,
+        y: sy + (Math.random() - 0.5) * 0.6,
+        vx: Math.cos(a) * spd + car.vx * 0.25,
+        vy: Math.sin(a) * spd + car.vy * 0.25,
+        age: 0,
+        life: 0.14 + Math.random() * 0.14,
+        soft,
+      });
+    }
+  }
+
+  // Advance sparks.
+  for (let i = r.sparks.length - 1; i >= 0; i -= 1) {
+    const sp = r.sparks[i];
+    sp.age += dt;
+    if (sp.age >= sp.life) {
+      r.sparks.splice(i, 1);
+    } else {
+      sp.x += sp.vx * dt;
+      sp.y += sp.vy * dt;
+      sp.vx *= Math.exp(-5 * dt);
+      sp.vy *= Math.exp(-5 * dt);
+    }
+  }
+
+  // 3. Urban reactions: smash camera jolt, slipstream street flyers, and police pursuit skids/smoke.
+  const urban = game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban' && game.challenge;
+  if (urban) {
+    const run = game.challenge;
+    const city = game.challengeDef.geometry.city;
+    if (run !== r.lastChallengeRun) {
+      r.lastChallengeRun = run;
+      r.lastSmashCount = run.smashes ?? 0;
+    }
+    if ((run.smashes ?? 0) > r.lastSmashCount) {
+      r.lastSmashCount = run.smashes;
+      addShake(r, 2.8);
+    }
+
+    // Slipstream newspapers/flyers swirling up when speeding past newsstands, dumpsters or stalls.
+    if (car.speed > 19) {
+      const now = run.time;
+      const hx = Math.cos(pose.heading);
+      const hy = Math.sin(pose.heading);
+      for (const prop of city.props) {
+        if (prop.kind !== 'kiosk' && prop.kind !== 'dumpster') continue;
+        const px = (prop.minX + prop.maxX) / 2;
+        const py = (prop.minY + prop.maxY) / 2;
+        if (Math.hypot(pose.x - px, pose.y - py) > 11) continue;
+        const readyAt = r.paperCooldown.get(prop.source) ?? -Infinity;
+        if (now < readyAt) continue;
+        r.paperCooldown.set(prop.source, now + 2.6);
+        const burst = Math.min(6, Math.round(3 + (car.speed - 19) * 0.2));
+        for (let k = 0; k < burst; k += 1) {
+          if (r.papers.length >= 28) r.papers.shift();
+          const side = (Math.random() - 0.5) * 2;
+          r.papers.push({
+            x: px + (Math.random() - 0.5) * 2.2,
+            y: py + (Math.random() - 0.5) * 2.2,
+            vx: car.vx * (0.28 + Math.random() * 0.22) - hy * side * 3.5,
+            vy: car.vy * (0.28 + Math.random() * 0.22) + hx * side * 3.5,
+            rot: Math.random() * Math.PI * 2,
+            vrot: (Math.random() - 0.5) * 14,
+            age: 0,
+            life: 1.0 + Math.random() * 0.55,
+            tint: k % 3 === 0 ? '#e4decb' : '#f6f1e4',
+          });
+        }
+      }
+    }
+
+    // Police cruiser visual kinematics (front wheel steer, brake lights, pursuit skids & smoke).
+    const units = run.police ?? (run.pursuer ? [run.pursuer] : []);
+    for (const u of units) {
+      const vis = r.policeVisuals.get(u) ?? {
+        prevSpeed: u.speed ?? 0,
+        prevHeading: u.heading ?? 0,
+        wheelAngle: 0,
+        braking: 0,
+        lastWheels: null,
+        smokeCarry: 0,
+      };
+      const stepDt = Math.max(dt, 1 / 120);
+      const dh = Math.atan2(Math.sin(u.heading - vis.prevHeading), Math.cos(u.heading - vis.prevHeading));
+      const yawRate = dh / stepDt;
+      const targetWheel = Math.max(-0.55, Math.min(0.55, yawRate * 0.26));
+      vis.wheelAngle += (targetWheel - vis.wheelAngle) * Math.min(1, 14 * dt);
+      const decel = (vis.prevSpeed - (u.speed ?? 0)) / stepDt;
+      const targetBrake = decel > 2.2 || u.state === 'reversing' ? 1 : 0;
+      vis.braking += (targetBrake - vis.braking) * Math.min(1, 16 * dt);
+      vis.prevSpeed = u.speed ?? 0;
+      vis.prevHeading = u.heading;
+
+      const chasing = u.lights || u.mode === 'pursue' || u.mode === 'respond' || (!run.police && run.time >= (game.challengeDef.pursuerTuning?.delay ?? 0));
+      const latAccel = Math.abs(yawRate) * Math.abs(u.speed ?? 0);
+      const hardSlide = chasing && Math.abs(u.speed ?? 0) > 8 && (latAccel > 7.2 || decel > 8.5);
+      const pWheels = wheelPositions(u.x, u.y, u.heading);
+      if (hardSlide && vis.lastWheels) {
+        const jump = Math.hypot(pWheels[0].x - vis.lastWheels[0].x, pWheels[0].y - vis.lastWheels[0].y);
+        if (jump < 6) pushPoliceSkid(r, vis.lastWheels, pWheels, Math.min(0.85, 0.35 + latAccel * 0.04));
+        vis.smokeCarry += 16 * dt;
+        while (vis.smokeCarry >= 1) {
+          vis.smokeCarry -= 1;
+          const w = pWheels[Math.random() < 0.5 ? 0 : 1];
+          if (r.policeSmoke.length >= 36) r.policeSmoke.shift();
+          r.policeSmoke.push({
+            x: w.x, y: w.y,
+            vx: (Math.random() - 0.5) * 2.4, vy: (Math.random() - 0.5) * 2.4,
+            age: 0, size: 0.75 + Math.random() * 0.55,
+          });
+        }
+      }
+      vis.lastWheels = pWheels;
+      r.policeVisuals.set(u, vis);
+    }
+  }
+
+  for (let i = r.papers.length - 1; i >= 0; i -= 1) {
+    const f = r.papers[i];
+    f.age += dt;
+    if (f.age >= f.life) {
+      r.papers.splice(i, 1);
+    } else {
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.vx *= Math.exp(-2.1 * dt);
+      f.vy *= Math.exp(-2.1 * dt);
+      f.rot += f.vrot * dt;
+      f.vrot *= Math.exp(-1.8 * dt);
+    }
+  }
+  for (let i = r.policeSmoke.length - 1; i >= 0; i -= 1) {
+    const p = r.policeSmoke[i];
+    p.age += dt;
+    if (p.age >= 0.65) r.policeSmoke.splice(i, 1);
+    else { p.x += p.vx * dt; p.y += p.vy * dt; }
+  }
+
+  // 4. Decay micro-camera shake smoothly.
+  if (r.shake.mag > 0.05) {
+    r.shake.phase += dt * 62;
+    r.shake.mag *= Math.exp(-15 * dt);
+    r.shake.x = Math.cos(r.shake.phase) * r.shake.mag;
+    r.shake.y = Math.sin(r.shake.phase * 1.37) * r.shake.mag;
+  } else {
+    r.shake.mag = 0;
+    r.shake.x = 0;
+    r.shake.y = 0;
   }
 }
 
@@ -474,24 +717,35 @@ function drawRoad(ctx, course, colors = COLORS) {
 }
 
 function drawSkids(r) {
-  const { ctx, skids } = r;
-  if (!skids.length) return;
-  // Batching by chunk keeps this to a few stroke calls per frame.
+  const { ctx, skids, policeSkids } = r;
   ctx.strokeStyle = COLORS.skid;
-  ctx.lineWidth = 0.55;
   ctx.lineCap = 'round';
-  for (let c = 0; c < skids.length; c += FX.skidChunk) {
-    const end = Math.min(c + FX.skidChunk, skids.length);
-    let alpha = 0;
+  if (policeSkids.length) {
+    ctx.lineWidth = 0.44;
     ctx.beginPath();
-    for (let i = c; i < end; i += 1) {
-      const s = skids[i];
-      alpha += s.alpha;
+    for (const s of policeSkids) {
       ctx.moveTo(s.ax, s.ay);
       ctx.lineTo(s.bx, s.by);
     }
-    ctx.globalAlpha = FX.skidBaseAlpha * (alpha / (end - c));
+    ctx.globalAlpha = 0.34;
     ctx.stroke();
+  }
+  if (skids.length) {
+    // Batching by chunk keeps this to a few stroke calls per frame.
+    ctx.lineWidth = 0.58;
+    for (let c = 0; c < skids.length; c += FX.skidChunk) {
+      const end = Math.min(c + FX.skidChunk, skids.length);
+      let alpha = 0;
+      ctx.beginPath();
+      for (let i = c; i < end; i += 1) {
+        const s = skids[i];
+        alpha += s.alpha;
+        ctx.moveTo(s.ax, s.ay);
+        ctx.lineTo(s.bx, s.by);
+      }
+      ctx.globalAlpha = FX.skidBaseAlpha * (alpha / (end - c));
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
   ctx.lineCap = 'butt';
@@ -529,22 +783,117 @@ function drawTrees(r) {
 }
 
 function drawSmoke(r) {
-  const { ctx, smoke } = r;
+  const { ctx, smoke, policeSmoke, titleSmoke, dustSprite } = r;
+  for (const p of policeSmoke) {
+    const life = p.age / 0.65;
+    const radius = p.size * (0.75 + Math.sqrt(life) * 2.1);
+    ctx.globalAlpha = 0.42 * (1 - life) ** 1.4;
+    ctx.drawImage(titleSmoke, p.x - radius, p.y - radius, radius * 2, radius * 2);
+  }
   for (const p of smoke) {
     const life = p.age / FX.smokeLife;
-    const radius = p.size * (0.7 + life * 2.2);
-    if (p.kind === 'dust') {
-      ctx.fillStyle = '#c6b184';
-      ctx.globalAlpha = 0.42 * (1 - life) * p.strength;
-    } else {
-      ctx.fillStyle = '#ece9e2';
-      ctx.globalAlpha = 0.46 * (1 - life) * p.strength;
-    }
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.fill();
+    const sprite = p.kind === 'dust' ? dustSprite : titleSmoke;
+    const radius = p.size * (0.85 + Math.sqrt(life) * 2.65);
+    const fadeIn = Math.min(1, life * 16);
+    const base = p.kind === 'dust' ? 0.54 : 0.62;
+    ctx.globalAlpha = base * fadeIn * (1 - life) ** 1.55 * p.strength;
+    ctx.drawImage(sprite, p.x - radius, p.y - radius, radius * 2, radius * 2);
   }
   ctx.globalAlpha = 1;
+}
+
+function drawSparksAndPapers(r) {
+  const { ctx, sparks, papers } = r;
+  if (papers.length) {
+    for (const f of papers) {
+      const life = f.age / f.life;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (1 - life) * 1.4) * 0.88;
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rot);
+      ctx.fillStyle = f.tint;
+      const flutter = 0.45 + 0.55 * Math.abs(Math.cos(f.age * 11 + f.rot));
+      ctx.fillRect(-0.42, -0.28 * flutter, 0.84, 0.56 * flutter);
+      ctx.restore();
+    }
+  }
+  if (sparks.length) {
+    ctx.lineCap = 'round';
+    for (const sp of sparks) {
+      const life = sp.age / sp.life;
+      const a = 1 - life;
+      if (sp.soft) {
+        ctx.globalAlpha = 0.72 * a;
+        ctx.fillStyle = '#8b9e5a';
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, 0.24 + life * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // White-hot steel-on-concrete spark streaks (clean high-contrast & distinct from debug orange).
+        ctx.globalAlpha = 0.95 * a;
+        ctx.strokeStyle = life < 0.45 ? '#fffef5' : '#dceeff';
+        ctx.lineWidth = 0.22 * (1 - life * 0.4);
+        ctx.beginPath();
+        ctx.moveTo(sp.x, sp.y);
+        ctx.lineTo(sp.x - sp.vx * 0.032, sp.y - sp.vy * 0.032);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+  }
+}
+
+function drawHeadlightCones(ctx, x, y, heading, range = 16, width = 5.2, alpha = 0.22) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading);
+  const grad = ctx.createLinearGradient(2.4, 0, 2.4 + range, 0);
+  grad.addColorStop(0, `rgba(255, 240, 185, ${alpha})`);
+  grad.addColorStop(0.55, `rgba(255, 232, 162, ${alpha * 0.42})`);
+  grad.addColorStop(1, 'rgba(255, 232, 162, 0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(2.4, -1.1);
+  ctx.lineTo(2.4 + range, -width);
+  ctx.lineTo(2.4 + range, width);
+  ctx.lineTo(2.4, 1.1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSpeedLines(r, car) {
+  if (r.titleStill || car.speed < 32) return;
+  const { ctx, width, height } = r;
+  const strength = Math.min(1, (car.speed - 32) / 10);
+  const dir = Math.atan2(car.vy, car.vx);
+  const cos = Math.cos(dir);
+  const sin = Math.sin(dir);
+  const now = r.fxTime;
+  ctx.save();
+  ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
+  ctx.strokeStyle = `rgba(246, 241, 228, ${(0.07 + 0.09 * strength).toFixed(3)})`;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  const count = 10;
+  const cx = width / 2;
+  const cy = height / 2;
+  const rad = Math.hypot(cx, cy);
+  for (let i = 0; i < count; i += 1) {
+    const a = (i / count) * Math.PI * 2 + 0.31;
+    // Only around the outer 28% perimeter so the centre road stays completely clear.
+    const band = ((now * 2.6 + i * 0.37) % 1);
+    const dist = rad * (0.68 + band * 0.28);
+    const px = cx + Math.cos(a) * dist;
+    const py = cy + Math.sin(a) * dist;
+    const len = (24 + strength * 36) * (0.6 + 0.4 * band);
+    ctx.beginPath();
+    ctx.moveTo(px - cos * len * 0.5, py - sin * len * 0.5);
+    ctx.lineTo(px + cos * len * 0.5, py + sin * len * 0.5);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function roundedRect(ctx, x, y, w, h, radius) {
@@ -552,9 +901,10 @@ function roundedRect(ctx, x, y, w, h, radius) {
   ctx.roundRect(x, y, w, h, radius);
 }
 
-function drawCar(ctx, car, pose) {
+function drawCar(ctx, car, pose, urban = false, exhaustPop = 0) {
   const L = CAR.length;
   const W = CAR.width;
+  if (urban) drawHeadlightCones(ctx, pose.x, pose.y, pose.heading, 17, 5.2, 0.20);
   ctx.save();
   ctx.translate(pose.x, pose.y);
   ctx.scale(CAR.drawScale, CAR.drawScale);
@@ -563,12 +913,40 @@ function drawCar(ctx, car, pose) {
   ctx.save();
   ctx.translate(0.28, 0.38);
   ctx.rotate(pose.heading);
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
   roundedRect(ctx, -L / 2, -W / 2, L, W, 0.55);
   ctx.fill();
   ctx.restore();
 
   ctx.rotate(pose.heading);
+  // Subtle red brake-light pool spilled onto the asphalt behind the tail under braking.
+  if (car.brake > 0.2 || car.handbrake) {
+    ctx.fillStyle = urban ? 'rgba(255,48,36,0.28)' : 'rgba(255,48,36,0.16)';
+    ctx.beginPath();
+    ctx.ellipse(-L / 2 - 0.85, 0, 1.35, W * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Twin exhaust backfire flame flicker on sharp throttle lift from speed.
+  if (exhaustPop > 0) {
+    const t = exhaustPop / 0.13;
+    const len = (0.65 + 0.55 * t);
+    for (const py of [-0.42, 0.42]) {
+      ctx.fillStyle = `rgba(185, 222, 255, ${(0.82 * t).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.moveTo(-L / 2 + 0.05, py - 0.14);
+      ctx.lineTo(-L / 2 - len, py);
+      ctx.lineTo(-L / 2 + 0.05, py + 0.14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = `rgba(255, 252, 232, ${(0.95 * t).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.moveTo(-L / 2 + 0.05, py - 0.07);
+      ctx.lineTo(-L / 2 - len * 0.55, py);
+      ctx.lineTo(-L / 2 + 0.05, py + 0.07);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
   drawCarBody(ctx, car, COLORS);
   ctx.restore();
 }
@@ -760,11 +1138,17 @@ function drawMinimap(r, car, ghost, game) {
   const h = (bounds.maxY - bounds.minY) * scale;
   const ox = r.width - w - 16;
   const oy = r.height - h - 16;
-  ctx.fillStyle = 'rgba(20,21,24,0.72)';
+  ctx.fillStyle = 'rgba(19,20,23,0.84)';
   ctx.beginPath();
   ctx.roundRect(ox - 6, oy - 6, w + 12, h + 12, 6);
   ctx.fill();
+  ctx.strokeStyle = 'rgba(246,241,228,0.14)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
   ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(ox - 6, oy - 6, w + 12, h + 12, 6);
+  ctx.clip();
   ctx.translate(ox - bounds.minX * scale, oy - bounds.minY * scale);
   ctx.scale(scale, scale);
   ctx.strokeStyle = 'rgba(246,241,228,0.85)';
@@ -841,6 +1225,38 @@ function buildSmokeSprite() {
   glow.addColorStop(0.86, 'rgba(240,237,230,0.22)');
   glow.addColorStop(1, 'rgba(240,237,230,0)');
   ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, size, size);
+  return sprite;
+}
+
+function buildDustSprite() {
+  const size = TITLE.smokeSprite;
+  const sprite = document.createElement('canvas');
+  sprite.width = size;
+  sprite.height = size;
+  const ctx = sprite.getContext('2d');
+  const glow = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  glow.addColorStop(0, 'rgba(202,181,134,1)');
+  glow.addColorStop(0.58, 'rgba(194,171,122,0.78)');
+  glow.addColorStop(0.85, 'rgba(182,158,108,0.22)');
+  glow.addColorStop(1, 'rgba(182,158,108,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, size, size);
+  return sprite;
+}
+
+function buildGlowSprite(r, g, b) {
+  const size = 96;
+  const sprite = document.createElement('canvas');
+  sprite.width = size;
+  sprite.height = size;
+  const ctx = sprite.getContext('2d');
+  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, `rgba(${r},${g},${b},0.65)`);
+  grad.addColorStop(0.35, `rgba(${r},${g},${b},0.32)`);
+  grad.addColorStop(0.7, `rgba(${r},${g},${b},0.09)`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
   return sprite;
 }
@@ -947,44 +1363,162 @@ function drawTitleScene(r, step) {
   ctx.restore();
 }
 
-// Getaway Drift: the police car, drawn between its last two steps like the car,
-// with a light bar that flashes red and blue once the chase is on.
-function drawPolice(ctx, p, alpha, live) {
+// Distinctive retro black-and-white interceptor police cruiser: black hood/trunk, white doors
+// and roof, front steel push-bumper, turning front wheels, brake lights, headlight cones, and
+// alternating red/blue strobe wash cast onto the street when lights are active.
+function drawPoliceBody(ctx, wheelAngle, braking, live, flash, unitNum = null) {
+  const L = CAR.length;
+  const W = CAR.width;
+
+  const tyre = (x, y, angle) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = '#121316';
+    roundedRect(ctx, -0.5, -0.26, 1, 0.52, 0.12);
+    ctx.fill();
+    ctx.restore();
+  };
+  const wheelY = W / 2 - 0.08;
+  tyre(1.45, -wheelY, wheelAngle);
+  tyre(1.45, wheelY, wheelAngle);
+  tyre(-1.48, -wheelY, 0);
+  tyre(-1.48, wheelY, 0);
+
+  // Classic cruiser sedan body: charcoal-black base with crisp cream-white cabin & doors.
+  ctx.fillStyle = '#181a20';
+  roundedRect(ctx, -L / 2, -W * 0.45, L, W * 0.9, 0.42);
+  ctx.fill();
+  ctx.fillStyle = '#f2f1eb';
+  ctx.fillRect(-1.25, -W * 0.45, 2.35, W * 0.9);
+  ctx.strokeStyle = '#0d0e12';
+  ctx.lineWidth = 0.15;
+  roundedRect(ctx, -L / 2, -W * 0.45, L, W * 0.9, 0.42);
+  ctx.stroke();
+
+  // Steel push-bumper across the nose.
+  ctx.fillStyle = '#31343d';
+  ctx.fillRect(L / 2 - 0.05, -W * 0.34, 0.28, W * 0.68);
+  ctx.fillStyle = '#535866';
+  ctx.fillRect(L / 2 + 0.02, -W * 0.24, 0.16, 0.14);
+  ctx.fillRect(L / 2 + 0.02, W * 0.24 - 0.14, 0.16, 0.14);
+
+  // Greenhouse & white roof.
+  ctx.fillStyle = '#1b2b3a';
+  roundedRect(ctx, -1.32, -W * 0.36, 2.1, W * 0.72, 0.24);
+  ctx.fill();
+  ctx.fillStyle = '#f2f1eb';
+  roundedRect(ctx, -0.98, -W * 0.31, 1.32, W * 0.62, 0.14);
+  ctx.fill();
+
+  // Subtle roof unit number behind the lightbar.
+  if (unitNum !== null) {
+    ctx.save();
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = 'bold 0.56px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#242730';
+    ctx.fillText(String(unitNum), 0, -0.62);
+    ctx.restore();
+  }
+
+  // Headlights (subtle wig-wag flare when lights are active).
+  const wigLeft = live && flash;
+  const wigRight = live && !flash;
+  ctx.fillStyle = wigLeft ? '#ffffff' : '#fff4c4';
+  roundedRect(ctx, L / 2 - 0.32, -W * 0.38, 0.26, 0.42, 0.09);
+  ctx.fill();
+  ctx.fillStyle = wigRight ? '#ffffff' : '#fff4c4';
+  roundedRect(ctx, L / 2 - 0.32, W * 0.38 - 0.42, 0.26, 0.42, 0.09);
+  ctx.fill();
+
+  // Tail lights + brake light flare when hard braking or reversing.
+  ctx.fillStyle = '#ff281c';
+  ctx.fillRect(-L / 2 + 0.06, -W * 0.40, 0.2, 0.56);
+  ctx.fillRect(-L / 2 + 0.06, W * 0.40 - 0.56, 0.2, 0.56);
+  if (braking > 0.25) {
+    ctx.fillStyle = `rgba(255, 52, 38, ${(0.55 * braking).toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(-L / 2 + 0.08, -W * 0.28, 0.52, 0, Math.PI * 2);
+    ctx.arc(-L / 2 + 0.08, W * 0.28, 0.52, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Roof lightbar housing with vibrant red/blue strobes & center chrome strip.
+  ctx.fillStyle = '#15171c';
+  roundedRect(ctx, -0.44, -W * 0.35, 0.46, W * 0.7, 0.08);
+  ctx.fill();
+  ctx.fillStyle = live && flash ? '#ff3a30' : '#631919';
+  ctx.fillRect(-0.38, -W * 0.32, 0.34, W * 0.27);
+  ctx.fillStyle = live && !flash ? '#3882ff' : '#1b2f63';
+  ctx.fillRect(-0.38, W * 0.05, 0.34, W * 0.27);
+  ctx.fillStyle = live ? '#fff5df' : '#696c75';
+  ctx.fillRect(-0.36, -0.05, 0.3, 0.1);
+}
+
+function drawPolice(r, p, alpha, live, unitNum = null) {
+  const { ctx } = r;
   const x = p.prevX + (p.x - p.prevX) * alpha;
   const y = p.prevY + (p.y - p.prevY) * alpha;
   const heading = p.prevHeading + Math.atan2(Math.sin(p.heading - p.prevHeading), Math.cos(p.heading - p.prevHeading)) * alpha;
   const L = CAR.length;
   const W = CAR.width;
+  const vis = r.policeVisuals.get(p);
+  const wheelAngle = vis?.wheelAngle ?? 0;
+  const braking = vis?.braking ?? 0;
+
+  // Headlights on every cruiser so oncoming patrol cars read down dark avenues.
+  drawHeadlightCones(ctx, x, y, heading, live ? 16 : 13, 4.6, live ? 0.21 : 0.15);
+
+  // Alternating red/blue strobe light wash cast onto the street around lit cruisers!
+  const phase = r.titleStill ? 0 : Math.floor((r.fxTime * 1000 + (unitNum ?? 0) * 85) / 145) % 2;
+  const flash = live && phase === 0;
+  if (live) {
+    const cos = Math.cos(heading);
+    const sin = Math.sin(heading);
+    const off = 2.6;
+    const rad = 11.5;
+    if (r.titleStill) {
+      ctx.globalAlpha = 0.42;
+      ctx.drawImage(r.glowRed, x + sin * off - rad, y - cos * off - rad, rad * 2, rad * 2);
+      ctx.drawImage(r.glowBlue, x - sin * off - rad, y + cos * off - rad, rad * 2, rad * 2);
+      ctx.globalAlpha = 1;
+    } else {
+      const sprite = flash ? r.glowRed : r.glowBlue;
+      const side = flash ? -1 : 1;
+      const gx = x - sin * off * side;
+      const gy = y + cos * off * side;
+      ctx.globalAlpha = 0.72;
+      ctx.drawImage(sprite, gx - rad, gy - rad, rad * 2, rad * 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(CAR.drawScale, CAR.drawScale);
   ctx.save();
   ctx.translate(0.28, 0.38);
   ctx.rotate(heading);
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  roundedRect(ctx, -L / 2, -W / 2, L, W, 0.55);
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  roundedRect(ctx, -L / 2, -W / 2, L, W, 0.42);
   ctx.fill();
   ctx.restore();
   ctx.rotate(heading);
-  drawCarBody(ctx, GHOST_WHEELS, POLICE_COLORS);
-  const flash = live && Math.floor(performance.now() / 160) % 2 === 0;
-  ctx.fillStyle = flash ? '#ff2b2b' : '#5a1414';
-  ctx.fillRect(-0.62, -W * 0.34, 0.42, W * 0.32);
-  ctx.fillStyle = flash || !live ? '#1b2f63' : '#2d6bff';
-  ctx.fillRect(-0.62, W * 0.02, 0.42, W * 0.32);
+  drawPoliceBody(ctx, wheelAngle, braking, live, flash, unitNum);
   ctx.restore();
 }
 
-// When the police car is off screen, an arrow at the edge of the view points at it with its
-// distance, so a bust never comes out of nowhere.
-// `bottom` keeps the arrow clear of a panel along the bottom edge (R4B's BUST RISK meter).
+// When the police car is off screen, a sleek directional badge at the edge of the view points at
+// it with its distance, so a bust never comes out of nowhere.
 function drawPoliceMarker(r, run, pose, bottom = 0) {
   if (run.phase !== 'running') return;
   const { ctx, cam } = r;
   const p = run.pursuer;
   const sx = r.width / 2 + (p.x - cam.x) * cam.zoom;
   const sy = r.height / 2 + (p.y - cam.y) * cam.zoom;
-  const margin = 34;
+  const margin = 38;
   if (sx > margin && sx < r.width - margin && sy > margin && sy < r.height - margin - bottom) return;
   const cx = r.width / 2;
   const cy = (r.height - bottom) / 2;
@@ -993,24 +1527,45 @@ function drawPoliceMarker(r, run, pose, bottom = 0) {
   const ex = cx + Math.cos(a) * k;
   const ey = cy + Math.sin(a) * k;
   const gap = Math.hypot(p.x - pose.x, p.y - pose.y);
+  const chasing = !run.police || p.mode === 'pursue';
+  const strobe = !r.titleStill && Math.floor((r.fxTime * 1000) / 180) % 2 === 0;
+  const accent = !chasing ? '#ffb627' : gap < 30 ? (strobe ? '#ff5a4f' : '#4a8cff') : 'rgba(255,90,79,0.88)';
+
   ctx.save();
   ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
   ctx.translate(ex, ey);
-  ctx.fillStyle = gap < 30 ? '#ff5a4f' : 'rgba(255,90,79,0.7)';
+  // Crisp directional arrow head.
   ctx.save();
   ctx.rotate(a);
+  ctx.fillStyle = accent;
+  ctx.strokeStyle = 'rgba(15,16,19,0.88)';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(14, 0);
-  ctx.lineTo(-6, -9);
-  ctx.lineTo(-6, 9);
+  ctx.moveTo(15, 0);
+  ctx.lineTo(-5, -9);
+  ctx.lineTo(-2, 0);
+  ctx.lineTo(-5, 9);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
   ctx.restore();
-  ctx.font = '700 12px system-ui, sans-serif';
+  // Clean pill tag behind the distance text so it stays readable over bright or dark streets.
+  const lx = -Math.cos(a) * 34;
+  const ly = -Math.sin(a) * 20;
+  const text = `COP ${Math.round(gap)} m`;
+  ctx.font = '700 11px "Trebuchet MS", "Segoe UI", sans-serif';
+  const tw = ctx.measureText(text).width + 12;
+  ctx.fillStyle = 'rgba(19,20,23,0.86)';
+  ctx.beginPath();
+  ctx.roundRect(lx - tw / 2, ly - 10, tw, 20, 4);
+  ctx.fill();
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#f6f1e4';
-  ctx.fillText(`COP ${Math.round(gap)} m`, -Math.cos(a) * 30, -Math.sin(a) * 18);
+  ctx.fillText(text, lx, ly + 0.5);
   ctx.restore();
 }
 
@@ -1051,7 +1606,7 @@ export function drawFrame(r, game, alpha, dt, debug) {
 
   ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
   ctx.save();
-  ctx.translate(r.width / 2, r.height / 2);
+  ctx.translate(r.width / 2 + r.shake.x, r.height / 2 + r.shake.y);
   ctx.scale(r.cam.zoom, r.cam.zoom);
   ctx.translate(-r.cam.x, -r.cam.y);
   const yard = r.course.dockyard;
@@ -1067,23 +1622,66 @@ export function drawFrame(r, game, alpha, dt, debug) {
   if (r.track.pad) drawPad(ctx, r.track);
   else drawRoad(ctx, r.course);
   // A gymkhana challenge paints its gates, zones and cones on its pad.
-  if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game);
+  if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game, view);
   drawSkids(r);
   if (!land && !(game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban')) drawWall(r); // a landscape draws its own perimeter, under its scenery
   if (ghost) drawGhost(r, ghost);
   // Getaway Drift in town: the parked police cars of a blockade, lights on.
   const urban = game.mode === 'gymkhana' && game.challengeDef?.layout === 'urban' && game.challenge ? game.challengeDef : null;
-  if (urban) for (const c of blockadeCars(urban.geometry.city)) drawPolice(ctx, { prevX: c.x, x: c.x, prevY: c.y, y: c.y, prevHeading: c.heading, heading: c.heading }, 1, true);
+  const liveLights = game.state === 'racing' && !game.paused;
+  if (urban) {
+    blockadeCars(urban.geometry.city).forEach((c, idx) => drawPolice(
+      r,
+      { prevX: c.x, x: c.x, prevY: c.y, y: c.y, prevHeading: c.heading, heading: c.heading },
+      1, true, idx + 8,
+    ));
+  }
   // Getaway Driver: every police car, lights only on those responding or chasing.
-  if (game.challenge?.police) for (const u of game.challenge.police) drawPolice(ctx, u, blend, u.lights && game.state === 'racing' && !game.paused);
-  else if (game.challenge?.pursuer) drawPolice(ctx, game.challenge.pursuer, blend, game.state === 'racing' && !game.paused);
-  drawCar(ctx, car, pose);
+  if (game.challenge?.police) {
+    game.challenge.police.forEach((u, idx) => drawPolice(r, u, blend, u.lights && liveLights, idx + 1));
+  } else if (game.challenge?.pursuer) {
+    drawPolice(r, game.challenge.pursuer, blend, liveLights, 1);
+  }
+  drawCar(ctx, car, pose, !!urban, r.exhaust.pop);
   drawSmoke(r);
-  if (urban) drawUrbanAbove(ctx, urban, game.challenge, view, performance.now() / 1000);
+  drawSparksAndPapers(r);
+  if (urban) drawUrbanAbove(ctx, urban, game.challenge, view, r.fxTime);
   else if (land) drawLandscapeAbove(ctx, land, view);
   else if (!yard) drawTrees(r);
+  // Satisfying safehouse / escape arrival light ring on mission completion (reduced-motion safe).
+  if (urban && game.challenge.phase === 'complete') {
+    if (!r.celebrate || r.celebrate.run !== game.challenge) {
+      const outcome = game.challenge.result?.outcome;
+      const color = outcome === 'low profile' ? '#ffb627' : outcome === 'lost them' ? '#ff7a3d' : '#5fd38a';
+      r.celebrate = { run: game.challenge, x: pose.x, y: pose.y, age: 0, color };
+    } else if (!game.paused && !r.titleStill) {
+      r.celebrate.age = Math.min(1.4, r.celebrate.age + step);
+    }
+    const c = r.celebrate;
+    const t = r.titleStill ? 0.35 : c.age / 1.4;
+    if (t < 1) {
+      const ease = 1 - (1 - t) ** 3;
+      const radius = 3.5 + ease * 24;
+      ctx.save();
+      ctx.globalAlpha = (1 - t) * 0.72;
+      ctx.strokeStyle = c.color;
+      ctx.lineWidth = 0.65 * (1 - t * 0.6);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = (1 - t) * 0.24;
+      ctx.fillStyle = c.color;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 4 + ease * 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  } else if (r.celebrate) {
+    r.celebrate = null;
+  }
   if (debug) drawDebugWorld(r, game, pose);
   ctx.restore();
+  if (game.state === 'racing' && !game.paused) drawSpeedLines(r, car);
   if (game.challenge?.pursuer && (!game.challenge.police || game.challenge.pursuer.lights)) drawPoliceMarker(r, game.challenge, pose, urban ? 96 : 0);
   drawMinimap(r, car, ghost, game);
 }

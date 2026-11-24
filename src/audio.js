@@ -14,7 +14,7 @@ import { AUDIO_TUNING, createAudioState, engineParams, readTelemetry, resetAudio
 import { cleanVolume, readAudioPreferences, volumeGain, writeAudioPreferences, writeMuted } from './audio-preferences.js';
 import { MUSIC_FADE_MS, MUSIC_LEVEL, RadioPlayer, loadTrack } from './radio.js';
 import { RADIO_OFF, STATIONS, stationById } from './radio-stations.js';
-import { SMASH_SFX, playSmash } from './getaway-sfx.js';
+import { SMASH_SFX, FX_LIMITS, playSmash, playImpact, playCone, playCue, sirenTarget, createSirenVoice } from './getaway-sfx.js';
 
 const RESUME_DEADLINE_MS = 8000;
 const LOAD_DEADLINE_MS = 12000;
@@ -70,6 +70,7 @@ export class GameAudio {
     this.sinceApply = Infinity;
     this.applied = null;
     this.smashes = { played: 0, dropped: 0, silent: 0 };
+    this.fx = { impacts: 0, cones: 0, cues: 0, sirenActive: false };
   }
 
   // Getaway Drift (experimental, R4C): one short synthesized smash for a broken fruit stand or
@@ -88,9 +89,79 @@ export class GameAudio {
     });
   }
 
+  // Velocity-scaled solid collision thump (all modes). Capped and cancelled like smashes.
+  impact(intensity, kind = 'wall') {
+    this.guard(() => {
+      const s = this.session;
+      if (!s || this.mode !== 'live' || s.ctx.state !== 'running' || this.effectsVolume === 0) return;
+      const now = s.ctx.currentTime;
+      s.impactVoices = (s.impactVoices ?? []).filter((v) => v.end > now);
+      if (s.impactVoices.length >= FX_LIMITS.impactMaxVoices) return;
+      const voice = playImpact(s.ctx, s.master, intensity, kind);
+      if (voice) { s.impactVoices.push(voice); this.fx.impacts += 1; }
+    });
+  }
+
+  // Gymkhana / Practice Pad rubber cone bump.
+  cone() {
+    this.guard(() => {
+      const s = this.session;
+      if (!s || this.mode !== 'live' || s.ctx.state !== 'running' || this.effectsVolume === 0) return;
+      const now = s.ctx.currentTime;
+      s.impactVoices = (s.impactVoices ?? []).filter((v) => v.end > now);
+      if (s.impactVoices.length >= FX_LIMITS.impactMaxVoices) return;
+      const voice = playCone(s.ctx, s.master);
+      if (voice) { s.impactVoices.push(voice); this.fx.cones += 1; }
+    });
+  }
+
+  // Pursuit, stealth, camera shutter, bank & mission outcome stingers.
+  // Outcome stingers play over the finish fade directly through the effects volume bus,
+  // still obeying mute, focus loss and immediate cancellation on restart or disposal.
+  cue(kind, detail = 0) {
+    this.guard(() => {
+      const s = this.session;
+      const outcome = kind.startsWith('outcome-');
+      if (!s || s.ctx.state !== 'running' || this.effectsVolume === 0) return;
+      if (outcome) {
+        if (!this.audible() || (this.mode !== 'live' && this.mode !== 'fade')) return;
+        this.stopOutcomeCues(s);
+        const voice = playCue(s.ctx, s.effects, kind, detail);
+        if (voice) { s.outcomeVoices = [voice]; this.fx.cues += 1; }
+        return;
+      }
+      if (this.mode !== 'live') return;
+      const now = s.ctx.currentTime;
+      s.cueVoices = (s.cueVoices ?? []).filter((v) => v.end > now);
+      if (s.cueVoices.length >= FX_LIMITS.cueMaxVoices) return;
+      const voice = playCue(s.ctx, s.master, kind, detail);
+      if (voice) { s.cueVoices.push(voice); this.fx.cues += 1; }
+    });
+  }
+
+  stopSiren(s = this.session) {
+    if (s?.siren) {
+      s.siren.stop();
+      s.siren = null;
+    }
+    this.fx.sirenActive = false;
+  }
+
+  stopOutcomeCues(s = this.session) {
+    for (const voice of s?.outcomeVoices ?? []) voice.stop();
+    if (s) s.outcomeVoices = [];
+  }
+
   stopSmashes(s = this.session) {
     for (const voice of s?.smashVoices ?? []) voice.stop();
-    if (s) s.smashVoices = [];
+    for (const voice of s?.impactVoices ?? []) voice.stop();
+    for (const voice of s?.cueVoices ?? []) voice.stop();
+    if (s) {
+      s.smashVoices = [];
+      s.impactVoices = [];
+      s.cueVoices = [];
+    }
+    this.stopSiren(s);
   }
 
   // --- What the game calls --------------------------------------------------
@@ -120,6 +191,7 @@ export class GameAudio {
   newRun(game) {
     this.guard(() => {
       this.stopSmashes();
+      this.stopOutcomeCues();
       resetAudioState(this.audioState, this.tuning);
       this.applied = null;
       this.sinceApply = Infinity;
@@ -171,7 +243,10 @@ export class GameAudio {
       this.effectsVolume = cleanVolume(percent, this.effectsVolume);
       this.savePreferences();
       const s = this.session;
-      if (s) smooth(s.effects.gain, volumeGain(this.effectsVolume), s.ctx, VOLUME_GLIDE);
+      if (s) {
+        smooth(s.effects.gain, volumeGain(this.effectsVolume), s.ctx, VOLUME_GLIDE);
+        if (this.effectsVolume === 0) { this.stopSiren(s); this.stopOutcomeCues(s); }
+      }
     });
     this.notify();
   }
@@ -198,12 +273,29 @@ export class GameAudio {
         stepAudioState(this.audioState, readTelemetry(game.car), dt, running, this.tuning);
       }
       this.sync(game);
+      this.updateSiren(game, dt);
       this.sinceApply += dt;
       if (this.session && this.mode !== 'silent' && this.sinceApply >= APPLY_INTERVAL) {
         this.sinceApply = 0;
         this.applyParams(this.session);
       }
     });
+  }
+
+  updateSiren(game, dt) {
+    const s = this.session;
+    if (!s || this.mode !== 'live' || s.ctx.state !== 'running' || this.effectsVolume === 0) {
+      this.stopSiren(s);
+      return;
+    }
+    const target = sirenTarget(game);
+    if (!target.active) {
+      this.stopSiren(s);
+      return;
+    }
+    if (!s.siren) s.siren = createSirenVoice(s.ctx, s.master);
+    s.siren.update({ ...target, dt });
+    this.fx.sirenActive = true;
   }
 
   dispose() {
@@ -332,7 +424,10 @@ export class GameAudio {
     this.mode = next;
     const s = this.session;
     if (!s) return;
-    if (changed && next !== 'live') this.stopSmashes(s);
+    if (changed && next !== 'live') {
+      this.stopSmashes(s);
+      if (next === 'silent') this.stopOutcomeCues(s);
+    }
     if (next === 'live' || this.musicWanted()) {
       this.clearSuspend(s);
       // A context made inside a gesture may already be running, so the first
@@ -506,6 +601,7 @@ export class GameAudio {
 
   teardown(s) {
     this.stopSmashes(s);
+    this.stopOutcomeCues(s);
     this.session = null; // invalidates every asynchronous completion still pending
     s.abort.abort();
     this.clearSuspend(s);

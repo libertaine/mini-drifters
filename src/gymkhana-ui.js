@@ -192,10 +192,14 @@ function updateBust(def, run, game) {
   const level = !on ? '' : run.phase === 'failed' && run.reason === 'busted' ? 'busted'
     : run.time < def.pursuerTuning.delay ? 'waiting' : run.phase === 'running' ? run.level : 'clear';
   document.body.dataset.bust = level;
+  document.body.dataset.alert = on && run.phase === 'running' && level === 'close' && run.sees ? 'pursuit' : '';
+  document.querySelector('.gauges')?.removeAttribute('data-speed-zone');
+  $('gym-medal')?.removeAttribute('data-driver-track');
   if (!on) return;
   // Getaway Driver relabels this meter: put Get the Footage's back.
   if (el.dataset.mode) {
     el.dataset.mode = '';
+    el.classList.remove('no-glide');
     el.querySelector('.bust-label').textContent = 'Bust risk';
     el.style.removeProperty('--mark');
     if ($('bust-lose')) $('bust-lose').hidden = true;
@@ -214,8 +218,11 @@ function updateBust(def, run, game) {
 }
 export function hideBust() {
   const el = $('bust');
-  if (el) el.hidden = true;
+  if (el) { el.hidden = true; el.classList.remove('no-glide'); }
   document.body.dataset.bust = '';
+  document.body.dataset.alert = '';
+  document.querySelector('.gauges')?.removeAttribute('data-speed-zone');
+  $('gym-medal')?.removeAttribute('data-driver-track');
   const nav = $('nav');
   if (nav) nav.hidden = true;
 }

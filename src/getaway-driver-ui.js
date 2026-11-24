@@ -42,25 +42,62 @@ function why(run) {
 
 // The meter: ATTENTION until a chase starts; then BUST RISK, with the escape under it.
 let lastValue = 0;
+let lastMode = '';
+let lastRunRef = null;
+let lastEscapes = 0;
+let escapePulseUntil = 0;
 export function updateDriverMeter(def, run, game) {
   const el = $('bust');
   if (!el) return;
   const on = game.state !== 'menu';
   el.hidden = !on;
-  if (!on) { document.body.dataset.bust = ''; return; }
+  const gauges = document.querySelector('.gauges');
+  if (!on) {
+    document.body.dataset.bust = '';
+    document.body.dataset.alert = '';
+    gauges?.removeAttribute('data-speed-zone');
+    lastMode = '';
+    lastRunRef = null;
+    escapePulseUntil = 0;
+    return;
+  }
+  if (run !== lastRunRef) {
+    lastRunRef = run;
+    lastMode = '';
+    lastValue = 0;
+    lastEscapes = run.escapes ?? 0;
+    escapePulseUntil = 0;
+  }
+  if ((run.escapes ?? 0) > lastEscapes) {
+    lastEscapes = run.escapes;
+    escapePulseUntil = run.time + 1.3;
+  }
   const D = def.driverTuning;
   const busted = run.phase === 'failed' && run.reason === 'busted';
   const pursuit = run.pursuing || busted;
-  el.dataset.mode = pursuit ? 'pursuit' : 'attention';
+  const nextMode = pursuit ? 'pursuit' : 'attention';
+  const modeSwitched = lastMode !== '' && lastMode !== nextMode;
+  el.classList.toggle('no-glide', modeSwitched);
+  lastMode = nextMode;
+  el.dataset.mode = nextMode;
   const tier = attentionTier(def, run);
   const level = busted ? 'busted' : pursuit ? run.level : run.phase !== 'running' ? 'clear' : TIER_LEVEL[tier];
   el.dataset.level = level;
   document.body.dataset.bust = pursuit ? level : '';
+  document.body.dataset.alert = run.phase !== 'running' ? ''
+    : pursuit && (run.seen || run.gap < 48) ? 'pursuit'
+      : run.time < escapePulseUntil ? 'escaped'
+        : run.seen && (tier === 'suspicious' || tier === 'hot' || tier === 'reported') ? 'watched' : '';
+  if (gauges) {
+    gauges.dataset.speedZone = run.phase !== 'running' || pursuit ? ''
+      : run.heat.speeding && run.seen ? 'watched-over'
+        : run.heat.speeding ? 'over' : 'ok';
+  }
   const value = pursuit ? run.meter : run.attention;
   const pct = Math.round(value * 100);
   el.style.setProperty('--bust', `${pct}%`);
   el.style.setProperty('--mark', pursuit ? '60%' : `${Math.round(D.detectAt * 100)}%`);
-  const trend = value > lastValue + 1e-6 ? 'rising' : value < lastValue - 1e-6 ? 'falling' : 'steady';
+  const trend = modeSwitched ? 'steady' : value > lastValue + 1e-6 ? 'rising' : value < lastValue - 1e-6 ? 'falling' : 'steady';
   lastValue = value;
   el.dataset.trend = trend;
   setText(el.querySelector('.bust-label'), pursuit ? 'Bust risk' : 'Attention');
@@ -111,8 +148,14 @@ export function updateDriverHud(def, run) {
   setText($('gym-cones'), run.phase === 'running' && left <= 30 ? `${Math.ceil(left)} s left` : '');
   setText($('gym-best'), `Spotted ${run.detections}× · lost them ${run.escapes}× · top ${mph(run.topSpeed)}`);
   // The way home this run is still on for (the results sheet's classification, applied now).
-  setText($('gym-medal'), run.phase !== 'running' ? '' : run.pursuing ? 'Lose them first'
-    : `On for: ${OUTCOME_NAME[driverOutcome(run, def.driverTuning)]}`);
+  const medalEl = $('gym-medal');
+  const trackOutcome = driverOutcome(run, def.driverTuning);
+  setText(medalEl, run.phase !== 'running' ? '' : run.pursuing ? 'Lose them first'
+    : `On for: ${OUTCOME_NAME[trackOutcome]}`);
+  if (medalEl) {
+    medalEl.dataset.driverTrack = run.phase !== 'running' ? ''
+      : run.pursuing ? 'pursuit' : trackOutcome.replace(/\s+/g, '-');
+  }
 }
 
 export function driverBanner(event) {

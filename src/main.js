@@ -1015,8 +1015,15 @@ function syncScreens() {
   const practice = state !== 'menu' && !tutorial && game.mode === 'practice';
   document.body.dataset.session = state === 'menu' ? 'none' : tutorial ? 'tutorial' : game.mode;
   // A timed challenge shows no score or combo; a scored one keeps them.
-  if (inGymkhana()) document.body.dataset.challenge = game.challengeDef.kind;
-  else delete document.body.dataset.challenge;
+  // Getaway Driver does not keep drift scores, so its mission tag lets CSS clear the score box.
+  if (inGymkhana()) {
+    document.body.dataset.challenge = game.challengeDef.kind;
+    if (game.challengeDef.mission) document.body.dataset.mission = game.challengeDef.mission;
+    else delete document.body.dataset.mission;
+  } else {
+    delete document.body.dataset.challenge;
+    delete document.body.dataset.mission;
+  }
   $('gym-panel').hidden = !inGymkhana();
   if (!inGymkhana()) hideBust();
   setText('handling-status', practice ? `Practice · ${game.handling.name}` : game.handling.name);
@@ -1106,6 +1113,7 @@ let currentRunId = -1;
 function showBanner(kind, text, now) {
   const el = $('banner');
   el.dataset.kind = kind;
+  el.dataset.pop = el.dataset.pop === 'a' ? 'b' : 'a';
   el.textContent = text;
   el.hidden = false;
   banner.until = now + BANNER_TIME;
@@ -1232,6 +1240,10 @@ function updateHud(now) {
   const shownSlip = car.speed > 3 && car.forwardSpeed > 0 ? Math.abs(car.slipAngle) * DEG : 0;
   setText('angle', `${Math.round(shownSlip)}°`);
   $('angle-needle').style.left = `calc(${Math.min(100, shownSlip / ANGLE_GAUGE_MAX * 100)}% - 1px)`;
+  const angleBox = document.querySelector('.angle');
+  if (angleBox) {
+    angleBox.dataset.driftZone = shownSlip >= 75 ? 'spin' : shownSlip >= 50 ? 'over' : shownSlip >= 25 ? 'sweet' : '';
+  }
 
   const comboEl = $('combo');
   const { combo } = scoring;
@@ -1307,6 +1319,92 @@ function playSmashSounds() {
   }
 }
 
+// Cohesive R2 sound-effect cues: solid impacts, cones, pursuit/stealth transitions, spotting radar,
+// camera shutters, banked drifts and mission outcomes. Every event fires once per serial/tick;
+// nothing queues across pause, mute or restart.
+let fxRunId = -1;
+let fxChallengeSerial = 0;
+let fxScoreSerial = 0;
+let fxImpactTick = -1;
+let fxImpactCd = 0;
+let fxSpotCd = 0;
+let fxFinished = false;
+function playFxSounds(dt) {
+  if (game.state === 'menu') {
+    fxRunId = -1;
+    return;
+  }
+  if (fxRunId !== game.runId) {
+    fxRunId = game.runId;
+    fxChallengeSerial = game.challenge?.eventSerial ?? 0;
+    fxScoreSerial = game.scoring.eventSerial;
+    fxImpactTick = -1;
+    fxImpactCd = 0;
+    fxSpotCd = 0;
+    fxFinished = false;
+  }
+  const active = game.state === 'racing' && !game.paused;
+  if (active) {
+    fxImpactCd = Math.max(0, fxImpactCd - dt);
+    fxSpotCd = Math.max(0, fxSpotCd - dt);
+    const hit = game.lastContact;
+    const freshObstacle = hit && hit.tick !== fxImpactTick && (game.ticks - hit.tick) <= 6 && hit.impact > 3;
+    const freshBarrier = !freshObstacle && game.lastImpact > 3 && game.ticks !== fxImpactTick;
+    if ((freshObstacle || freshBarrier) && fxImpactCd <= 0) {
+      fxImpactTick = freshObstacle ? hit.tick : game.ticks;
+      fxImpactCd = 0.14;
+      const impact = freshObstacle ? hit.impact : game.lastImpact;
+      audio.impact(Math.min(1, impact / 22), freshObstacle ? hit.kind : 'wall');
+    }
+    // Getaway Driver: subtle rising radar tick while a cruiser is locking on.
+    if (game.challenge?.police && !game.challenge.pursuing) {
+      const spotTime = game.challengeDef?.driverTuning?.spotTime ?? 0.5;
+      let maxFrac = 0;
+      for (const u of game.challenge.police) {
+        if (u.spotting > 0) maxFrac = Math.max(maxFrac, u.spotting / spotTime);
+      }
+      if (maxFrac > 0.05 && fxSpotCd <= 0) {
+        audio.cue('spotTick', maxFrac);
+        fxSpotCd = 0.16;
+      }
+    }
+  }
+  const run = game.mode === 'gymkhana' ? game.challenge : null;
+  if (run && run.eventSerial !== fxChallengeSerial) {
+    fxChallengeSerial = run.eventSerial;
+    const ev = run.event;
+    if (ev?.type === 'cone') audio.cone();
+    else if (ev?.type === 'suspicious' || ev?.type === 'reported' || ev?.type === 'spotted'
+      || ev?.type === 'joined' || ev?.type === 'lost' || ev?.type === 'locked') {
+      audio.cue(ev.type);
+    } else if (ev?.type === 'shot') {
+      audio.cue('camera', ev.camera ?? 1);
+    } else if (ev?.type === 'arrived') {
+      const id = (run.result?.outcome ?? 'ghost').replace(/\s+/g, '-');
+      audio.cue(`outcome-${id}`);
+      fxFinished = true;
+    } else if (ev?.type === 'escaped') {
+      audio.cue('outcome-escaped');
+      fxFinished = true;
+    } else if (ev?.type === 'busted') {
+      audio.cue('outcome-busted');
+      fxFinished = true;
+    }
+  }
+  if (!fxFinished && game.state === 'finished' && run) {
+    fxFinished = true;
+    audio.cue(run.phase === 'complete' ? 'outcome-escaped' : 'outcome-busted');
+  }
+  if (game.scoring.eventSerial !== fxScoreSerial) {
+    fxScoreSerial = game.scoring.eventSerial;
+    const se = game.scoring.event;
+    if (se?.type === 'banked' && game.challengeDef?.mission !== 'driver' && game.mode !== 'practice') {
+      const tier = se.points >= 600 ? 3 : se.points >= 250 ? 2 : 1;
+      audio.cue('bank', tier);
+    }
+  }
+}
+
 // --- Loop ------------------------------------------------------------------
 let last = performance.now();
 let shownState = game.state;
@@ -1331,6 +1429,7 @@ function frame(now) {
   }
   audio.update(game, dt);
   playSmashSounds();
+  playFxSounds(dt);
   const alpha = Math.min(1, game.accumulator / TUNING.simStep);
   drawFrame(renderer, game, alpha, dt, debug);
   if (game.state !== 'menu') updateHud(now / 1000);
@@ -1347,5 +1446,5 @@ $('tracks-open').focus();
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
   selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode,
   referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: challengePicker(), selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial),
-  smashSounds: () => ({ ...audio.smashes }) };
+  smashSounds: () => ({ ...audio.smashes }), fxAudio: () => ({ ...audio.fx }) };
 requestAnimationFrame(frame);

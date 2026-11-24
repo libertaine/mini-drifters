@@ -243,7 +243,7 @@ function drawSlalom(ctx, def, run) {
 }
 
 // Called by render.js after the pad is painted and before the skid marks and the car.
-export function drawChallenge(ctx, game) {
+export function drawChallenge(ctx, game, view = null) {
   const def = game.challengeDef;
   const run = game.challenge;
   if (!def || !run) return;
@@ -251,7 +251,7 @@ export function drawChallenge(ctx, game) {
   ctx.lineCap = 'butt';
   if (def.layout === 'box') drawPrecision(ctx, def, run);
   else if (def.layout === 'slalom') drawSlalom(ctx, def, run);
-  else if (def.layout === 'urban') drawUrban(ctx, def, run, game, performance.now() / 1000);
+  else if (def.layout === 'urban') drawUrban(ctx, def, run, game, performance.now() / 1000, view);
   else drawLinked(ctx, def, run);
   drawCones(ctx, run.cones, def.kind === 'time' ? def.geometry.conePenalty : 0);
   ctx.restore();
