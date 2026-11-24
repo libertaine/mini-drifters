@@ -520,6 +520,7 @@ export function createGymkhanaUi({ records, getawayRecords, driverRecords, onCho
       // beats the medal the replaced record held, so a medal already held is never announced
       // again, and nothing unsaved is ever called new.
       const runMedal = failed ? null : medalOf(def, handlingId, r.value);
+      $('gymkhana-results').dataset.medal = !failed && !isGetaway(def) && runMedal ? runMedal : '';
       const targets = targetsOf(def, handlingId);
       const line = $('gr-medal');
       line.hidden = failed || !targets;

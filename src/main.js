@@ -16,6 +16,7 @@ import { padTrack } from './practice-pad.js';
 import { createGymkhanaRecords } from './gymkhana-records.js';
 import { createGymkhanaUi, hideBust } from './gymkhana-ui.js';
 import { GYMKHANA_CHALLENGES } from './gymkhana.js';
+import { medalFor } from './medals.js';
 import { GETAWAY_SHEET } from './getaway-missions.js';
 import { createGetawayRecords } from './getaway-records.js';
 import { createDriverRecords } from './getaway-driver-records.js';
@@ -86,9 +87,48 @@ const trackInputs = TRACKS.map((track) => {
   return input;
 });
 
+const TRACK_BLURBS = {
+  original: 'Grassroots club circuit · Fast sweepers and a tight hairpin.',
+  switchback: 'Hillside pass · Linked S-bends climbing into a tight right.',
+  dockyard: 'Harbor concrete apron · Technical Hook, chicane and sweeping Basin.',
+};
+
+function updateTrackPreview(id) {
+  const pathEl = $('track-preview-path');
+  const dotEl = $('track-preview-start');
+  if (!pathEl || !dotEl) return;
+  const track = trackById(id);
+  const { points, start } = track;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const pad = 10;
+  const w = 120 - pad * 2;
+  const h = 76 - pad * 2;
+  const scale = Math.min(w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY));
+  const ox = (120 - (maxX - minX) * scale) / 2;
+  const oy = (76 - (maxY - minY) * scale) / 2;
+  const sx = (x) => (ox + (x - minX) * scale).toFixed(1);
+  const sy = (y) => (oy + (y - minY) * scale).toFixed(1);
+  const parts = [];
+  for (let i = 0; i < points.length; i += 4) {
+    parts.push(`${i === 0 ? 'M' : 'L'}${sx(points[i].x)} ${sy(points[i].y)}`);
+  }
+  parts.push('Z');
+  pathEl.setAttribute('d', parts.join(' '));
+  dotEl.setAttribute('cx', sx(start.x));
+  dotEl.setAttribute('cy', sy(start.y));
+  setText('track-blurb', TRACK_BLURBS[id] ?? '');
+}
+
 function selectTrack(id) {
   selectedTrackId = id;
   for (const input of trackInputs) input.checked = input.value === id;
+  updateTrackPreview(id);
   showPersonalBests();
 }
 
@@ -1002,8 +1042,11 @@ function fitTitle() {
   }
 }
 
+let shownState = game.state;
+
 function syncScreens() {
   const { state, paused } = game;
+  shownState = state;
   const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done' : picker ? picker
     : paused ? 'paused' : state === 'menu' || state === 'finished' ? state : 'driving';
   if (context !== controllerContext) {
@@ -1102,12 +1145,15 @@ function showResults() {
     setText('r-void', `${laps} not counted: ${formatNumber(r.forfeited)} points left out of the score.`);
   }
   const best = records.newBests;
+  $('results').dataset.best = (best.score || best.fastestLap || best.bestCombo) ? 'true' : 'false';
   $('new-score').hidden = !best.score;
   $('new-lap').hidden = !best.fastestLap;
   $('new-combo').hidden = !best.bestCombo;
 }
 
 const banner = { until: 0, serialCombo: 0, serialLap: 0, serialChallenge: 0 };
+let lapFlashUntil = 0;
+let lapFlashKind = '';
 let currentRunId = -1;
 
 function showBanner(kind, text, now) {
@@ -1123,10 +1169,11 @@ function updateBanners(now) {
   const { scoring, laps } = game;
   if (currentRunId !== game.runId) {
     currentRunId = game.runId;
-    banner.serialCombo = scoring.eventSerial;
-    banner.serialLap = game.lapEventSerial;
+    banner.serialCombo = 0;
+    banner.serialLap = 0;
     banner.serialChallenge = 0;
     banner.until = 0;
+    lapFlashUntil = 0;
   }
   // A challenge's own news comes first, so that a combo lost to the same cone has the last word.
   if (game.challenge && game.challenge.eventSerial !== banner.serialChallenge) {
@@ -1144,6 +1191,8 @@ function updateBanners(now) {
     banner.serialLap = game.lapEventSerial;
     if (game.lapEvent === 'lap') {
       const best = laps.lastLap === laps.bestLap && laps.completed > 1;
+      lapFlashKind = best ? 'best' : 'lap';
+      lapFlashUntil = now + 0.9;
       // With the saved reference chosen, a lap it saved (or failed to save) says so.
       const offered = referenceGhosts.lastResult;
       const thisLap = offered && offered.runId === game.runId && offered.time === laps.lastLap && game.ghostSource === 'reference';
@@ -1151,6 +1200,8 @@ function updateBanners(now) {
         : thisLap && (offered.reason === 'write failed' || offered.reason === 'too large') ? ' · REFERENCE NOT SAVED' : '';
       showBanner('lap', `LAP ${formatTime(laps.lastLap)}${best ? ' — BEST' : ''}${saved}`, now);
     } else {
+      lapFlashKind = 'void';
+      lapFlashUntil = now + 0.9;
       const lost = game.lastForfeit;
       showBanner('void', lost > 0 ? `LAP NOT COUNTED — ${formatNumber(lost)} POINTS LOST` : 'LAP NOT COUNTED — CHECKPOINT MISSED', now);
     }
@@ -1249,10 +1300,18 @@ function updateHud(now) {
   const { combo } = scoring;
   comboEl.dataset.state = combo ? 'active' : 'idle';
   if (combo) {
+    const mult = currentMultiplier(combo);
+    comboEl.dataset.mult = String(mult);
+    comboEl.dataset.lowGrace = combo.grace < 0.55 ? 'true' : 'false';
     setText('combo-points', formatNumber(combo.points));
-    setText('combo-mult', `×${currentMultiplier(combo)}`);
+    setText('combo-mult', `×${mult}`);
     $('combo-grace-bar').style.transform = `scaleX(${Math.max(0, combo.grace / T.comboGrace)})`;
+  } else {
+    comboEl.dataset.mult = '1';
+    comboEl.dataset.lowGrace = 'false';
   }
+  const lapsPanel = document.querySelector('#hud .laps');
+  if (lapsPanel) lapsPanel.dataset.lapFlash = now < lapFlashUntil ? lapFlashKind : '';
   if (game.mode === 'gymkhana') gymkhana.updateHud(game);
   else hideBust();
   updateBanners(now);
@@ -1319,15 +1378,22 @@ function playSmashSounds() {
   }
 }
 
-// Cohesive R2 sound-effect cues: solid impacts, cones, pursuit/stealth transitions, spotting radar,
-// camera shutters, banked drifts and mission outcomes. Every event fires once per serial/tick;
-// nothing queues across pause, mute or restart.
+// Cohesive R2 / R2b sound-effect cues: solid impacts, cones, apex curbs, pursuit/stealth
+// transitions, spotting radar, camera shutters, laps, combo tier-ups, Gymkhana gates/slalom/turn-zone,
+// banked drifts and mission/medal outcomes. Every event fires once per serial/tick; nothing queues.
 let fxRunId = -1;
 let fxChallengeSerial = 0;
 let fxScoreSerial = 0;
+let fxLapSerial = 0;
 let fxImpactTick = -1;
 let fxImpactCd = 0;
 let fxSpotCd = 0;
+let fxCurbCd = 0;
+let fxWrongWayCd = 0;
+let fxPrevMult = 1;
+let fxPrevGate = 0;
+let fxPrevSlalom = 0;
+let fxPrevReached = false;
 let fxFinished = false;
 function playFxSounds(dt) {
   if (game.state === 'menu') {
@@ -1338,15 +1404,24 @@ function playFxSounds(dt) {
     fxRunId = game.runId;
     fxChallengeSerial = game.challenge?.eventSerial ?? 0;
     fxScoreSerial = game.scoring.eventSerial;
+    fxLapSerial = game.lapEventSerial;
     fxImpactTick = -1;
     fxImpactCd = 0;
     fxSpotCd = 0;
+    fxCurbCd = 0;
+    fxWrongWayCd = 0;
+    fxPrevMult = 1;
+    fxPrevGate = 0;
+    fxPrevSlalom = 0;
+    fxPrevReached = false;
     fxFinished = false;
   }
   const active = game.state === 'racing' && !game.paused;
   if (active) {
     fxImpactCd = Math.max(0, fxImpactCd - dt);
     fxSpotCd = Math.max(0, fxSpotCd - dt);
+    fxCurbCd = Math.max(0, fxCurbCd - dt);
+    fxWrongWayCd = Math.max(0, fxWrongWayCd - dt);
     const hit = game.lastContact;
     const freshObstacle = hit && hit.tick !== fxImpactTick && (game.ticks - hit.tick) <= 6 && hit.impact > 3;
     const freshBarrier = !freshObstacle && game.lastImpact > 3 && game.ticks !== fxImpactTick;
@@ -1355,6 +1430,23 @@ function playFxSounds(dt) {
       fxImpactCd = 0.14;
       const impact = freshObstacle ? hit.impact : game.lastImpact;
       audio.impact(Math.min(1, impact / 22), freshObstacle ? hit.kind : 'wall');
+    }
+    // Tactile apex curb rumble cadence on circuit curbs at speed.
+    if (!game.track.pad && game.car.surface === 'curb' && game.car.speed > 7 && fxCurbCd <= 0) {
+      const ratio = Math.min(1, game.car.speed / TUNING.topSpeed);
+      audio.curb(ratio);
+      fxCurbCd = 0.11 - 0.055 * ratio;
+    }
+    // Gentle wrong-way nudge on circuit runs.
+    if (game.mode === 'normal' && game.wrongWayTime > 1.2 && fxWrongWayCd <= 0) {
+      audio.cue('wrong-way');
+      fxWrongWayCd = 1.8;
+    }
+    // Combo multiplier step-up glint (×2 / ×3) across circuits & scored Gymkhana.
+    if (game.mode !== 'practice' && game.challengeDef?.mission !== 'driver') {
+      const mult = game.scoring.combo ? currentMultiplier(game.scoring.combo) : 1;
+      if (mult > fxPrevMult) audio.cue('combo-up', mult);
+      fxPrevMult = mult;
     }
     // Getaway Driver: subtle rising radar tick while a cruiser is locking on.
     if (game.challenge?.police && !game.challenge.pursuing) {
@@ -1370,6 +1462,21 @@ function playFxSounds(dt) {
     }
   }
   const run = game.mode === 'gymkhana' ? game.challenge : null;
+  const def = game.mode === 'gymkhana' ? game.challengeDef : null;
+  // Non-urban Gymkhana live milestone cues (turn-zone lock, drift gates, ascending slalom weave).
+  if (run && def && def.layout !== 'urban') {
+    if (def.layout === 'box' && run.reached && !fxPrevReached) {
+      fxPrevReached = true;
+      audio.cue('turn-zone');
+    } else if (def.layout === 'course' && run.nextGate > fxPrevGate) {
+      const idx = run.nextGate - 1;
+      fxPrevGate = run.nextGate;
+      if (idx < def.geometry.gates.length - 1) audio.cue('gate-pass', run.gates[idx]?.drifting ? 1 : 0);
+    } else if (def.layout === 'slalom' && run.next > fxPrevSlalom) {
+      fxPrevSlalom = run.next;
+      audio.cue('slalom-pass', run.next);
+    }
+  }
   if (run && run.eventSerial !== fxChallengeSerial) {
     fxChallengeSerial = run.eventSerial;
     const ev = run.event;
@@ -1393,24 +1500,52 @@ function playFxSounds(dt) {
       }
     }
   }
-  if (!fxFinished && game.state === 'finished' && run) {
+  // Circuit lap timing chimes (counted lap, best lap, or voided lap).
+  if (game.lapEventSerial !== fxLapSerial) {
+    fxLapSerial = game.lapEventSerial;
+    if (game.state !== 'finished') {
+      if (game.lapEvent === 'lap') {
+        const isBest = game.laps.lastLap === game.laps.bestLap && game.laps.completed > 1;
+        audio.cue(isBest ? 'lap-best' : 'lap');
+      } else if (game.lapEvent === 'void') {
+        audio.cue('lap-void');
+      }
+    }
+  }
+  if (!fxFinished && game.state === 'finished') {
     fxFinished = true;
-    audio.cue(run.phase === 'complete' ? 'outcome-escaped'
-      : run.reason === 'busted' ? 'outcome-busted' : 'outcome-failed');
+    if (run && def) {
+      if (run.phase === 'complete') {
+        if (def.layout === 'urban') {
+          audio.cue('outcome-escaped');
+        } else {
+          const medal = medalFor(def, game.handling.id, run.result?.value);
+          audio.cue(medal ? `outcome-${medal}` : 'outcome-escaped');
+        }
+      } else {
+        audio.cue(run.reason === 'busted' ? 'outcome-busted' : 'outcome-failed');
+      }
+    } else if (game.mode === 'normal') {
+      const b = records.newBests;
+      audio.cue((b.score || b.fastestLap || b.bestCombo) ? 'outcome-record' : 'outcome-circuit');
+    }
   }
   if (game.scoring.eventSerial !== fxScoreSerial) {
     fxScoreSerial = game.scoring.eventSerial;
     const se = game.scoring.event;
-    if (se?.type === 'banked' && game.challengeDef?.mission !== 'driver' && game.mode !== 'practice') {
-      const tier = se.points >= 600 ? 3 : se.points >= 250 ? 2 : 1;
-      audio.cue('bank', tier);
+    if (game.challengeDef?.mission !== 'driver' && game.mode !== 'practice') {
+      if (se?.type === 'banked') {
+        const tier = se.points >= 600 ? 3 : se.points >= 250 ? 2 : 1;
+        audio.cue('bank', tier);
+      } else if (se?.type === 'lost') {
+        audio.cue('combo-lost');
+      }
     }
   }
 }
 
 // --- Loop ------------------------------------------------------------------
 let last = performance.now();
-let shownState = game.state;
 function frame(now) {
   const dt = Math.max(0, (now - last) / 1000);
   last = now;

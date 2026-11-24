@@ -115,7 +115,7 @@ export const RULES = Object.freeze([
   { id: 'local-server', tier: 2, paths: ['server.mjs'], suites: ['test:audio:browser', 'test:coyote:browser', 'test:gameplay-audio:browser'], why: 'The local server, which these suites start' },
   { id: 'controller', tier: 2, paths: ['src/controller.js'], suites: CONTROLLER_SUITES, why: 'Gamepad reading, used by the suites that mock a controller' },
   { id: 'tyre-effects', tier: 2, paths: ['src/tyre-effects.js'], suites: ['test:wheelspin:browser'], why: 'Smoke and rubber drawing, measured by the wheelspin suite' },
-  { id: 'scenery-draw', tier: 2, paths: ['src/scenery-draw.js'], suites: ['test:environment:browser', 'test:tracks:browser', 'test:dockyard-slalom:browser'], why: 'Drawing of circuit scenery (not its collision shapes)' },
+  { id: 'scenery-draw', tier: 2, paths: ['src/scenery-draw.js'], suites: ['test:environment:browser', 'test:tracks:browser', 'test:dockyard-slalom:browser', 'test:r2-polish:browser'], why: 'Drawing of circuit scenery (not its collision shapes)' },
   { id: 'challenge-ui', tier: 2, paths: ['src/gymkhana-ui.js', 'src/gymkhana-draw.js'], suites: [...CHALLENGE_SUITES, 'test:menus:browser', 'test:controller:browser'],
     why: 'The Gymkhana and Getaway sheets, HUD, results and drawing' },
   { id: 'getaway-draw', tier: 2, paths: ['src/getaway-urban-draw.js'], suites: GETAWAY_SUITES, why: 'Drawing of the Getaway city' },

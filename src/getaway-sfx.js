@@ -35,6 +35,8 @@ export const SMASH_SFX = Object.freeze({
 export const FX_LIMITS = Object.freeze({
   impactLevel: 0.44,
   impactMaxVoices: 2,
+  curbLevel: 0.24,
+  curbMaxVoices: 2,
   cueLevel: 0.34,
   cueMaxVoices: 3,
   sirenLevel: 0.22,
@@ -178,6 +180,15 @@ export function playCone(ctx, destination) {
   ], 0.34);
 }
 
+// Short tactile concrete rumble pulse when riding apex curbs at speed (zero persistent sources).
+export function playCurb(ctx, destination, speedRatio = 0.5) {
+  const s = Math.max(0.15, Math.min(1, Number.isFinite(speedRatio) ? speedRatio : 0.5));
+  return playRecipe(ctx, destination, [
+    { type: 'thump', at: 0, freq: 66 + s * 42, to: 42 + s * 16, dur: 0.045, gain: 0.85 },
+    { type: 'noise', at: 0, dur: 0.036, filter: 'bandpass', freq: 310 + s * 220, q: 1.3, gain: 0.32 },
+  ], FX_LIMITS.curbLevel * (0.45 + 0.55 * s));
+}
+
 // Cohesive retro-arcade state & mission audio cues.
 export const CUE_SFX = Object.freeze({
   suspicious: Object.freeze([
@@ -254,6 +265,61 @@ export const CUE_SFX = Object.freeze({
     { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 900, q: 1.0, at: 0, freq: 233.08, to: 174.61, dur: 0.26, glide: 0.12, gain: 0.48 },
     { type: 'tone', wave: 'triangle', at: 0.16, freq: 174.61, to: 116.54, dur: 0.4, glide: 0.16, gain: 0.46 },
   ]),
+  // Tracks & Gymkhana motorsport timing, combo and medal cues.
+  lap: Object.freeze([
+    { type: 'tone', wave: 'triangle', at: 0, freq: 587.33, dur: 0.11, attack: 0.008, gain: 0.36 },
+    { type: 'tone', wave: 'sine', at: 0.075, freq: 880, dur: 0.18, attack: 0.01, gain: 0.34 },
+  ]),
+  'lap-best': Object.freeze([
+    { type: 'tone', wave: 'triangle', at: 0, freq: 587.33, dur: 0.11, attack: 0.008, gain: 0.38 },
+    { type: 'tone', wave: 'triangle', at: 0.075, freq: 739.99, dur: 0.12, attack: 0.008, gain: 0.38 },
+    { type: 'tone', wave: 'sine', at: 0.15, freq: 1174.66, dur: 0.24, attack: 0.01, gain: 0.40 },
+  ]),
+  'lap-void': Object.freeze([
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 720, q: 1.0, at: 0, freq: 220, to: 196, dur: 0.13, gain: 0.38 },
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 640, q: 1.0, at: 0.12, freq: 174.61, to: 146.83, dur: 0.18, gain: 0.36 },
+  ]),
+  'combo-lost': Object.freeze([
+    { type: 'tone', wave: 'triangle', at: 0, freq: 220, to: 118, dur: 0.18, glide: 0.07, gain: 0.34 },
+  ]),
+  'turn-zone': Object.freeze([
+    // Precision 180 turn-zone lock: crisp relay click + uplifting emerald two-note cue.
+    { type: 'noise', at: 0, dur: 0.028, filter: 'highpass', freq: 2400, q: 1.2, gain: 0.45 },
+    { type: 'tone', wave: 'triangle', at: 0.01, freq: 659.25, dur: 0.1, attack: 0.006, gain: 0.36 },
+    { type: 'tone', wave: 'sine', at: 0.075, freq: 987.77, dur: 0.16, attack: 0.008, gain: 0.38 },
+  ]),
+  'wrong-way': Object.freeze([
+    { type: 'tone', wave: 'square', filter: 'bandpass', cutoff: 980, q: 1.8, at: 0, freq: 392, dur: 0.08, attack: 0.006, gain: 0.26 },
+    { type: 'tone', wave: 'square', filter: 'bandpass', cutoff: 920, q: 1.8, at: 0.11, freq: 349.23, dur: 0.09, attack: 0.006, gain: 0.24 },
+  ]),
+  'outcome-circuit': Object.freeze([
+    { type: 'tone', wave: 'triangle', at: 0, freq: 293.66, dur: 0.14, attack: 0.01, gain: 0.42 },
+    { type: 'tone', wave: 'triangle', at: 0.09, freq: 369.99, dur: 0.15, attack: 0.01, gain: 0.44 },
+    { type: 'tone', wave: 'triangle', at: 0.18, freq: 440, dur: 0.18, attack: 0.01, gain: 0.46 },
+    { type: 'tone', wave: 'sine', at: 0.27, freq: 587.33, dur: 0.4, attack: 0.015, gain: 0.48 },
+  ]),
+  'outcome-record': Object.freeze([
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 1700, q: 1, at: 0, freq: 293.66, dur: 0.14, attack: 0.01, gain: 0.38 },
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 1900, q: 1, at: 0.09, freq: 369.99, dur: 0.15, attack: 0.01, gain: 0.4 },
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 2100, q: 1, at: 0.18, freq: 440, dur: 0.16, attack: 0.01, gain: 0.42 },
+    { type: 'tone', wave: 'triangle', at: 0.27, freq: 587.33, dur: 0.45, attack: 0.012, gain: 0.48 },
+    { type: 'tone', wave: 'sine', at: 0.34, freq: 739.99, dur: 0.46, attack: 0.015, gain: 0.4 },
+  ]),
+  'outcome-gold': Object.freeze([
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 1850, q: 1, at: 0, freq: 523.25, dur: 0.13, attack: 0.01, gain: 0.36 },
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 2050, q: 1, at: 0.09, freq: 659.25, dur: 0.14, attack: 0.01, gain: 0.38 },
+    { type: 'tone', wave: 'triangle', at: 0.18, freq: 783.99, dur: 0.18, attack: 0.01, gain: 0.46 },
+    { type: 'tone', wave: 'sine', at: 0.27, freq: 1046.5, dur: 0.44, attack: 0.012, gain: 0.48 },
+  ]),
+  'outcome-silver': Object.freeze([
+    { type: 'tone', wave: 'triangle', at: 0, freq: 440, dur: 0.14, attack: 0.01, gain: 0.42 },
+    { type: 'tone', wave: 'triangle', at: 0.09, freq: 554.37, dur: 0.16, attack: 0.01, gain: 0.44 },
+    { type: 'tone', wave: 'sine', at: 0.18, freq: 659.25, dur: 0.4, attack: 0.012, gain: 0.46 },
+  ]),
+  'outcome-bronze': Object.freeze([
+    { type: 'tone', wave: 'triangle', at: 0, freq: 349.23, dur: 0.18, attack: 0.012, gain: 0.42 },
+    { type: 'tone', wave: 'sine', at: 0.11, freq: 440, dur: 0.34, attack: 0.015, gain: 0.44 },
+  ]),
 });
 
 // Plays the offline deep announcer "BUSTED!" voice asset with a tight sub-bass cabinet punch,
@@ -326,6 +392,34 @@ export function playCue(ctx, destination, kind, detail = 0) {
       { type: 'tone', wave: 'triangle', at: 0, freq: 493.88 * scale, dur: 0.1, attack: 0.008, gain: 0.22 },
       { type: 'tone', wave: 'sine', at: 0.055, freq: 659.25 * scale, dur: 0.15, attack: 0.01, gain: 0.2 },
     ], FX_LIMITS.cueLevel * 0.75);
+  }
+  if (kind === 'combo-up') {
+    const mult = Math.max(2, Math.min(3, Math.round(detail)));
+    const base = mult >= 3 ? 659.25 : 523.25;
+    return playRecipe(ctx, destination, [
+      { type: 'tone', wave: 'triangle', at: 0, freq: base, dur: 0.08, attack: 0.006, gain: 0.24 },
+      { type: 'tone', wave: 'sine', at: 0.045, freq: base * (mult >= 3 ? 1.5 : 1.25), dur: 0.13, attack: 0.008, gain: 0.26 },
+    ], FX_LIMITS.cueLevel * 0.72);
+  }
+  if (kind === 'gate-pass') {
+    const drifted = !!detail;
+    return playRecipe(ctx, destination, drifted ? [
+      { type: 'noise', at: 0, dur: 0.022, filter: 'highpass', freq: 2800, q: 1.2, gain: 0.34 },
+      { type: 'tone', wave: 'triangle', at: 0.01, freq: 587.33, dur: 0.11, attack: 0.006, gain: 0.32 },
+      { type: 'tone', wave: 'sine', at: 0.06, freq: 880, dur: 0.17, attack: 0.008, gain: 0.34 },
+    ] : [
+      { type: 'noise', at: 0, dur: 0.02, filter: 'highpass', freq: 2400, q: 1.2, gain: 0.28 },
+      { type: 'tone', wave: 'triangle', at: 0.01, freq: 440, dur: 0.1, attack: 0.006, gain: 0.26 },
+    ], FX_LIMITS.cueLevel * 0.85);
+  }
+  if (kind === 'slalom-pass') {
+    const step = Math.max(0, Math.min(6, (detail | 0) - 1));
+    const scale = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66];
+    const hz = scale[step];
+    return playRecipe(ctx, destination, [
+      { type: 'tone', wave: 'triangle', at: 0, freq: hz, dur: 0.095, attack: 0.005, gain: 0.32 },
+      { type: 'tone', wave: 'sine', at: 0.03, freq: hz * 1.5, dur: 0.09, attack: 0.006, gain: 0.18 },
+    ], FX_LIMITS.cueLevel * 0.82);
   }
   return playRecipe(ctx, destination, CUE_SFX[kind], FX_LIMITS.cueLevel);
 }

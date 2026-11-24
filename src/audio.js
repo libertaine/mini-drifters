@@ -14,7 +14,7 @@ import { AUDIO_TUNING, createAudioState, engineParams, readTelemetry, resetAudio
 import { cleanVolume, readAudioPreferences, volumeGain, writeAudioPreferences, writeMuted } from './audio-preferences.js';
 import { MUSIC_FADE_MS, MUSIC_LEVEL, RadioPlayer, loadTrack } from './radio.js';
 import { RADIO_OFF, STATIONS, stationById } from './radio-stations.js';
-import { SMASH_SFX, FX_LIMITS, playSmash, playImpact, playCone, playCue, playBustedVoice, sirenTarget, createSirenVoice } from './getaway-sfx.js';
+import { SMASH_SFX, FX_LIMITS, playSmash, playImpact, playCone, playCurb, playCue, playBustedVoice, sirenTarget, createSirenVoice } from './getaway-sfx.js';
 
 const RESUME_DEADLINE_MS = 8000;
 const LOAD_DEADLINE_MS = 12000;
@@ -74,7 +74,7 @@ export class GameAudio {
     this.lastGame = null;
     this.smashes = { played: 0, dropped: 0, silent: 0 };
     this.fx = {
-      impacts: 0, cones: 0, cues: 0, sirenActive: false, sirenDucked: false,
+      impacts: 0, cones: 0, curbs: 0, cues: 0, lastCue: '', sirenActive: false, sirenDucked: false,
       bustedPlayed: 0, bustedSpoken: 0, bustedFallback: 0, bustedState: 'idle',
     };
   }
@@ -121,6 +121,19 @@ export class GameAudio {
     });
   }
 
+  // Tactile apex curb rumble pulse on circuit curbs (capped, zero persistent sources).
+  curb(speedRatio = 0.5) {
+    this.guard(() => {
+      const s = this.session;
+      if (!s || this.mode !== 'live' || s.ctx.state !== 'running' || this.effectsVolume === 0) return;
+      const now = s.ctx.currentTime;
+      s.curbVoices = (s.curbVoices ?? []).filter((v) => v.end > now);
+      if (s.curbVoices.length >= FX_LIMITS.curbMaxVoices) return;
+      const voice = playCurb(s.ctx, s.master, speedRatio);
+      if (voice) { s.curbVoices.push(voice); this.fx.curbs += 1; }
+    });
+  }
+
   // Pursuit, stealth, camera shutter, bank & mission outcome stingers.
   // Outcome stingers play over the finish fade directly through the effects volume bus,
   // still obeying mute, focus loss and immediate cancellation on restart or disposal.
@@ -149,7 +162,7 @@ export class GameAudio {
         } else {
           voice = playCue(s.ctx, s.effects, kind, detail);
         }
-        if (voice) { s.outcomeVoices = [voice]; this.fx.cues += 1; }
+        if (voice) { s.outcomeVoices = [voice]; this.fx.cues += 1; this.fx.lastCue = kind; }
         return;
       }
       if (this.mode !== 'live') return;
@@ -157,7 +170,7 @@ export class GameAudio {
       s.cueVoices = (s.cueVoices ?? []).filter((v) => v.end > now);
       if (s.cueVoices.length >= FX_LIMITS.cueMaxVoices) return;
       const voice = playCue(s.ctx, s.master, kind, detail);
-      if (voice) { s.cueVoices.push(voice); this.fx.cues += 1; }
+      if (voice) { s.cueVoices.push(voice); this.fx.cues += 1; this.fx.lastCue = kind; }
     });
   }
 
@@ -179,10 +192,12 @@ export class GameAudio {
   stopSmashes(s = this.session, { keepSiren = false } = {}) {
     for (const voice of s?.smashVoices ?? []) voice.stop();
     for (const voice of s?.impactVoices ?? []) voice.stop();
+    for (const voice of s?.curbVoices ?? []) voice.stop();
     for (const voice of s?.cueVoices ?? []) voice.stop();
     if (s) {
       s.smashVoices = [];
       s.impactVoices = [];
+      s.curbVoices = [];
       s.cueVoices = [];
     }
     if (!keepSiren) this.stopSiren(s);
