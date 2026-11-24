@@ -315,166 +315,241 @@ async function check(name, engine) {
     await audioPage.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
 
     // Start Getaway Driver via real click gesture so AudioContext runs.
+    // Linux Firefox in headless CI has no audio output device, so AudioContext.resume()
+    // times out cleanly and GameAudio reports 'Sound Unavailable' (matching
+    // getaway-showmanship-browser, gameplay-audio-browser and wheelspin-browser).
     await audioPage.click('#getaway');
     await audioPage.click('#getaway-driver');
     await audioPage.click('#gymkhana-start');
-    await audioPage.waitForFunction(() => window.__miniDrifters.audio().contextState === 'running', null, { timeout: 5000 });
+    await audioPage.waitForFunction(() => {
+      const a = window.__miniDrifters.audio();
+      return a.contextState === 'running' || !!a.failure;
+    }, null, { timeout: 15000, polling: 50 });
+    const audioFailure = await audioPage.evaluate(() => window.__miniDrifters.audio().failure);
+    const realtimeAudio = !audioFailure;
+    if (!realtimeAudio) {
+      assert.equal(name, 'firefox', 'only device-less Linux Firefox may report audio startup failure');
+      assert.equal(process.platform, 'linux', 'only device-less Linux Firefox may report audio startup failure');
+      assert.match(audioFailure, /did not start/);
+      assert.equal(await audioPage.locator('#sound').textContent(), 'Sound Unavailable');
+    }
+
+    // OfflineAudioContext verification runs in every browser (including device-less Linux Firefox):
+    // proves busted-voice.wav decodes in the browser and every R2/R2b voice renders bounded signal.
+    const offlineAudio = await audioPage.evaluate(async () => {
+      const { playBustedVoice, playCurb, playCue } = await import('/src/getaway-sfx.js');
+      const raw = await (await fetch('/audio-lab/assets/busted-voice.wav')).arrayBuffer();
+      const dec = new OfflineAudioContext(1, 24000, 24000);
+      const voiceBuf = await dec.decodeAudioData(raw.slice(0));
+      async function render(fn, seconds = 1.1) {
+        const ctx = new OfflineAudioContext(1, Math.round(48000 * seconds), 48000);
+        const bus = ctx.createGain();
+        bus.gain.value = 1;
+        bus.connect(ctx.destination);
+        const voice = fn(ctx, bus);
+        const ch = (await ctx.startRendering()).getChannelData(0);
+        let sum = 0, peak = 0;
+        for (let i = 0; i < ch.length; i += 1) {
+          sum += ch[i] * ch[i];
+          const a = Math.abs(ch[i]);
+          if (a > peak) peak = a;
+        }
+        return { rms: Math.sqrt(sum / ch.length), peak, spoken: !!voice?.spoken };
+      }
+      return {
+        duration: voiceBuf.duration,
+        bustedSpoken: await render((c, d) => playBustedVoice(c, d, voiceBuf), 1.2),
+        bustedFallback: await render((c, d) => playBustedVoice(c, d, null), 0.9),
+        curb: await render((c, d) => playCurb(c, d, 0.75), 0.25),
+        turnZone: await render((c, d) => playCue(c, d, 'turn-zone'), 0.4),
+        gold: await render((c, d) => playCue(c, d, 'outcome-gold'), 0.9),
+      };
+    });
+    assert.ok(offlineAudio.duration >= 0.6 && offlineAudio.duration <= 1.2, `busted-voice.wav duration ${offlineAudio.duration}`);
+    assert.equal(offlineAudio.bustedSpoken.spoken, true);
+    assert.equal(offlineAudio.bustedFallback.spoken, false);
+    for (const [k, sig] of Object.entries(offlineAudio)) {
+      if (k === 'duration') continue;
+      assert.ok(sig.rms > 0.001 && sig.peak <= 1.0, `offline ${k} rendered clean signal (rms=${sig.rms}, peak=${sig.peak})`);
+    }
 
     const beforeChase = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
     assert.equal(beforeChase.sirenActive, false, 'calm start has no siren');
 
-    // 1) Steer into a roadside building block to verify real velocity-scaled impact SFX.
-    await audioPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      const wall = g.challengeDef.geometry.city.colliders[0];
-      g.car.x = (wall.minX + wall.maxX) / 2;
-      g.car.y = wall.maxY + 4;
-      g.car.heading = -Math.PI / 2;
-      g.car.vx = 0;
-      g.car.vy = -24;
-      g.prev.x = g.car.x; g.prev.y = g.car.y;
-      g.state = 'racing';
-    });
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().impacts >= 1, null, { timeout: 3000 });
+    if (realtimeAudio) {
+      // 1) Steer into a roadside building block to verify real velocity-scaled impact SFX.
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        const wall = g.challengeDef.geometry.city.colliders[0];
+        g.car.x = (wall.minX + wall.maxX) / 2;
+        g.car.y = wall.maxY + 4;
+        g.car.heading = -Math.PI / 2;
+        g.car.vx = 0;
+        g.car.vy = -24;
+        g.prev.x = g.car.x; g.prev.y = g.car.y;
+        g.state = 'racing';
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().impacts >= 1, null, { timeout: 3000 });
 
-    // 2) Trigger pursuit, keep cop at medium range (no bust during test), verify siren & cues obey pause/mute.
-    await audioPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      const cop = g.challenge.police[1];
-      const dx = Math.cos(cop.heading);
-      const dy = Math.sin(cop.heading);
-      g.car.x = cop.x + dx * 28; g.car.y = cop.y + dy * 28;
-      g.car.vx = dx * 18; g.car.vy = dy * 18;
-      g.prev.x = g.car.x; g.prev.y = g.car.y;
-      g.challenge.attention = 0.95;
-      g.challenge.meter = 0;
-    });
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === true, null, { timeout: 4000 });
-    const liveFx = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
-    assert.equal(liveFx.sirenActive, true);
-    assert.ok(liveFx.cues >= 1, `chase cue played (${liveFx.cues})`);
-    assert.ok(liveFx.impacts >= 1, `impact thump played (${liveFx.impacts})`);
+      // 2) Trigger pursuit, keep cop at medium range (no bust during test), verify siren & cues obey pause/mute.
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        const cop = g.challenge.police[1];
+        const dx = Math.cos(cop.heading);
+        const dy = Math.sin(cop.heading);
+        g.car.x = cop.x + dx * 28; g.car.y = cop.y + dy * 28;
+        g.car.vx = dx * 18; g.car.vy = dy * 18;
+        g.prev.x = g.car.x; g.prev.y = g.car.y;
+        g.challenge.attention = 0.95;
+        g.challenge.meter = 0;
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === true, null, { timeout: 4000 });
+      const liveFx = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
+      assert.equal(liveFx.sirenActive, true);
+      assert.ok(liveFx.cues >= 1, `chase cue played (${liveFx.cues})`);
+      assert.ok(liveFx.impacts >= 1, `impact thump played (${liveFx.impacts})`);
 
-    await audioPage.keyboard.press('KeyP');
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === false, null, { timeout: 2000 });
-    await audioPage.keyboard.press('KeyP');
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === true, null, { timeout: 2000 });
-    await audioPage.click('#sound'); // mute
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === false, null, { timeout: 2000 });
-    await audioPage.click('#sound'); // unmute
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === true, null, { timeout: 2000 });
+      await audioPage.keyboard.press('KeyP');
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === false, null, { timeout: 2000 });
+      await audioPage.keyboard.press('KeyP');
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === true, null, { timeout: 2000 });
+      await audioPage.click('#sound'); // mute
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === false, null, { timeout: 2000 });
+      await audioPage.click('#sound'); // unmute
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === true, null, { timeout: 2000 });
 
-    // 3) Offline BUSTED voice asset decodes in Getaway, triggers once on actual bust with siren ducking,
-    //    and cancels immediately on retry (R).
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().bustedState === 'ready', null, { timeout: 4000 });
-    await audioPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      const cop = g.challenge.police.find((u) => u.mode === 'pursue') ?? g.challenge.police[1];
-      cop.mode = 'pursue';
-      cop.lights = true;
-      cop.x = g.car.x;
-      cop.y = g.car.y;
-      cop.speed = 0;
-      g.car.vx = 0; g.car.vy = 0;
-      g.challenge.pursuing = true;
-      g.challenge.meter = 0.995;
-    });
-    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 3000 });
-    const bustedFx = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
-    assert.equal(bustedFx.bustedPlayed, 1, 'BUSTED triggers once on police bust');
-    assert.equal(bustedFx.bustedSpoken, 1, 'offline spoken busted-voice.wav played');
-    assert.equal(bustedFx.sirenDucked, true, 'siren ducks underneath the BUSTED voice');
-    // Stays strictly once over subsequent frames.
-    await audioPage.waitForTimeout(150);
-    assert.equal((await audioPage.evaluate(() => window.__miniDrifters.fxAudio().bustedPlayed)), 1);
-    // Retry (R) cancels remaining playback and ducked siren immediately.
-    await audioPage.keyboard.press('KeyR');
-    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready', null, { timeout: 2000 });
-    const afterRetry = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
-    assert.equal(afterRetry.sirenDucked, false, 'R retry cancels ducked siren immediately');
+      // 3) Offline BUSTED voice asset decodes in Getaway, triggers once on actual bust with siren ducking,
+      //    and cancels immediately on retry (R).
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().bustedState === 'ready', null, { timeout: 4000 });
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        const cop = g.challenge.police.find((u) => u.mode === 'pursue') ?? g.challenge.police[1];
+        cop.mode = 'pursue';
+        cop.lights = true;
+        cop.x = g.car.x;
+        cop.y = g.car.y;
+        cop.speed = 0;
+        g.car.vx = 0; g.car.vy = 0;
+        g.challenge.pursuing = true;
+        g.challenge.meter = 0.995;
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 3000 });
+      const bustedFx = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
+      assert.equal(bustedFx.bustedPlayed, 1, 'BUSTED triggers once on police bust');
+      assert.equal(bustedFx.bustedSpoken, 1, 'offline spoken busted-voice.wav played');
+      assert.equal(bustedFx.sirenDucked, true, 'siren ducks underneath the BUSTED voice');
+      // Stays strictly once over subsequent frames.
+      await audioPage.waitForTimeout(150);
+      assert.equal((await audioPage.evaluate(() => window.__miniDrifters.fxAudio().bustedPlayed)), 1);
+      // Retry (R) cancels remaining playback and ducked siren immediately.
+      await audioPage.keyboard.press('KeyR');
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready', null, { timeout: 2000 });
+      const afterRetry = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
+      assert.equal(afterRetry.sirenDucked, false, 'R retry cancels ducked siren immediately');
 
-    // Non-bust failure (out of time) never triggers the BUSTED voice.
-    await audioPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      g.state = 'racing';
-      g.challenge.time = g.challengeDef.timeLimit - 0.02;
-    });
-    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 2000 });
-    assert.equal((await audioPage.evaluate(() => window.__miniDrifters.fxAudio().bustedPlayed)), 1, 'out of time does not shout BUSTED');
-    // 4) Live Web Audio Tracks & Gymkhana cues: apex curb rumble, Turn Zone lock, Slalom weave & Gold fanfare.
-    await audioPage.locator('#gymkhana-results .return-title').click();
-    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'menu', null, { timeout: 2000 });
-    await audioPage.click('#tracks-open');
-    await audioPage.click('#start');
-    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready' && window.__miniDrifters.audio().contextState === 'running' && window.__miniDrifters.audio().mode === 'live', null, { timeout: 4000 });
-    const baseSources = await audioPage.evaluate(() => window.__miniDrifters.audio().sourceCount);
-    await audioPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      const p = g.track.points.find((pt) => Math.abs(pt.curvature) > g.track.curbCurvature);
-      g.state = 'racing';
-      g.car.x = p.x - p.ty * (g.track.halfWidth + 1);
-      g.car.y = p.y + p.tx * (g.track.halfWidth + 1);
-      g.car.heading = Math.atan2(p.ty, p.tx);
-      g.car.vx = p.tx * 24;
-      g.car.vy = p.ty * 24;
-      g.car.speed = 24;
-      g.car.surface = 'curb';
-      g.prev.x = g.car.x; g.prev.y = g.car.y;
-      g.trackInfo = window.__miniDrifters.projectOnTrack(g.track, g.car.x, g.car.y);
-      g.trackS = g.trackInfo.s;
-    });
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().curbs >= 1, null, { timeout: 3000 });
-    assert.equal(await audioPage.evaluate(() => window.__miniDrifters.audio().sourceCount), baseSources, 'curb rumble adds zero persistent sources');
+      // Non-bust failure (out of time) never triggers the BUSTED voice.
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        g.state = 'racing';
+        g.challenge.time = g.challengeDef.timeLimit - 0.02;
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 2000 });
+      assert.equal((await audioPage.evaluate(() => window.__miniDrifters.fxAudio().bustedPlayed)), 1, 'out of time does not shout BUSTED');
+      // 4) Live Web Audio Tracks & Gymkhana cues: apex curb rumble, Turn Zone lock, Slalom weave & Gold fanfare.
+      await audioPage.locator('#gymkhana-results .return-title').click();
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'menu', null, { timeout: 2000 });
+      await audioPage.click('#tracks-open');
+      await audioPage.click('#start');
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready' && window.__miniDrifters.audio().contextState === 'running' && window.__miniDrifters.audio().mode === 'live', null, { timeout: 4000 });
+      const baseSources = await audioPage.evaluate(() => window.__miniDrifters.audio().sourceCount);
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        const p = g.track.points.find((pt) => Math.abs(pt.curvature) > g.track.curbCurvature);
+        g.state = 'racing';
+        g.car.x = p.x - p.ty * (g.track.halfWidth + 1);
+        g.car.y = p.y + p.tx * (g.track.halfWidth + 1);
+        g.car.heading = Math.atan2(p.ty, p.tx);
+        g.car.vx = p.tx * 24;
+        g.car.vy = p.ty * 24;
+        g.car.speed = 24;
+        g.car.surface = 'curb';
+        g.prev.x = g.car.x; g.prev.y = g.car.y;
+        g.trackInfo = window.__miniDrifters.projectOnTrack(g.track, g.car.x, g.car.y);
+        g.trackS = g.trackInfo.s;
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().curbs >= 1, null, { timeout: 3000 });
+      assert.equal(await audioPage.evaluate(() => window.__miniDrifters.audio().sourceCount), baseSources, 'curb rumble adds zero persistent sources');
 
-    // Precision 180 Turn Zone chime & Gold finish fanfare.
-    await audioPage.keyboard.press('KeyP');
-    await audioPage.locator('#paused .return-title').click();
-    await audioPage.click('#gymkhana');
-    await audioPage.click('#gymkhana-start');
-    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready' && window.__miniDrifters.audio().contextState === 'running' && window.__miniDrifters.audio().mode === 'live', null, { timeout: 4000 });
-    await audioPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      g.state = 'racing';
-      g.challenge.reached = true;
-    });
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().lastCue === 'turn-zone', null, { timeout: 2000 });
-    await audioPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      g.challenge.phase = 'complete';
-      g.challenge.result = { value: 7.1, time: 7.1, penalty: 0, total: 7.1, cones: 0, entrySpeed: 22, depth: 20, peakSlip: 0.6, minSpeed: 8, technique: 'slide' };
-      g.state = 'finished';
-    });
-    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().lastCue === 'outcome-gold', null, { timeout: 2000 });
-    ok('Live Web Audio siren, BUSTED offline voice, siren ducking, curb rumble, Turn Zone & Gold fanfare verified');
+      // Precision 180 Turn Zone chime & Gold finish fanfare.
+      await audioPage.keyboard.press('KeyP');
+      await audioPage.locator('#paused .return-title').click();
+      await audioPage.click('#gymkhana');
+      await audioPage.click('#gymkhana-start');
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready' && window.__miniDrifters.audio().contextState === 'running' && window.__miniDrifters.audio().mode === 'live', null, { timeout: 4000 });
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        g.state = 'racing';
+        g.challenge.reached = true;
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().lastCue === 'turn-zone', null, { timeout: 2000 });
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        g.challenge.phase = 'complete';
+        g.challenge.result = { value: 7.1, time: 7.1, penalty: 0, total: 7.1, cones: 0, entrySpeed: 22, depth: 20, peakSlip: 0.6, minSpeed: 8, technique: 'slide' };
+        g.state = 'finished';
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().lastCue === 'outcome-gold', null, { timeout: 2000 });
+      ok('Live Web Audio siren, BUSTED offline voice, siren ducking, curb rumble, Turn Zone & Gold fanfare verified');
+    } else {
+      // Device-less Linux Firefox: verify bust, retry and silent fallback stay completely error-free.
+      await audioPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        const cop = g.challenge.police[1];
+        cop.mode = 'pursue'; cop.lights = true; cop.x = g.car.x; cop.y = g.car.y; cop.speed = 0;
+        g.car.vx = 0; g.car.vy = 0;
+        g.challenge.pursuing = true;
+        g.challenge.meter = 0.995;
+        g.state = 'racing';
+      });
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 3000 });
+      await audioPage.keyboard.press('KeyR');
+      await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready', null, { timeout: 2000 });
+      const silentFx = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
+      assert.equal(silentFx.sirenActive, false);
+      assert.equal(silentFx.bustedPlayed, 0);
+      ok('Device-less Linux Firefox reported Sound Unavailable cleanly, passed OfflineAudioContext voice/cue renders, and completed bust/retry without errors');
+    }
     await audioCtx.close();
 
-    // Missing busted-voice.wav (404) falls back cleanly with zero errors.
-    const fbCtx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
-    const fbPage = await fbCtx.newPage();
-    fbPage.on('pageerror', (e) => errors.push(`${name}-fb: ${e.message}`));
-    await fbPage.route('**/busted-voice.wav', (route) => route.fulfill({ status: 404, body: 'missing' }));
-    await fbPage.goto(base);
-    await fbPage.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
-    await fbPage.click('#getaway');
-    await fbPage.click('#getaway-driver');
-    await fbPage.click('#gymkhana-start');
-    await fbPage.waitForFunction(() => window.__miniDrifters.fxAudio().bustedState === 'unavailable', null, { timeout: 4000 });
-    await fbPage.evaluate(() => {
-      const g = window.__miniDrifters.game;
-      const cop = g.challenge.police[1];
-      cop.mode = 'pursue'; cop.lights = true; cop.x = g.car.x; cop.y = g.car.y; cop.speed = 0;
-      g.car.vx = 0; g.car.vy = 0;
-      g.challenge.pursuing = true;
-      g.challenge.meter = 0.995;
-      g.state = 'racing';
-    });
-    await fbPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 3000 });
-    const fbFx = await fbPage.evaluate(() => window.__miniDrifters.fxAudio());
-    assert.equal(fbFx.bustedPlayed, 1);
-    assert.equal(fbFx.bustedSpoken, 0);
-    assert.equal(fbFx.bustedFallback, 1, 'missing voice falls back cleanly to synthesized sting');
-    ok('Unavailable busted-voice.wav falls back cleanly without breaking gameplay or audio');
-    await fbCtx.close();
+    // Missing busted-voice.wav (404) falls back cleanly with zero errors (real-time audio contexts).
+    if (realtimeAudio) {
+      const fbCtx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+      const fbPage = await fbCtx.newPage();
+      fbPage.on('pageerror', (e) => errors.push(`${name}-fb: ${e.message}`));
+      await fbPage.route('**/busted-voice.wav', (route) => route.fulfill({ status: 404, body: 'missing' }));
+      await fbPage.goto(base);
+      await fbPage.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
+      await fbPage.click('#getaway');
+      await fbPage.click('#getaway-driver');
+      await fbPage.click('#gymkhana-start');
+      await fbPage.waitForFunction(() => window.__miniDrifters.fxAudio().bustedState === 'unavailable', null, { timeout: 4000 });
+      await fbPage.evaluate(() => {
+        const g = window.__miniDrifters.game;
+        const cop = g.challenge.police[1];
+        cop.mode = 'pursue'; cop.lights = true; cop.x = g.car.x; cop.y = g.car.y; cop.speed = 0;
+        g.car.vx = 0; g.car.vy = 0;
+        g.challenge.pursuing = true;
+        g.challenge.meter = 0.995;
+        g.state = 'racing';
+      });
+      await fbPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 3000 });
+      const fbFx = await fbPage.evaluate(() => window.__miniDrifters.fxAudio());
+      assert.equal(fbFx.bustedPlayed, 1);
+      assert.equal(fbFx.bustedSpoken, 0);
+      assert.equal(fbFx.bustedFallback, 1, 'missing voice falls back cleanly to synthesized sting');
+      ok('Unavailable busted-voice.wav falls back cleanly without breaking gameplay or audio');
+      await fbCtx.close();
+    }
 
     // --- 3. Reduced motion compliance ---
     const rmCtx = await browser.newContext({ viewport: { width: 1366, height: 768 }, reducedMotion: 'reduce' });
