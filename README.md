@@ -12,7 +12,7 @@ A small top-down arcade drifting game for the browser. Throw a muscle car sidewa
 
 It runs in a desktop browser with a keyboard or a standard-mapped controller. There's nothing to install and no account to create.
 
-**Current version: v0.7.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
+**Current version: v0.8.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
 
 ## What's in it
 
@@ -23,7 +23,7 @@ Mini Drifters is an early playable prototype: one car, built to find out whether
 - **Two handling modes:** forgiving Classic, and Power, where the throttle can break the rear loose.
 - **Personal bests** for every track and handling pair, and for every challenge, kept in your browser.
 - **Circuit ghosts** with Previous Lap, Saved Reference and Off choices.
-- **Getaway: Get the Footage**, a four-camera mission in Downtown and Industrial.
+- **Getaway: Get the Footage**, a four-camera mission in Downtown and Industrial, and **Getaway Driver**, a stealth run to the safehouse.
 - **An optional driving lesson** and an unscored **practice pad**.
 - **Recorded engine sound** and a **three-station radio** with provisional music.
 
@@ -99,6 +99,8 @@ On the sheet, Left and Right choose the challenge, H changes handling, Enter sta
 **Getaway → Get the Footage → Downtown or Industrial.** Hit all four cameras in order, follow the navigation cues and get through the escape gate before time runs out. Lose the cruiser by pulling away or breaking its line of sight.
 
 Showmanship adds 150 per fruit stand and 250 per wooden barricade to banked drift. The breakables preserve a live combo and cost speed. An escape qualifies for a medal. Busts and timeouts end the run without one. Each environment and handling pair keeps its best Showmanship, saved in this browser, with its medal. See the mission rules, handling targets and records in [Getaway](docs/GETAWAY.md).
+
+**Getaway → Getaway Driver → Downtown.** Reach the safehouse without drawing the police. Speeding, drifting and crashes raise ATTENTION, four times as fast when a patrol car can see you. If one gives chase, lose them before the safehouse opens: out of sight and 45 m clear of every pursuer for 5 seconds. A run ends as a Ghost run, Low profile or Lost them. There are no scores or medals. This browser counts how often you finish each way, for each handling mode. See [Getaway Driver](docs/GETAWAY-DRIVER.md).
 
 ## Classic and Power handling
 
@@ -194,6 +196,7 @@ npm test
 
 | Version | Highlights |
 |---|---|
+| [v0.8.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.8.0) | Getaway Driver, dusk city/pursuit overhaul & Busted announcer voice, Tracks/Practice Pad/Gymkhana visual & audio polish, Umami analytics, tutorial steering hint, and risk-based CI |
 | [v0.7.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.7.0) | Gymkhana medals, saved reference ghosts, Getaway: Get the Footage, and Tracks, Gymkhana and Getaway menus |
 | [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0) | Functional environments: solid scenery on all three circuits |
 | [v0.5.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.5.0) | Dockyard, Slalom Sprint and Power wheelspin feedback |
@@ -216,10 +219,13 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 | [RECORDS](docs/RECORDS.md) | Personal bests: qualification, storage schema and acceptance steps |
 | [GHOST](docs/GHOST.md) | Circuit ghost choices, playback and storage |
 | [GETAWAY](docs/GETAWAY.md) | Get the Footage rules and medals |
+| [GETAWAY-DRIVER](docs/GETAWAY-DRIVER.md) | Getaway Driver: attention, police, losing them, outcomes and completion counts |
 | [CONTROLLERS](docs/CONTROLLERS.md) | Controller mapping, input policy and physical testing |
 | [GAMEPLAY-AUDIO](docs/GAMEPLAY-AUDIO.md), [AUDIO-LAB](docs/AUDIO-LAB.md) | How the game sounds, and the development listening bench |
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |
+| [ANALYTICS](docs/ANALYTICS.md) | What the published game counts, the event contract, and how to opt out |
 | [ROADMAP](docs/ROADMAP.md) | What each version contained, and what might come next |
+| [v0.8.0 release notes](docs/RELEASE-v0.8.0.md) | Getaway Driver, visual/audio polish across cities, circuits, Practice Pad & Gymkhana, analytics, compatibility and known limits |
 | [v0.7.0 release notes](docs/RELEASE-v0.7.0.md) | Medals, reference ghosts, Getaway and menus: compatibility and known limits |
 | [v0.6.0 release notes](docs/RELEASE-v0.6.0.md) | Functional environments, compatibility and known limits |
 | [R3-REVIEW](docs/R3-REVIEW.md) | The v0.5.0 scenery review and qualification record |
@@ -240,10 +246,17 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 - The Try It lesson teaches Classic only. A lesson for Power's throttle technique may come later.
 - Owner review covered controller driving and drifting on Original and Switchback; not every physical disconnect/reconnect scenario was explicitly verified.
 
+## Privacy
+
+The published game counts visits, runs started and completed, valid laps and active play time with cookie-free [Umami](https://umami.is/) analytics. No scores, times, inputs, records, ghosts or identifiers are sent, and nothing is stored in your browser for it. Local play and automated tests are never counted, and Do Not Track is respected. To opt out, add `?analytics=off` to the address: [libertaine.github.io/mini-drifters/?analytics=off](https://libertaine.github.io/mini-drifters/?analytics=off). The details are in [ANALYTICS](docs/ANALYTICS.md).
+
 ## License
 
-The code is [MIT](LICENSE). The audio recordings aren't: see [LICENSE-AUDIO.md](LICENSE-AUDIO.md).
+The code is [MIT](LICENSE). The audio assets aren't all MIT: see [LICENSE-AUDIO.md](LICENSE-AUDIO.md).
 In particular, the Mustang engine recordings are owned by the project owner, distributed
-with Mini Drifters by permission, and not licensed for other uses. The other recordings,
-including the tyre sound, are third-party CC0 recordings. The provisional radio music is
-synthesized by a script in this repository and covered by its MIT License.
+with Mini Drifters by permission, and not licensed for other uses. The tyre sound (and the
+development lab's unused engine samples) are third-party CC0 recordings. The offline Busted
+announcer voice (`audio-lab/assets/busted-voice.wav`) was generated locally with Kokoro-82M
+under the Apache License 2.0 (see [`audio-lab/assets/ATTRIBUTION.md`](audio-lab/assets/ATTRIBUTION.md)).
+The provisional radio music is synthesized by a script in this repository and covered by
+its MIT License.

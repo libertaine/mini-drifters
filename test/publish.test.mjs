@@ -41,12 +41,39 @@ test('every module import is relative and matches the file name exactly', () => 
   assert.ok(imports > 5);
 });
 
+// The one exception is the optional analytics loader (docs/ANALYTICS.md), checked on its own below.
+const TRACKER_FILE = join(root, 'src', 'analytics-tracker.js');
+
 test('gameplay needs no external services', () => {
-  const files = [...sourceFiles, join(root, 'index.html'), join(root, 'style.css')];
+  const files = [...sourceFiles.filter((file) => file !== TRACKER_FILE), join(root, 'index.html'), join(root, 'style.css')];
+  assert.ok(files.length > 40);
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
     assert.doesNotMatch(text, /https?:\/\/|\bfetch\(|XMLHttpRequest|WebSocket|url\(/, file);
   }
+});
+
+test('analytics is the only outside service: one tracker address in one file, and nothing that stores or identifies', () => {
+  const tracker = readFileSync(TRACKER_FILE, 'utf8');
+  assert.deepEqual([...tracker.matchAll(/https?:\/\/[^'"\s)]+/g)].map((m) => m[0]), ['https://cloud.umami.is/script.js']);
+  const analytics = readFileSync(join(root, 'src', 'analytics.js'), 'utf8');
+  for (const [file, text] of [['analytics-tracker.js', tracker], ['analytics.js', analytics]]) {
+    assert.doesNotMatch(text, /\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|document\.cookie|localStorage|sessionStorage|indexedDB/, file);
+    assert.doesNotMatch(text, /identify\(|data-(errors|performance|distinct-id|auto-track|tag)\b/, file);
+  }
+  // Every event the game can send starts with md_, so it can't be mistaken for Steeped in Trouble's.
+  const names = [...analytics.matchAll(/'(md_\w+|[a-z]+_[a-z0-9_]+)'/g)].map((m) => m[1]).filter((name) => /^(md_|engaged|game_|run_|lap_)/.test(name));
+  assert.ok(names.length >= 8);
+  for (const name of names) assert.match(name, /^md_/, name);
+  // The page itself has no tracker tag: only the loader adds one, and only on the published page.
+  const html = readFileSync(join(root, 'index.html'), 'utf8');
+  assert.doesNotMatch(html, /umami\.is|data-website-id/i);
+  assert.deepEqual([...html.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]), ['<script type="module" src="src/main.js">']);
+  assert.match(html, /<code>\?analytics=off<\/code>/);
+  // main.js reaches analytics only through the loader, and never with the address.
+  const main = readFileSync(join(root, 'src', 'main.js'), 'utf8');
+  assert.equal(main.match(/startAnalytics\(/g).length, 1);
+  assert.doesNotMatch(main, /umami/i);
 });
 
 test('the only network requests in the game are for its own sound files', () => {
@@ -54,35 +81,41 @@ test('the only network requests in the game are for its own sound files', () => 
   assert.deepEqual(requesters.map((file) => relative(join(root, 'src'), file)).sort(), ['audio-voices.js', 'coyote.js', 'radio.js']);
   for (const file of requesters) {
     for (const [, target] of readFileSync(file, 'utf8').matchAll(/fetcher\(new URL\(([^,]+), import\.meta\.url\)/g)) {
-      assert.match(target, /^(TIRE_FILE|COYOTE_FOLDER \+ file|RADIO_ROOT \+ track\.file)$/, file);
+      assert.match(target, /^(TIRE_FILE|BUSTED_FILE|COYOTE_FOLDER \+ file|RADIO_ROOT \+ track\.file)$/, file);
     }
   }
   assert.match(readFileSync(join(root, 'src/audio-voices.js'), 'utf8'), /TIRE_FILE = '\.\.\/audio-lab\/assets\/tire-foley\.mp3'/);
+  assert.match(readFileSync(join(root, 'src/audio-voices.js'), 'utf8'), /BUSTED_FILE = '\.\.\/audio-lab\/assets\/busted-voice\.wav'/);
   assert.match(readFileSync(join(root, 'src/coyote.js'), 'utf8'), /COYOTE_FOLDER = '\.\.\/audio-lab\/assets\/coyote-local\/'/);
 });
 
 const COYOTE_LOOPS = ['idle', 'mid', 'load', 'high'].map((key) => `audio-lab/assets/coyote-local/${key}.wav`);
 const provenance = JSON.parse(readFileSync(join(root, 'docs/COYOTE-PROVENANCE.json'), 'utf8'));
 
-test('Pages publishes the tire file, the four authorized loops, the radio folder and their attribution, and nothing else', () => {
+test('Pages publishes the tire file, busted voice, the four authorized loops, the radio folder and their attribution, and nothing else', () => {
   const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
   const copies = workflow.split('\n').map((line) => line.trim()).filter((line) => /^(cp|mkdir|rsync|mv|tar)\b/.test(line));
   assert.deepEqual(copies, [
     'mkdir -p _site/audio-lab/assets/coyote-local',
     'cp -r index.html style.css src radio _site/',
-    'cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/',
+    'cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/busted-voice.wav audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/',
     `cp ${COYOTE_LOOPS.join(' ')} _site/audio-lab/assets/coyote-local/`,
   ]);
   assert.doesNotMatch(workflow, /Mustang|incar-reference|engine-(low|high)\.wav|\*\.wav/i);
   assert.equal(workflow.match(/pull_request:\s+branches: \[([^\]]+)\]/)[1], 'main');
 });
 
-test('the published tire file is the attributed CC0 original', () => {
+test('the published tire file is the attributed CC0 original, and the busted voice matches its Apache 2.0 attribution', () => {
   const attribution = readFileSync(join(root, 'audio-lab/assets/ATTRIBUTION.md'), 'utf8');
   const digest = createHash('sha256').update(readFileSync(join(root, 'audio-lab/assets/tire-foley.mp3'))).digest('hex');
   assert.match(attribution, new RegExp(`tire-foley\\.mp3 \\| \`${digest}\``));
   assert.match(attribution, /Joseph SARDIN/);
   assert.match(attribution, /CC0/);
+  const bustedBytes = readFileSync(join(root, 'audio-lab/assets/busted-voice.wav'));
+  const bustedDigest = createHash('sha256').update(bustedBytes).digest('hex');
+  assert.match(attribution, new RegExp(`busted-voice\\.wav \\| \`${bustedDigest}\``));
+  assert.match(attribution, /Apache License 2\.0/);
+  assert.ok(bustedBytes.length > 10000 && bustedBytes.length < 100 * 1024, `busted-voice.wav size ${bustedBytes.length}`);
 });
 
 test('the published loops are exactly the ones in the provenance record', () => {
@@ -132,7 +165,7 @@ test('private recordings are ignored, untracked and not embedded in anything tra
   }
   const audio = tracked.filter((file) => /\.(wav|mp3|ogg|flac|m4a|aac)$/i.test(file)).sort();
   const radio = RADIO_FILES.filter((file) => !file.endsWith('.md'));
-  assert.deepEqual(audio, [...COYOTE_LOOPS, ...radio, 'audio-lab/assets/engine-high.wav', 'audio-lab/assets/engine-low.wav', 'audio-lab/assets/tire-foley.mp3'].sort());
+  assert.deepEqual(audio, [...COYOTE_LOOPS, ...radio, 'audio-lab/assets/busted-voice.wav', 'audio-lab/assets/engine-high.wav', 'audio-lab/assets/engine-low.wav', 'audio-lab/assets/tire-foley.mp3'].sort());
   assert.equal(tracked.some((file) => /Mustang|incar-reference|^\.local\//.test(file)), false);
 });
 

@@ -31,7 +31,7 @@ const COYOTE_PATH = (key) => new URL(`audio-lab/assets/coyote-local/${key}.wav`,
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.md': 'text/plain; charset=utf-8' };
 
 // The same files the deploy job publishes.
-const PUBLISHED_AUDIO = ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md', ...COYOTE_FILES.map((key) => `audio-lab/assets/coyote-local/${key}.wav`)];
+const PUBLISHED_AUDIO = ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/busted-voice.wav', 'audio-lab/assets/ATTRIBUTION.md', ...COYOTE_FILES.map((key) => `audio-lab/assets/coyote-local/${key}.wav`)];
 const siteFiles = ['index.html', 'style.css', ...PUBLISHED_AUDIO, ...RADIO_FILES, ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
 
 async function serveLikePages() {

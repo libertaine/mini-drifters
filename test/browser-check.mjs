@@ -24,7 +24,7 @@ const artifact = (name) => fileURLToPath(new URL(`artifacts/${PREFIX}${name}`, r
 await mkdir(new URL('artifacts/', root), { recursive: true });
 
 // The same files the deploy job publishes.
-const siteFiles = ['index.html', 'style.css', 'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md',
+const siteFiles = ['index.html', 'style.css', 'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/busted-voice.wav', 'audio-lab/assets/ATTRIBUTION.md',
   ...['idle', 'mid', 'load', 'high'].map((key) => `audio-lab/assets/coyote-local/${key}.wav`), ...RADIO_FILES,
   ...(await readdir(new URL('src/', root))).map((name) => `src/${name}`)];
 

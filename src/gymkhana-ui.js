@@ -8,6 +8,7 @@ import {
 } from './medals.js';
 import { cueForGame, cueText, turnBearing } from './getaway-nav.js';
 import { getawayMedal } from './getaway-records.js';
+import { isDriver, updateDriverMeter, updateDriverHud, driverNavText, driverNavGoal, driverBanner, showDriverResults, showDriverMenu, driverNote } from './getaway-driver-ui.js';
 
 const MPH_PER_MS = 2.23694;
 const DEG = 180 / Math.PI;
@@ -191,7 +192,18 @@ function updateBust(def, run, game) {
   const level = !on ? '' : run.phase === 'failed' && run.reason === 'busted' ? 'busted'
     : run.time < def.pursuerTuning.delay ? 'waiting' : run.phase === 'running' ? run.level : 'clear';
   document.body.dataset.bust = level;
+  document.body.dataset.alert = on && run.phase === 'running' && level === 'close' && run.sees ? 'pursuit' : '';
+  document.querySelector('.gauges')?.removeAttribute('data-speed-zone');
+  $('gym-medal')?.removeAttribute('data-driver-track');
   if (!on) return;
+  // Getaway Driver relabels this meter: put Get the Footage's back.
+  if (el.dataset.mode) {
+    el.dataset.mode = '';
+    el.classList.remove('no-glide');
+    el.querySelector('.bust-label').textContent = 'Bust risk';
+    el.style.removeProperty('--mark');
+    if ($('bust-lose')) $('bust-lose').hidden = true;
+  }
   el.dataset.level = level;
   const pct = Math.round(run.meter * 100);
   el.style.setProperty('--bust', `${pct}%`);
@@ -206,8 +218,11 @@ function updateBust(def, run, game) {
 }
 export function hideBust() {
   const el = $('bust');
-  if (el) el.hidden = true;
+  if (el) { el.hidden = true; el.classList.remove('no-glide'); }
   document.body.dataset.bust = '';
+  document.body.dataset.alert = '';
+  document.querySelector('.gauges')?.removeAttribute('data-speed-zone');
+  $('gym-medal')?.removeAttribute('data-driver-track');
   const nav = $('nav');
   if (nav) nav.hidden = true;
 }
@@ -232,9 +247,9 @@ function updateNav(def, run, game) {
   if (el.style.width !== width) el.style.width = width;
   if (el.style.bottom !== bottom) el.style.bottom = bottom;
   const cue = cueForGame(game);
-  const words = cueText(run, cue, cameras);
+  const words = isDriver(def) ? driverNavText(run, cue) : cueText(run, cue, cameras);
   el.dataset.glyph = words.glyph;
-  el.dataset.goal = run.exitOpen ? 'escape' : run.missed[run.nextCamera] ? 'missed' : 'camera';
+  el.dataset.goal = isDriver(def) ? driverNavGoal(run) : run.exitOpen ? 'escape' : run.missed[run.nextCamera] ? 'missed' : 'camera';
   // Screen bearing of the glyph (drawn pointing up): the coming turn's approach, or the aim.
   const car = game.car;
   const bearing = !cue ? -Math.PI / 2
@@ -251,14 +266,15 @@ function updateNav(def, run, game) {
   el.dataset.new = run.time < navNewUntil ? 'true' : 'false';
 }
 
-// `records` is the gymkhana records keeper (gymkhana-records.js) and `getawayRecords` the Getaway
-// one (getaway-records.js). `onChoose` is called after the player picks a challenge on the sheet.
-export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
+// `records` is the gymkhana records keeper (gymkhana-records.js), `getawayRecords` the Getaway
+// one (getaway-records.js) and `driverRecords` Getaway Driver's completion counts
+// (getaway-driver-records.js). `onChoose` is called after the player picks a challenge on the sheet.
+export function createGymkhanaUi({ records, getawayRecords, driverRecords, onChoose }) {
   let choices;
   let inputs = [];
   const remembered = new Map();
   const selected = () => choices[remembered.get(choices) ?? 0];
-  const keeper = (def) => (isGetaway(def) ? getawayRecords : records);
+  const keeper = (def) => (isDriver(def) ? driverRecords : isGetaway(def) ? getawayRecords : records);
   const bestOf = (def, handlingId) => keeper(def).bestFor(def.id, handlingId);
 
   function choose(index) {
@@ -292,8 +308,9 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
   }
   setChoices(GYMKHANA_CHALLENGES);
 
-  const recordsNote = (def) => (!keeper(def).available ? 'Record storage unavailable. New improvements cannot be saved.'
-    : keeper(def).readOnly ? `${isGetaway(def) ? 'Getaway' : 'Gymkhana'} records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.` : '');
+  const recordsNote = (def) => (isDriver(def) ? driverNote(driverRecords)
+    : !keeper(def).available ? 'Record storage unavailable. New improvements cannot be saved.'
+      : keeper(def).readOnly ? `${isGetaway(def) ? 'Getaway' : 'Gymkhana'} records were saved by a newer version of Mini Drifters. They are kept, but cannot be updated here.` : '');
 
   let shownPrompt = '';
   let shownRows = '';
@@ -360,6 +377,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
         ? `${handling.name} handling, chosen on the title screen. Each handling mode keeps its own best.`
         : `${handling.name} handling. Press H to change it. Each handling mode keeps its own best.`);
       setText($('gymkhana-records-note'), recordsNote(def));
+      if (isDriver(def)) showDriverMenu(def, handling, device, driverRecords);
     },
 
     // The line under the car before the clock starts: what to do, and the keys.
@@ -390,6 +408,12 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
       setText($('gym-handling'), game.handling.name);
       setText($('gym-clock'), formatClock(run.time));
       setText($('gym-stage'), run.phase === 'running' ? `Next: ${run.stage}` : run.stage);
+      if (isDriver(def)) {
+        updateDriverMeter(def, run, game);
+        updateNav(def, run, game);
+        updateDriverHud(def, run);
+        return;
+      }
       setText($('gym-gates'), def.layout === 'course' ? `Gates ${run.gates.filter(Boolean).length}/${run.gates.length}`
         : def.layout === 'slalom' ? `Cones ${run.next}/${def.geometry.count}`
           : isGetaway(def) ? `Footage ${def.geometry.cameras.map((_, i) => (run.cameras[i] ? '●' : '○')).join('')} ${run.nextCamera}/${def.geometry.cameras.length} · escape gate ${run.exitOpen ? 'open' : 'locked'}`
@@ -428,6 +452,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
 
     // What the banner says about a run's event: a cone has fallen.
     banner(def, event) {
+      if (isDriver(def)) return driverBanner(event);
       if (isGetaway(def)) {
         if (event.type === 'missed') return { kind: 'lost', text: `CAM ${event.crossed} TOO SOON · GO BACK FOR CAM ${event.camera}` };
         if (event.type === 'wrongway') return { kind: 'penalty', text: `WRONG WAY · CAM ${event.camera} FILMS THE OTHER WAY` };
@@ -450,6 +475,11 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
     showResults(game) {
       const def = game.challengeDef;
       const run = game.challenge;
+      if (isDriver(def)) {
+        shownRows = '';
+        showDriverResults(def, game, driverRecords);
+        return;
+      }
       const r = run.result;
       const failed = run.phase === 'failed';
       const handlingId = game.handling.id;
@@ -457,6 +487,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
       const { newBest, previousBest } = keeper(def);
       $('gymkhana-results').dataset.outcome = failed ? 'failed' : 'complete';
       $('gymkhana-results').dataset.layout = def.layout;
+      $('gymkhana-results').dataset.driver = '';
       setText($('gr-eyebrow'), `${def.name} · ${game.handling.name} handling`);
       setText($('gr-title'), isGetaway(def)
         ? (failed ? (run.reason === 'busted' ? 'Busted' : /^missed camera/.test(run.reason) ? 'Upload cancelled' : 'Run failed') : isGetaway(def) && def.showmanship ? 'Getaway complete' : 'Escaped')
@@ -489,6 +520,7 @@ export function createGymkhanaUi({ records, getawayRecords, onChoose }) {
       // beats the medal the replaced record held, so a medal already held is never announced
       // again, and nothing unsaved is ever called new.
       const runMedal = failed ? null : medalOf(def, handlingId, r.value);
+      $('gymkhana-results').dataset.medal = !failed && !isGetaway(def) && runMedal ? runMedal : '';
       const targets = targetsOf(def, handlingId);
       const line = $('gr-medal');
       line.hidden = failed || !targets;

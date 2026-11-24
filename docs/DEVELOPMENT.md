@@ -60,7 +60,8 @@ Each script below runs in Chromium and Firefox. CI chooses which of them a pull 
 | `npm run test:ghost:browser` | The previous-lap ghost |
 | `npm run test:radio:browser` | The radio |
 | `npm run test:menus:browser` | The title screen and menus |
-| `npm run test:tutorial:browser` | Plays the whole lesson with real key presses at each supported window size, and Return to Title |
+| `npm run test:tutorial:browser` | Plays the whole lesson with real key presses at each supported window size, the steer step's reminder to get moving, and Return to Title |
+| `npm run test:analytics:browser` | Analytics on the published address with a stubbed or blocked tracker: who is counted, the events from real play, focused play time, unchanged records and storage, and the title's disclosure. See [ANALYTICS](ANALYTICS.md) |
 | `npm run test:tracks:browser` | The track choice, and a lap of Switchback with real key presses |
 | `npm run test:scoring:browser` | Voided-lap warnings and results |
 | `npm run test:controller:browser` | Mocked Gamepad snapshots and controller menus. Physical hardware is not required |
@@ -68,6 +69,7 @@ Each script below runs in Chromium and Firefox. CI chooses which of them a pull 
 | `npm run test:handling:browser` | Choosing handling by keyboard, mouse and controller, remembering the choice, the practice pad, the lesson staying on Classic, records kept apart by handling, and the migration of v0.2.0 records |
 | `npm run test:gymkhana:browser` | The Gymkhana sheet by keyboard, mouse and controller; Precision 180, Linked Drift and One Drift driven to completed and failed results; retries, cone penalties, the challenges' own records, and that the circuit records are never written |
 | `npm run test:dockyard-slalom:browser` | Three laps of Dockyard in Classic and Power, and Slalom Sprint to completed, penalised and failed results, by keyboard, mouse and controller. That the title and the Gymkhana sheet fit every supported window with fallback fonts, and that records saved by v0.4.0 are read and kept |
+| `npm run test:getaway-driver:browser` | Getaway Driver from the Getaway sheet by mouse, keyboard and controller with no URL switch; Ghost run, Low profile and Lost them told apart; a chase and a bust; completion counts per handling mode, kept across reloads under their own key; denied storage; sheet fit at 1024×600, 1366×768 and 1920×1080 |
 | `npm run test:getaway-records:browser` | Getaway personal bests in fresh profiles: first escape, improvement, lower escape, bust, reload, browser restart, separate environment and handling bests, corrupt/later-version/denied/full storage, untouched circuit, Gymkhana and ghost keys, and sheet fit at 1024×600, 1366×768 and 1920×1080 |
 | `npm run test:environment:browser` | Functional scenery on all three circuits in both handling modes, Dockyard concrete/off-course behavior, obstacle collision messaging and debug outlines |
 | `npm run test:wheelspin:browser` | Power and Classic on the practice pad and Power on Dockyard: that Power's wheelspin raises smoke, rubber and an engine flare, that the effects stay inside their limits, that pause, focus loss, restart, Sound Off and the title handle them correctly, and that Classic shows none of it. See [the wheelspin notes](WHEELSPIN.md) |
@@ -100,6 +102,7 @@ Changes reach `main` through a pull request, and the `test` check must pass befo
 | `src/ghost.js` | Recording and replaying the previous valid lap |
 | `src/game.js` | The session, on a fixed 120 Hz timestep |
 | `src/tutorial.js` | The driving lesson. It watches a session and never writes to it |
+| `src/analytics-tracker.js`, `src/analytics.js` | Optional anonymous analytics on the published page only: the gate and loader, and the event observer. See [ANALYTICS](ANALYTICS.md) |
 | `src/tyre-effects.js` | What the tyres leave behind each frame: smoke and rubber, including Power's wheelspin |
 | `src/render.js`, `src/main.js` | Drawing, input and the HUD |
 | `src/controls.js`, `src/controller.js` | One driving-command shape for keyboard and controller, and the standard-mapped Gamepad reading |

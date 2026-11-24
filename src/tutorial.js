@@ -22,6 +22,7 @@ export const TUTORIAL_LIMITS = Object.freeze({
   heldHandbrakeSeconds: 0.8,
   tapVerdictSeconds: 0.9,  // after a tap with no slide, it's counted as a miss
   idleSeconds: 3,          // without a slide before the player is reminded how to start one
+  stationarySeconds: 1.5,  // too slow for the wheel to count, before the steer step says to get moving
   hintSeconds: 4,
   bankedSeconds: 1.6,      // the banked amount stays up this long before the lesson ends
   repeatedMisses: 2,       // the corrective hint waits until a mistake has happened this often
@@ -34,6 +35,11 @@ const L = TUTORIAL_LIMITS;
 const SLIDE_SPEED = { metres: 16, mph: 40 };
 // A tap shorter than this unsettles the car without starting a slide, at any speed.
 const SHORT_TAP_SECONDS = 0.14;
+
+// The wheel only counts above steerMinSpeed, and the step's own words don't say so: someone
+// who stops after the first step can turn the wheel for ever without getting anywhere.
+export const STATIONARY_HINT = 'Hold ↑ to get moving, then steer →.';
+const CONTROLLER_HINTS = { [STATIONARY_HINT]: 'Hold RT to get moving, then steer right with the left stick.' };
 
 export function createTutorial() {
   return {
@@ -48,6 +54,7 @@ export function createTutorial() {
     turnedRight: 0,
     counterTime: 0,
     idleTime: 0,
+    stationaryTime: 0,   // in the steer step, simulated seconds too slow for the wheel to count
     phaseTime: 0,
     tap: null,           // the handbrake tap being judged
     bankCountdown: false,
@@ -79,6 +86,7 @@ function nextStep(t) {
   t.misses = 0;
   t.counterTime = 0;
   t.idleTime = 0;
+  t.stationaryTime = 0;
   t.tap = null;
   if (t.step >= TUTORIAL_STEPS.length) {
     t.phase = 'complete';
@@ -135,7 +143,8 @@ function watchTap(t, game, dt) {
   t.tap = null;
 }
 
-function updateSteer(t, car, dt) {
+function updateSteer(t, game, dt) {
+  const { car } = game;
   if (car.forwardSpeed >= L.steerMinSpeed) {
     if (car.steer >= L.steerMinInput && car.yawRate > 0) t.turnedRight += car.yawRate * dt;
     if (car.steer <= -L.steerMinInput && car.yawRate < 0) t.turnedLeft -= car.yawRate * dt;
@@ -143,6 +152,24 @@ function updateSteer(t, car, dt) {
   if (t.turnedLeft >= L.turnedRadians && t.turnedRight >= L.turnedRadians) nextStep(t);
   else if (t.turnedRight >= L.turnedRadians) setHint(t, 'Good. Now the other way: ←.');
   else if (t.turnedLeft >= L.turnedRadians) setHint(t, 'Good. Now the other way: →.');
+  else remindToMove(t, game, dt);
+}
+
+// Only before either direction is done: after that, the prompt already says which way is left.
+// On the grid the lesson has its own prompt for getting rolling, so the clock waits for the run.
+// Once shown, the reminder stays as it is for as long as the car is too slow, and goes the
+// moment it isn't. It never takes over a hint that is saying something else.
+function remindToMove(t, game, dt) {
+  const tooSlow = game.state === 'racing' && game.car.forwardSpeed < L.steerMinSpeed;
+  t.stationaryTime = tooSlow ? t.stationaryTime + dt : 0;
+  if (t.stationaryTime >= L.stationarySeconds) {
+    if (!t.hint || t.hint === STATIONARY_HINT) {
+      t.hint = STATIONARY_HINT;
+      t.hintAge = 0;
+    }
+  } else if (t.hint === STATIONARY_HINT) {
+    t.hint = '';
+  }
 }
 
 function updateSlide(t, game, dt) {
@@ -219,6 +246,8 @@ export function updateTutorial(t, game) {
     t.seenEventSerial = scoring.eventSerial;
     t.seenSpinouts = scoring.spinouts;
     t.counterTime = 0;
+    t.stationaryTime = 0;
+    if (t.hint === STATIONARY_HINT) t.hint = '';
     t.tap = null;
     t.wasDrifting = false;
     t.wasHandbrake = false;
@@ -247,7 +276,7 @@ export function updateTutorial(t, game) {
   if (id === 'accelerate') {
     if (game.progress >= L.movedMetres && car.forwardSpeed > 0) nextStep(t);
   } else if (id === 'steer') {
-    updateSteer(t, car, dt);
+    updateSteer(t, game, dt);
   } else if (id === 'slide') {
     updateSlide(t, game, dt);
   } else if (id === 'countersteer') {
@@ -281,7 +310,7 @@ export function tutorialView(t, device = 'keyboard') {
   ];
   return { number: t.step + 1, total: TUTORIAL_STEPS.length, title: step.title,
     text: device === 'controller' ? controllerText[t.step] ?? step.text : step.text,
-    hint: words(t.hint), stuck: t.misses >= L.stuckMisses };
+    hint: device === 'controller' ? CONTROLLER_HINTS[t.hint] ?? words(t.hint) : t.hint, stuck: t.misses >= L.stuckMisses };
 }
 
 // The ending stays honest about anything that was skipped.

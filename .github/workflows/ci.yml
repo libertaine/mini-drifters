@@ -167,7 +167,7 @@ jobs:
         run: |
           mkdir -p _site/audio-lab/assets/coyote-local
           cp -r index.html style.css src radio _site/
-          cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/
+          cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/busted-voice.wav audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/
           cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/
       - uses: actions/upload-pages-artifact@v5
         with:

@@ -326,6 +326,51 @@ async function check(name, engine) {
     await page.context().close();
     step('time and bare key presses do not pass a step');
 
+    // --- Standing still in the steer step ----------------------------------------------
+    page = await open({ width: 1024, height: 600 });
+    await openTutorial(page);
+    await page.keyboard.down('ArrowUp');
+    await page.waitForFunction(() => window.__miniDrifters.tutorial()?.step === 1);
+    await page.keyboard.up('ArrowUp');
+    await page.keyboard.down('ArrowDown');
+    await page.waitForFunction(() => window.__miniDrifters.game.car.speed < 0.5);
+    await page.keyboard.up('ArrowDown');
+    const REMINDER = 'Hold ↑ to get moving, then steer →.';
+    const reminderShown = () => page.evaluate((text) => !document.getElementById('prompt').hidden
+      && document.getElementById('prompt').textContent.includes(text), REMINDER);
+    // Turning the wheel both ways at a standstill: no progress, and then the reminder.
+    for (let i = 0; i < 6 && !(await reminderShown()); i += 1) {
+      await page.keyboard.down(i % 2 ? 'ArrowRight' : 'ArrowLeft');
+      await page.waitForTimeout(350);
+      await page.keyboard.up(i % 2 ? 'ArrowRight' : 'ArrowLeft');
+    }
+    await page.waitForFunction((text) => document.getElementById('prompt').textContent.includes(text), REMINDER, { timeout: 5000 });
+    g = await game(page);
+    assert.equal(stepOf(g.tutorial), 'steer', 'standing still has not passed the step');
+    assert.equal(g.tutorial.turnedLeft + g.tutorial.turnedRight, 0);
+    assert.match(await prompt(page), /NOW TRY THE WHEEL\./, 'the step itself is still on screen');
+    await assertPromptFits(page, 'the steer reminder at 1024x600');
+    await page.screenshot({ path: artifact(`${name}-steer-reminder.png`) });
+    // Paused: the prompt hides with the game, and the reminder's clock waits with it.
+    await page.keyboard.press('KeyP');
+    await page.waitForFunction(() => window.__miniDrifters.game.paused);
+    const pausedAt = (await game(page)).tutorial.stationaryTime;
+    await page.waitForTimeout(800);
+    assert.equal((await game(page)).tutorial.stationaryTime, pausedAt, 'no time passes in the pause');
+    await page.keyboard.press('KeyP');
+    await page.waitForFunction(() => !window.__miniDrifters.game.paused);
+    // The prompt comes back with the next frame, as the rest of the HUD does.
+    await page.waitForFunction((text) => !document.getElementById('prompt').hidden
+      && document.getElementById('prompt').textContent.includes(text), REMINDER, { timeout: 2000 });
+    // Moving: gone once the wheel would count, while the step carries on as before.
+    await page.keyboard.down('ArrowUp');
+    await page.waitForFunction(() => window.__miniDrifters.game.car.forwardSpeed >= 3);
+    await page.waitForFunction((text) => !document.getElementById('prompt').textContent.includes(text), REMINDER);
+    await page.keyboard.up('ArrowUp');
+    assert.equal(stepOf((await game(page)).tutorial), 'steer');
+    await page.context().close();
+    step('standing still in the steer step brings "Hold ↑ to get moving", which fits, waits through a pause and goes once moving');
+
     // --- Three whole lessons, one at each size ---------------------------------------
     for (const [index, [width, height]] of SIZES.entries()) {
       page = await open({ width, height });

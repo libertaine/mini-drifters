@@ -1,7 +1,7 @@
 :root {
   --ink: #f6f1e4;
   --muted: #b8b3a5;
-  --panel: rgba(20, 21, 24, 0.78);
+  --panel: rgba(19, 20, 23, 0.84);
   --amber: #ffb627;
   --orange: #f2542d;
   --green: #5fd38a;
@@ -41,9 +41,12 @@ canvas#view {
 .panel {
   position: absolute;
   background: var(--panel);
+  border: 1px solid rgba(246, 241, 228, 0.12);
   border-radius: 6px;
   padding: 10px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.36);
 }
+.laps, .score, .gym-panel, .gauges { border-top: 2px solid var(--burnt); }
 
 .label {
   font-size: 12px;
@@ -52,11 +55,14 @@ canvas#view {
   color: var(--muted);
 }
 
-.laps { top: 16px; left: 16px; min-width: 176px; }
+.laps { top: 16px; left: 16px; min-width: 176px; transition: border-color 0.2s, box-shadow 0.2s; }
+.laps[data-lap-flash="lap"] { border-top-color: var(--green); box-shadow: 0 0 16px rgba(95, 211, 138, 0.36); }
+.laps[data-lap-flash="best"] { border-top-color: var(--amber); box-shadow: 0 0 18px rgba(255, 182, 39, 0.45); }
+.laps[data-lap-flash="void"] { border-top-color: var(--red); box-shadow: 0 0 16px rgba(255, 90, 79, 0.36); }
 .laps .row { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; }
 .laps strong { font-size: 19px; font-variant-numeric: tabular-nums; }
 
-.score { top: 16px; right: 16px; text-align: right; min-width: 150px; }
+.score { top: 16px; right: 16px; text-align: right; min-width: 150px; padding: 8px 14px; }
 .score .label { display: block; }
 .score strong { font-family: var(--display); font-weight: 400; font-size: 40px; line-height: 1.05; letter-spacing: 0.02em; }
 
@@ -66,15 +72,23 @@ canvas#view {
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
-  transition: opacity 0.14s;
+  transition: opacity 0.14s, transform 0.14s;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.75);
 }
 .combo[data-state="idle"] { opacity: 0; }
 .combo-line { display: flex; gap: 12px; align-items: baseline; justify-content: center; }
 #combo-points { font-family: var(--display); font-weight: 400; font-size: 54px; line-height: 1; color: #fff; }
-#combo-mult { font-family: var(--display); font-size: 38px; color: var(--amber); }
+#combo-mult { font-family: var(--display); font-size: 38px; color: var(--amber); transition: color 0.14s, text-shadow 0.14s; }
+.combo[data-mult="2"] #combo-mult,
+.combo[data-mult="2.5"] #combo-mult { color: #ffd454; text-shadow: 0 0 14px rgba(255, 198, 56, 0.55), 0 2px 6px rgba(0, 0, 0, 0.75); }
+.combo[data-mult="3"] #combo-points { color: #fff5df; text-shadow: 0 0 14px rgba(242, 84, 45, 0.5), 0 2px 6px rgba(0, 0, 0, 0.8); }
+.combo[data-mult="3"] #combo-mult { color: #ff7a3d; text-shadow: 0 0 18px rgba(255, 122, 61, 0.72), 0 2px 6px rgba(0, 0, 0, 0.8); animation: combo-heat 0.55s ease-in-out infinite alternate; }
+@keyframes combo-heat { from { transform: scale(1); } to { transform: scale(1.07); } }
 .combo-grace { width: 220px; height: 5px; margin: 6px auto 0; border-radius: 3px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
-#combo-grace-bar { height: 100%; width: 100%; background: var(--amber); transform-origin: left; }
+#combo-grace-bar { height: 100%; width: 100%; background: var(--amber); transform-origin: left; transition: background-color 0.14s; }
+.combo[data-mult="3"] #combo-grace-bar { background: #ff7a3d; }
+.combo[data-low-grace="true"] #combo-grace-bar { background: var(--red); }
+@media (prefers-reduced-motion: reduce) { .combo[data-mult="3"] #combo-mult { animation: none; } }
 
 .banner {
   position: absolute;
@@ -83,23 +97,43 @@ canvas#view {
   transform: translateX(-50%);
   padding: 6px 18px;
   border-radius: 5px;
+  border: 1px solid rgba(246, 241, 228, 0.14);
+  border-left: 4px solid var(--amber);
   background: var(--panel);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   font-family: var(--display);
   font-size: 26px;
   letter-spacing: 0.03em;
   white-space: nowrap;
 }
-.banner[data-kind="banked"] { color: var(--green); }
-.banner[data-kind="lost"] { color: var(--red); }
-.banner[data-kind="lap"] { color: var(--amber); }
-.banner[data-kind="void"] { color: var(--red); }
+.banner[data-pop="a"] { animation: banner-pop-a 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.15); }
+.banner[data-pop="b"] { animation: banner-pop-b 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.15); }
+@keyframes banner-pop-a { from { opacity: 0.35; transform: translateX(-50%) translateY(-6px) scale(0.96); } to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
+@keyframes banner-pop-b { from { opacity: 0.35; transform: translateX(-50%) translateY(-6px) scale(0.96); } to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
+.banner[data-kind="banked"] { color: var(--green); border-left-color: var(--green); }
+.banner[data-kind="lost"] { color: var(--red); border-left-color: var(--red); }
+.banner[data-kind="lap"] { color: var(--amber); border-left-color: var(--amber); }
+.banner[data-kind="void"] { color: var(--red); border-left-color: var(--red); }
+@media (prefers-reduced-motion: reduce) { .banner[data-pop="a"], .banner[data-pop="b"] { animation: none; } }
 
 .gauges { left: 16px; bottom: 16px; display: flex; gap: 18px; align-items: center; }
 .speed { text-align: center; min-width: 70px; }
 .speed strong { display: block; font-family: var(--display); font-weight: 400; font-size: 42px; line-height: 1; font-variant-numeric: tabular-nums; }
+/* Getaway Driver undercover 45 mph threshold cue: compact so .speed stays 70px wide at 1024x600. */
+.gauges[data-speed-zone] .speed .label { font-size: 10px; letter-spacing: 0.04em; }
+.gauges[data-speed-zone="ok"] .speed .label::after { content: " · ≤45"; color: var(--green); }
+.gauges[data-speed-zone="over"] #speed { color: var(--amber); }
+.gauges[data-speed-zone="over"] .speed .label { color: var(--amber); }
+.gauges[data-speed-zone="over"] .speed .label::after { content: " · >45"; }
+.gauges[data-speed-zone="watched-over"] #speed { color: var(--red); }
+.gauges[data-speed-zone="watched-over"] .speed .label { color: var(--red); font-weight: 700; }
+.gauges[data-speed-zone="watched-over"] .speed .label::after { content: " · >45!"; }
 .angle { width: 210px; }
 .angle-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
 .angle-head strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.angle[data-drift-zone="sweet"] #angle { color: var(--amber); text-shadow: 0 0 10px rgba(255, 182, 39, 0.45); }
+.angle[data-drift-zone="over"] #angle { color: #ff8c42; }
+.angle[data-drift-zone="spin"] #angle { color: var(--red); }
 
 /* The bar spans 0 to 90 degrees; its zones match the scoring thresholds. */
 .angle-track { position: relative; display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: #3a3b40; padding-left: 13.33%; }
@@ -163,8 +197,10 @@ canvas#view {
   justify-content: center;
   padding: 24px;
   background: rgba(10, 11, 13, 0.62);
+  backdrop-filter: blur(2px);
   overflow: auto;
 }
+.overlay.title-screen { backdrop-filter: none; }
 
 /* The cut corner and the stripe are the shared motorsport details on every sheet. */
 .sheet {
@@ -247,6 +283,8 @@ button:hover { background: #ff6a40; }
 .controller-focus { outline: 3px solid var(--amber); outline-offset: 3px; }
 input.controller-focus + span { outline: 3px solid var(--amber); outline-offset: 3px; }
 .controller-note { margin: 14px 0 0 0.6vw; font-size: 12px; color: var(--muted); max-width: 32ch; }
+.analytics-note { margin: 10px 0 0 0.6vw; font-size: 11px; line-height: 1.35; color: var(--muted); max-width: 52ch; }
+.analytics-note code { font: inherit; color: #dcd7ca; }
 .pad-key { color: var(--amber); font-size: 12px; white-space: nowrap; }
 .controller-help { margin: 8px 0 0; font-size: 12px; color: var(--amber); }
 button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
@@ -265,6 +303,8 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 .sheet button.quiet, .title-menu button.quiet { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px #6a6b72; }
 .sheet button.quiet:hover, .title-menu button.quiet:hover { background: rgba(246, 241, 228, 0.12); }
 .sheet button.quiet { font-size: 20px; }
+#paused #resume { background: var(--burnt); box-shadow: none; color: var(--ink); font-size: 24px; }
+#paused #resume:hover { background: #e4591f; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; }
 
 /* ---- Title screen ---- */
@@ -325,8 +365,8 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 }
 /* The circuit for the next run. Left and Right change it on the Tracks sheet. */
 .track-select { display: flex; align-items: center; gap: 14px; margin: 0 0 clamp(10px, 2vh, 22px) 0.6vw; }
-.track-label { font: 400 clamp(16px, 2.2vh, 24px)/1 var(--poster); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
-.track-label span { margin-left: 6px; padding: 2px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); font: 700 11px var(--body); letter-spacing: 0; color: var(--muted); vertical-align: middle; }
+.track-label { flex: none; white-space: nowrap; font: 400 clamp(16px, 2.2vh, 24px)/1 var(--poster); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
+.track-label span { margin-left: 6px; padding: 2px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); font: 700 11px var(--body); letter-spacing: 0; color: var(--muted); vertical-align: middle; white-space: nowrap; }
 .tracks { display: flex; gap: 8px; }
 /* With a wide fallback font the three circuits may not fit one line: they wrap, as the
    handling modes do, rather than spill out of the title column. */
@@ -392,8 +432,25 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 .title-menu button:focus-visible { outline-color: var(--ink); outline-offset: 3px; }
 .menu-pair { display: flex; gap: 12px; width: min(100%, 25vw + 90px); margin-left: 0.6vw; }
 .title-menu .menu-pair button { flex: 1 1 auto; width: auto; margin: 0; padding: 4px 10px; gap: 8px; justify-content: center; font-size: clamp(18px, 2.6vh, 28px); }
-#tracks-menu .track-select, #tracks-menu .personal-bests { margin-left: 0; }
+#tracks-menu .sheet.small { width: min(560px, 100%); }
+#tracks-menu .track-select, #tracks-menu .personal-bests { margin-left: 0; max-width: none; }
 #tracks-menu .track-label { min-width: 0; }
+.track-info-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.track-info-row dl { flex: 1 1 auto; min-width: 0; }
+.track-preview-card {
+  flex: none;
+  width: 120px;
+  height: 76px;
+  padding: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(246, 241, 228, 0.14);
+}
+#track-preview { display: block; width: 100%; height: 100%; }
+#track-preview-path { fill: none; stroke: rgba(246, 241, 228, 0.88); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+#track-preview-start { fill: var(--orange); stroke: var(--charcoal); stroke-width: 1.2; }
+.track-blurb { margin: 6px 0 0; font: 400 13px/1.35 var(--body); color: var(--muted); }
+.track-blurb:empty { display: none; }
 #gymkhana-menu[data-category="getaway"] .sheet { width: min(600px, 100%); }
 #getaway-missions { margin-top: 14px; }
 #getaway-missions .pitch { margin-top: 8px; }
@@ -401,11 +458,12 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 /* The Sound button sits under the score while driving, but there's no score here. */
 body[data-screen="title"] #sound { top: 16px; }
 
-/* Sheets opened from the title sit where the title was, leaving the car in view. */
+/* Sheets opened from the title sit where the title was, leaving the car in view and sharp. */
 body[data-screen="title"] .overlay:not(.title-screen) {
   justify-content: flex-start;
   padding-left: clamp(24px, 5vw, 96px);
   background: linear-gradient(90deg, rgba(10, 11, 13, 0.82) 0 45%, rgba(10, 11, 13, 0.2) 80%);
+  backdrop-filter: none;
 }
 
 /* ---- How to play ---- */
@@ -498,18 +556,49 @@ body[data-session="gymkhana"] #hud .laps, body[data-session="gymkhana"] #ghost-s
 body[data-session="gymkhana"] #handling-status { visibility: hidden; }
 /* A timed challenge has no score or combo. Its banner stays, for the cone penalties. */
 body[data-session="gymkhana"][data-challenge="time"] #hud .score,
-body[data-session="gymkhana"][data-challenge="time"] #combo { visibility: hidden; }
+body[data-session="gymkhana"][data-challenge="time"] #combo,
+body[data-mission="driver"] #hud .score,
+body[data-mission="driver"] #combo { visibility: hidden; }
+body[data-mission="driver"] #sound { top: 16px; }
+body[data-mission="driver"] #radio-status { top: 52px; }
 body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
-.banner[data-kind="penalty"] { color: var(--red); }
+.banner[data-kind="penalty"] { color: var(--red); border-left-color: var(--red); }
 .prompt[data-kind="gymkhana"] { width: max-content; max-width: min(820px, 92vw); text-align: center; line-height: 1.45; }
 .prompt[data-kind="gymkhana"] .prompt-keys { display: block; font-size: 12px; color: var(--muted); }
-/* The three challenges, chosen as the radio stations are. */
-.stations.challenges { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
-.challenges .station span { padding: 9px 4px; letter-spacing: 0.05em; white-space: nowrap; }
+/* Balanced 2-column grid for Gymkhana's 4 challenges and Getaway's 2 environments. */
+.stations.challenges { grid-template-columns: repeat(2, 1fr); margin-top: 12px; }
+.challenges .station span { padding: 9px 6px; letter-spacing: 0.05em; white-space: nowrap; }
 #challenge-brief { min-height: 2.9em; }
 #challenge-points { min-height: 6.9em; font-size: 14px; }
 #gymkhana-results[data-outcome="failed"] .sheet-title { color: var(--red); }
 #gymkhana-results[data-outcome="failed"] .stats .big dd { color: var(--muted); }
+#gymkhana-results[data-outcome="failed"] .sheet::before {
+  background: linear-gradient(100deg, var(--red) 0 62%, var(--charcoal) 62% 63%, #942b26 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
+}
+/* Gymkhana medal stripes & Circuit new-best celebration stripe. */
+#gymkhana-results[data-medal="gold"] .sheet::before,
+#results[data-best="true"] .sheet::before {
+  background: linear-gradient(100deg, var(--gold) 0 62%, var(--charcoal) 62% 63%, var(--amber) 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
+}
+#gymkhana-results[data-medal="silver"] .sheet::before {
+  background: linear-gradient(100deg, var(--silver) 0 62%, var(--charcoal) 62% 63%, #e8eaef 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
+}
+#gymkhana-results[data-medal="bronze"] .sheet::before {
+  background: linear-gradient(100deg, var(--bronze) 0 62%, var(--charcoal) 62% 63%, #dfa16b 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
+}
+/* Getaway Driver's three ways home, cleanest first, each with its own racing stripe & title colour. */
+#gymkhana-results[data-driver="ghost"] .sheet-title { color: var(--green); }
+#gymkhana-results[data-driver="ghost"] .sheet::before {
+  background: linear-gradient(100deg, var(--green) 0 62%, var(--charcoal) 62% 63%, #c8f5d8 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
+}
+#gymkhana-results[data-driver="low-profile"] .sheet-title { color: var(--amber); }
+#gymkhana-results[data-driver="low-profile"] .sheet::before {
+  background: linear-gradient(100deg, var(--amber) 0 62%, var(--charcoal) 62% 63%, #ffd98a 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
+}
+#gymkhana-results[data-driver="lost-them"] .sheet-title { color: #ff7a3d; }
+#gymkhana-results[data-driver="lost-them"] .sheet::before {
+  background: linear-gradient(100deg, #ff7a3d 0 62%, var(--charcoal) 62% 63%, var(--amber) 63% 82%, var(--charcoal) 82% 83%, var(--ink) 83%);
+}
 
 /* ---- Gymkhana medals ---- */
 /* A medal is a disc carrying its initial, always beside its name or on a button whose name
@@ -538,18 +627,24 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 .medal-result .medal { font-size: 18px; }
 .medal-result[data-new="true"] { color: var(--amber); }
 #gym-medal { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#gym-medal[data-driver-track="ghost"] { color: var(--green); font-weight: 700; }
+#gym-medal[data-driver-track="low-profile"] { color: var(--amber); font-weight: 700; }
+#gym-medal[data-driver-track="lost-them"] { color: #ff7a3d; font-weight: 700; }
+#gym-medal[data-driver-track="pursuit"] { color: var(--red); font-weight: 700; }
 /* Getaway Drift (experimental, R4): the bust meter, and the tag on its entries in the sheet. */
 #gym-medal:empty { display: none; }
 /* Getaway Drift in town (experimental, R4B): BUST RISK, bottom centre between the gauges and the map. */
 .bust { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: clamp(280px, 32vw, 440px);
-  padding: 8px 14px 9px; border-radius: 6px; background: var(--panel); border: 2px solid transparent; transition: border-color 0.15s; }
+  padding: 8px 14px 9px; border-radius: 6px; background: var(--panel); border: 2px solid rgba(246, 241, 228, 0.14);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); transition: border-color 0.15s; }
 .bust[hidden] { display: none; }
+.bust.no-glide .bust-fill { transition: none; }
 .bust-head { display: flex; align-items: baseline; gap: 10px; }
 .bust-label { font: 700 11px var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 #bust-state { flex: 1; font: 400 22px/1 var(--poster); letter-spacing: 0.04em; text-transform: uppercase; color: var(--green); }
 #bust-pct { font: 400 22px/1 var(--display); font-variant-numeric: tabular-nums; color: var(--ink); }
 .bust-track { position: relative; height: 14px; margin-top: 6px; overflow: hidden; border-radius: 7px; background: rgba(246,241,228,0.14); }
-.bust-track::after { content: ''; position: absolute; top: 0; bottom: 0; left: 60%; width: 2px; background: rgba(246,241,228,0.45); }
+.bust-track::after { content: ''; position: absolute; top: 0; bottom: 0; left: var(--mark, 60%); width: 2px; background: rgba(246,241,228,0.45); }
 .bust-fill { position: absolute; inset: 0 auto 0 0; width: var(--bust, 0%); background: var(--amber); transition: width 0.08s linear; }
 #bust-detail { margin-top: 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bust[data-level='close'] { border-color: rgba(255,182,39,0.7); }
@@ -558,14 +653,60 @@ body[data-session="gymkhana"] #debug { top: 16px; left: 352px; }
 .bust[data-level='critical'] #bust-state, .bust[data-level='busted'] #bust-state { color: var(--red); }
 .bust[data-level='critical'] .bust-fill, .bust[data-level='busted'] .bust-fill { background: var(--red); }
 .bust[data-level='critical'] { animation: bust-pulse 0.5s ease-in-out infinite alternate; }
+/* Cooling/draining turns green below critical; critical draining stays urgent red with subtle hatch so 70% danger never looks safe. */
 .bust[data-trend='falling'] .bust-fill { background: var(--green); }
+.bust[data-level='critical'][data-trend='falling'] .bust-fill {
+  background: repeating-linear-gradient(-45deg, var(--red) 0 8px, #d9463e 8px 14px);
+}
+/* Getaway Driver: the same panel shows ATTENTION until a chase, then BUST RISK with the escape bar
+   under it. */
+.bust-lose { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.bust-lose[hidden] { display: none; }
+.bust-lose-track { position: relative; flex: 1; height: 8px; overflow: hidden; border-radius: 4px; background: rgba(246,241,228,0.14); }
+.bust-lose-fill { position: absolute; inset: 0 auto 0 0; width: var(--lose, 0%); background: var(--green); transition: width 0.08s linear; }
+#bust-lose-pct { font: 700 12px var(--body); color: var(--green); font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; }
+.bust[data-mode='attention'][data-level='critical'] { animation: none; }
+.bust[data-mode='attention'][data-level='critical'] .bust-fill { background: #ff7a3d; }
+.bust[data-mode='attention'][data-level='critical'][data-trend='falling'] .bust-fill {
+  background: repeating-linear-gradient(-45deg, #ff7a3d 0 8px, #d9642c 8px 14px);
+}
+.bust[data-mode='attention'][data-level='critical'] #bust-state { color: #ff7a3d; }
+.bust[data-mode='attention'][data-level='critical'] { border-color: #ff7a3d; }
+.bust[data-mode='pursuit'] { border-color: var(--red); }
+.bust[data-mode='pursuit'] #bust-state { color: var(--red); }
 @keyframes bust-pulse { from { box-shadow: 0 0 0 0 rgba(255,90,79,0.0); } to { box-shadow: 0 0 18px 2px rgba(255,90,79,0.55); } }
-#bust-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+#bust-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
   background: radial-gradient(ellipse at center, rgba(255,90,79,0) 55%, rgba(255,90,79,0.42) 100%); }
-body[data-bust='critical'] #bust-vignette { opacity: 1; animation: vignette-pulse 0.5s ease-in-out infinite alternate; }
-body[data-bust='busted'] #bust-vignette { opacity: 0.8; }
+/* Multi-state Getaway edge atmosphere: watched (warm amber), pursuit (red/blue strobe rim), escaped (emerald pulse), critical/busted (crimson). */
+body[data-alert='watched'] #bust-vignette {
+  opacity: 0.72;
+  background: radial-gradient(ellipse at center, rgba(255,182,39,0) 62%, rgba(255,182,39,0.26) 100%);
+}
+body[data-alert='pursuit'] #bust-vignette {
+  opacity: 0.7;
+  background:
+    radial-gradient(ellipse at 0% 50%, rgba(255,66,58,0.28) 0%, rgba(255,66,58,0) 42%),
+    radial-gradient(ellipse at 100% 50%, rgba(56,130,255,0.28) 0%, rgba(56,130,255,0) 42%);
+  animation: pursuit-rim 0.7s ease-in-out infinite alternate;
+}
+body[data-alert='escaped'] #bust-vignette {
+  opacity: 0.78;
+  background: radial-gradient(ellipse at center, rgba(95,211,138,0) 58%, rgba(95,211,138,0.34) 100%);
+}
+body[data-bust='critical'] #bust-vignette {
+  opacity: 1;
+  background: radial-gradient(ellipse at center, rgba(255,90,79,0) 55%, rgba(255,90,79,0.44) 100%);
+  animation: vignette-pulse 0.5s ease-in-out infinite alternate;
+}
+body[data-bust='busted'] #bust-vignette {
+  opacity: 0.8;
+  background: radial-gradient(ellipse at center, rgba(255,90,79,0) 55%, rgba(255,90,79,0.44) 100%);
+}
+@keyframes pursuit-rim { from { opacity: 0.42; } to { opacity: 0.82; } }
 @keyframes vignette-pulse { from { opacity: 0.55; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .bust[data-level='critical'], body[data-bust='critical'] #bust-vignette { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .bust[data-level='critical'], body[data-bust='critical'] #bust-vignette, body[data-alert='pursuit'] #bust-vignette { animation: none; }
+}
 /* Getaway Drift in town (experimental, R4C): the navigation chip, docked on top of the minimap
    (gymkhana-ui.js sets its width and bottom to the map's). The glyph is turned into screen space. */
 .nav-chip { position: absolute; right: 16px; bottom: 186px; width: 222px; box-sizing: border-box; display: flex; align-items: center; gap: 10px;
@@ -644,6 +785,7 @@ body[data-bust='busted'] #bust-vignette { opacity: 0.8; }
   .title { font-size: min(10.2vw, 16vh); }
   .tagline { margin: 1vh 0; }
   .controller-note { margin-top: 6px; }
+  .analytics-note { margin-top: 4px; }
   /* v0.3.0's handling row and Practice pad need this room with a fallback font and a
      storage note at 1024x600, and v0.5.0's third circuit wraps the Track row to two lines
      there. Only spacing tightens; every control keeps its size. */

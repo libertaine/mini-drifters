@@ -10,7 +10,7 @@ const ALLOWED = new Set(['/index.html', '/style.css']);
 const LAB = new Set(['index.html', 'lab.css', 'lab.js', 'model.js', 'audio.js', 'voices.js', 'coyote.js', 'coyote-model.js',
   'assets/coyote-local/idle.wav', 'assets/coyote-local/mid.wav', 'assets/coyote-local/load.wav',
   'assets/coyote-local/high.wav', 'assets/coyote-local/incar-reference.wav',
-  'assets/engine-low.wav', 'assets/engine-high.wav', 'assets/tire-foley.mp3', 'assets/ATTRIBUTION.md']
+  'assets/engine-low.wav', 'assets/engine-high.wav', 'assets/tire-foley.mp3', 'assets/busted-voice.wav', 'assets/ATTRIBUTION.md']
   .map((file) => `/audio-lab/${file}`));
 const SOURCE = /^\/src\/[a-z]+(-[a-z]+)*\.js$/;
 const RADIO = /^\/radio\/(ATTRIBUTION\.md|[a-z0-9-]+\/[a-z0-9-]+\.(wav|mp3))$/;

@@ -33,13 +33,16 @@ export const SUITES = Object.freeze({
   'test:dockyard-slalom:browser': { file: 'test/dockyard-slalom-browser.mjs', group: 'gymkhana-getaway', seconds: 97, about: 'Dockyard and Slalom Sprint' },
   'test:wheelspin:browser': { file: 'test/wheelspin-browser.mjs', group: 'audio-lessons', seconds: 74, about: 'Wheelspin smoke, rubber and engine note' },
   'test:environment:browser': { file: 'test/environment-browser.mjs', group: 'circuits', seconds: 10, about: 'Functional environments and collision messages' },
-  // Arrives with PR #37 (v0.8.0 analytics). Until package.json defines it, a change that would
-  // select it gets the full regression instead. Remove `pending` once it exists (a test says so).
-  'test:analytics:browser': { file: 'test/analytics-browser.mjs', group: 'menus-input', seconds: 79, about: 'Analytics gate, events and disclosure', pending: 'PR #37' },
+  'test:analytics:browser': { file: 'test/analytics-browser.mjs', group: 'menus-input', seconds: 79, about: 'Analytics gate, events and disclosure' },
+  // v0.8.0 R1 (run 45119922651, PR #43). In the shortest group, whatever its name, so the slowest
+  // job does not grow.
+  'test:getaway-driver:browser': { file: 'test/getaway-driver-browser.mjs', group: 'audio-lessons', seconds: 54, about: 'Getaway Driver: the sheet, outcomes, completion counts and storage' },
+  // v0.8.0 R2 polish checks, placed in the shortest group (`circuits`) to keep parallel CI balanced.
+  'test:r2-polish:browser': { file: 'test/r2-polish-browser.mjs', group: 'circuits', seconds: 30, about: 'v0.8.0 R2 presentation, HUD polish, procedural SFX/siren lifecycle and reduced motion' },
 });
 
 // The parallel jobs, in the order they are listed in the run. Measured totals (s): circuits 483,
-// menus-input 421 (+79 with analytics), gymkhana-getaway 503, audio-lessons 444.
+// menus-input 500, gymkhana-getaway 503, audio-lessons 498 (444 + 54 for Getaway Driver).
 export const GROUPS = Object.freeze(['circuits', 'menus-input', 'gymkhana-getaway', 'audio-lessons']);
 
 // Run in every tier 2 change, and in tier 1 when a published file changes: the whole game
@@ -49,7 +52,7 @@ export const SMOKE = 'test:browser';
 // What GitHub Pages publishes (the copy lines of the deploy job, checked by a unit test).
 export const DEPLOYED = Object.freeze([
   'index.html', 'style.css', 'src/**', 'radio/**',
-  'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md', 'audio-lab/assets/coyote-local/idle.wav',
+  'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/busted-voice.wav', 'audio-lab/assets/ATTRIBUTION.md', 'audio-lab/assets/coyote-local/idle.wav',
   'audio-lab/assets/coyote-local/mid.wav', 'audio-lab/assets/coyote-local/load.wav', 'audio-lab/assets/coyote-local/high.wav',
 ]);
 
@@ -57,14 +60,17 @@ export const DEPLOYED = Object.freeze([
 // toggle, or audio() snapshots), for changes to the engine itself.
 const AUDIO_SUITES = ['test:gameplay-audio:browser', 'test:radio:browser', 'test:wheelspin:browser', 'test:showmanship:browser',
   'test:tutorial:browser', 'test:menus:browser', 'test:controller:browser', 'test:tracks:browser', 'test:handling:browser',
-  'test:reference-ghost:browser'];
+  'test:reference-ghost:browser', 'test:r2-polish:browser'];
 // Suites that drive a mocked Gamepad (navigator.getGamepads).
 const CONTROLLER_SUITES = ['test:controller:browser', 'test:categories:browser', 'test:dockyard-slalom:browser', 'test:getaway:browser',
-  'test:gymkhana:browser', 'test:handling:browser', 'test:medals:browser', 'test:records:browser', 'test:reference-ghost:browser'];
+  'test:gymkhana:browser', 'test:handling:browser', 'test:medals:browser', 'test:records:browser', 'test:reference-ghost:browser',
+  'test:getaway-driver:browser'];
 // Everything that opens the Gymkhana or Getaway sheets, HUD or results.
 const CHALLENGE_SUITES = ['test:gymkhana:browser', 'test:medals:browser', 'test:categories:browser', 'test:getaway:browser',
-  'test:showmanship:browser', 'test:getaway-records:browser', 'test:dockyard-slalom:browser'];
-const GETAWAY_SUITES = ['test:getaway:browser', 'test:showmanship:browser', 'test:getaway-records:browser', 'test:categories:browser'];
+  'test:showmanship:browser', 'test:getaway-records:browser', 'test:dockyard-slalom:browser', 'test:getaway-driver:browser',
+  'test:r2-polish:browser'];
+const GETAWAY_SUITES = ['test:getaway:browser', 'test:showmanship:browser', 'test:getaway-records:browser', 'test:categories:browser',
+  'test:getaway-driver:browser', 'test:r2-polish:browser'];
 
 // Path rules. `paths` are globs: `*` stays within a folder, `**` crosses folders. A file can
 // match several rules: the highest tier wins and the suites add up. A changed file no rule
@@ -89,7 +95,7 @@ export const RULES = Object.freeze([
   { id: 'challenges', tier: 3, why: 'Gymkhana and Getaway rules, missions, police, city and medals',
     paths: ['src/gymkhana.js', 'src/getaway-urban.js', 'src/getaway-city.js', 'src/getaway-nav.js', 'src/getaway-pursuer.js', 'src/getaway-missions.js', 'src/getaway-driver*.js', 'src/medals.js'] },
   { id: 'persistence', tier: 3, why: 'Saved records, ghosts or preferences, and their storage formats',
-    paths: ['src/records.js', 'src/gymkhana-records.js', 'src/getaway-records.js', 'src/ghost.js', 'src/ghost-store.js', 'src/reference-ghost.js',
+    paths: ['src/records.js', 'src/gymkhana-records.js', 'src/getaway-records.js', 'src/getaway-driver-records.js', 'src/ghost.js', 'src/ghost-store.js', 'src/reference-ghost.js',
       'src/ghost-preferences.js', 'src/handling-preferences.js', 'src/audio-preferences.js'] },
   { id: 'radio-catalogue', tier: 3, paths: ['src/radio-stations.js'], why: 'The radio file list, which most browser suites serve files from' },
 
@@ -99,17 +105,17 @@ export const RULES = Object.freeze([
   { id: 'radio', tier: 2, paths: ['src/radio.js', 'radio/*/**'], suites: ['test:radio:browser', 'test:gameplay-audio:browser'], why: 'Radio playback and its music files' },
   { id: 'audio-voices', tier: 2, why: 'Engine, tyre and impact voices inside the sound engine',
     paths: ['src/audio-voices.js', 'src/audio-telemetry.js', 'src/coyote.js', 'src/coyote-model.js', 'src/getaway-sfx.js'],
-    suites: ['test:gameplay-audio:browser', 'test:wheelspin:browser', 'test:showmanship:browser', 'test:radio:browser'] },
+    suites: ['test:gameplay-audio:browser', 'test:wheelspin:browser', 'test:showmanship:browser', 'test:radio:browser', 'test:r2-polish:browser'] },
   { id: 'audio-engine', tier: 2, paths: ['src/audio.js'], suites: AUDIO_SUITES, why: 'The sound engine, which several suites check the state of' },
-  { id: 'audio-assets', tier: 2, why: 'Published engine and tyre recordings',
-    paths: ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/coyote-local/**'],
-    suites: ['test:gameplay-audio:browser', 'test:coyote:browser', 'test:audio:browser', 'test:wheelspin:browser'] },
+  { id: 'audio-assets', tier: 2, why: 'Published engine, tyre and busted voice recordings',
+    paths: ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/busted-voice.wav', 'audio-lab/assets/coyote-local/**'],
+    suites: ['test:gameplay-audio:browser', 'test:coyote:browser', 'test:audio:browser', 'test:wheelspin:browser', 'test:r2-polish:browser', 'test:getaway-driver:browser'] },
   { id: 'audio-lab', tier: 2, why: 'The development audio lab, which is not published',
     paths: ['audio-lab/*.js', 'audio-lab/*.html', 'audio-lab/*.css', 'audio-lab/assets/engine-*.wav'], suites: ['test:audio:browser', 'test:coyote:browser'] },
   { id: 'local-server', tier: 2, paths: ['server.mjs'], suites: ['test:audio:browser', 'test:coyote:browser', 'test:gameplay-audio:browser'], why: 'The local server, which these suites start' },
   { id: 'controller', tier: 2, paths: ['src/controller.js'], suites: CONTROLLER_SUITES, why: 'Gamepad reading, used by the suites that mock a controller' },
   { id: 'tyre-effects', tier: 2, paths: ['src/tyre-effects.js'], suites: ['test:wheelspin:browser'], why: 'Smoke and rubber drawing, measured by the wheelspin suite' },
-  { id: 'scenery-draw', tier: 2, paths: ['src/scenery-draw.js'], suites: ['test:environment:browser', 'test:tracks:browser', 'test:dockyard-slalom:browser'], why: 'Drawing of circuit scenery (not its collision shapes)' },
+  { id: 'scenery-draw', tier: 2, paths: ['src/scenery-draw.js'], suites: ['test:environment:browser', 'test:tracks:browser', 'test:dockyard-slalom:browser', 'test:r2-polish:browser'], why: 'Drawing of circuit scenery (not its collision shapes)' },
   { id: 'challenge-ui', tier: 2, paths: ['src/gymkhana-ui.js', 'src/gymkhana-draw.js'], suites: [...CHALLENGE_SUITES, 'test:menus:browser', 'test:controller:browser'],
     why: 'The Gymkhana and Getaway sheets, HUD, results and drawing' },
   { id: 'getaway-draw', tier: 2, paths: ['src/getaway-urban-draw.js'], suites: GETAWAY_SUITES, why: 'Drawing of the Getaway city' },

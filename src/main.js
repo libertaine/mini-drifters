@@ -2,7 +2,7 @@
 import { TUNING } from './tuning.js';
 import { createRecords } from './records.js';
 import { Controller, NEUTRAL_DRIVE } from './controller.js';
-import { InputArbiter } from './controls.js';
+import { InputArbiter, drivingActive } from './controls.js';
 import { createGame, startRun, restartRun, returnToMenu, togglePause, toggleGhost, advance, countedScore } from './game.js';
 import { createRenderer, drawFrame, effectsSnapshot, resize, resetEffects } from './render.js';
 import { currentMultiplier, angleScore } from './scoring.js';
@@ -16,11 +16,15 @@ import { padTrack } from './practice-pad.js';
 import { createGymkhanaRecords } from './gymkhana-records.js';
 import { createGymkhanaUi, hideBust } from './gymkhana-ui.js';
 import { GYMKHANA_CHALLENGES } from './gymkhana.js';
-import { GETAWAY_MISSIONS } from './getaway-missions.js';
+import { medalFor } from './medals.js';
+import { GETAWAY_SHEET } from './getaway-missions.js';
 import { createGetawayRecords } from './getaway-records.js';
+import { createDriverRecords } from './getaway-driver-records.js';
 import { createGhostStore } from './ghost-store.js';
 import { createReferenceGhosts, slotState } from './reference-ghost.js';
 import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
+import { categoryOf } from './analytics.js';
+import { startAnalytics } from './analytics-tracker.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -39,18 +43,27 @@ const LESSON_HANDLING = handlingById('classic');
 const records = createRecords();
 const gymkhanaRecords = createGymkhanaRecords();
 const getawayRecords = createGetawayRecords();
+// Getaway Driver keeps no bests: only how often each way home was reached, under its own key
+// (getaway-driver-records.js).
+const driverRecords = createDriverRecords();
 // The saved reference ghost keeps one flying lap per track and mode under its own key
 // (ghost-store.js). It hears each event after the records, so it can tell whether a lap has
 // just set the fastest-lap record (reference-ghost.js).
 const referenceGhosts = createReferenceGhosts({ store: createGhostStore(),
   bestLapFor: (trackId, handlingId) => records.forTrack(trackId, handlingId).fastestLap });
+// Anonymous counts, on the published page only: null everywhere else (docs/ANALYTICS.md). An
+// observer that hears the run events last and the frame loop after the simulation, and changes nothing.
+const analytics = startAnalytics(window);
+const analyticsCategory = () => categoryOf({ mode: game.mode, layout: game.challengeDef?.layout });
 const game = createGame(undefined, { onRunEvent: (event) => {
   records.handle(event);
   gymkhanaRecords.handle(event);
   getawayRecords.handle(event);
   referenceGhosts.handle(event);
+  driverRecords.handle(event, event.type === 'challenge' ? game.challenge?.result?.outcome ?? null : null);
   if (event.type === 'start' || event.type === 'ghost') showReference();
   showPersonalBests();
+  analytics?.runEvent(event, { lap: game.laps.completed, category: analyticsCategory() });
 } });
 // The title's poster is Original's hairpin, whichever circuit is chosen for driving.
 const renderer = createRenderer($('view'), game.track, trackById('original'));
@@ -74,9 +87,48 @@ const trackInputs = TRACKS.map((track) => {
   return input;
 });
 
+const TRACK_BLURBS = {
+  original: 'Grassroots club circuit · Fast sweepers and a tight hairpin.',
+  switchback: 'Hillside pass · Linked S-bends climbing into a tight right.',
+  dockyard: 'Harbor concrete apron · Technical Hook, chicane and sweeping Basin.',
+};
+
+function updateTrackPreview(id) {
+  const pathEl = $('track-preview-path');
+  const dotEl = $('track-preview-start');
+  if (!pathEl || !dotEl) return;
+  const track = trackById(id);
+  const { points, start } = track;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const pad = 10;
+  const w = 120 - pad * 2;
+  const h = 76 - pad * 2;
+  const scale = Math.min(w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY));
+  const ox = (120 - (maxX - minX) * scale) / 2;
+  const oy = (76 - (maxY - minY) * scale) / 2;
+  const sx = (x) => (ox + (x - minX) * scale).toFixed(1);
+  const sy = (y) => (oy + (y - minY) * scale).toFixed(1);
+  const parts = [];
+  for (let i = 0; i < points.length; i += 4) {
+    parts.push(`${i === 0 ? 'M' : 'L'}${sx(points[i].x)} ${sy(points[i].y)}`);
+  }
+  parts.push('Z');
+  pathEl.setAttribute('d', parts.join(' '));
+  dotEl.setAttribute('cx', sx(start.x));
+  dotEl.setAttribute('cy', sy(start.y));
+  setText('track-blurb', TRACK_BLURBS[id] ?? '');
+}
+
 function selectTrack(id) {
   selectedTrackId = id;
   for (const input of trackInputs) input.checked = input.value === id;
+  updateTrackPreview(id);
   showPersonalBests();
 }
 
@@ -320,13 +372,13 @@ const PICKER_SHEETS = {
 const CATEGORY_BUTTON = { tracks: 'tracks-open', challenges: 'gymkhana', missions: 'getaway' };
 let picker = null;
 let mission = null;
-const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, onChoose: () => showGymkhanaMenu() });
+const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, driverRecords, onChoose: () => showGymkhanaMenu() });
 const inGymkhana = () => game.mode === 'gymkhana' && game.state !== 'menu';
 const inGetaway = () => inGymkhana() && game.challengeDef.layout === 'urban';
 const challengePicker = () => picker === 'challenges' || picker === 'environments';
 const pickerSheet = () => $(PICKER_SHEETS[picker]);
 
-const missionButtons = GETAWAY_MISSIONS.map((entry) => {
+const missionButtons = GETAWAY_SHEET.map((entry) => {
   const button = document.createElement('button');
   button.type = 'button';
   button.id = entry.id;
@@ -990,8 +1042,11 @@ function fitTitle() {
   }
 }
 
+let shownState = game.state;
+
 function syncScreens() {
   const { state, paused } = game;
+  shownState = state;
   const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done' : picker ? picker
     : paused ? 'paused' : state === 'menu' || state === 'finished' ? state : 'driving';
   if (context !== controllerContext) {
@@ -1003,8 +1058,15 @@ function syncScreens() {
   const practice = state !== 'menu' && !tutorial && game.mode === 'practice';
   document.body.dataset.session = state === 'menu' ? 'none' : tutorial ? 'tutorial' : game.mode;
   // A timed challenge shows no score or combo; a scored one keeps them.
-  if (inGymkhana()) document.body.dataset.challenge = game.challengeDef.kind;
-  else delete document.body.dataset.challenge;
+  // Getaway Driver does not keep drift scores, so its mission tag lets CSS clear the score box.
+  if (inGymkhana()) {
+    document.body.dataset.challenge = game.challengeDef.kind;
+    if (game.challengeDef.mission) document.body.dataset.mission = game.challengeDef.mission;
+    else delete document.body.dataset.mission;
+  } else {
+    delete document.body.dataset.challenge;
+    delete document.body.dataset.mission;
+  }
   $('gym-panel').hidden = !inGymkhana();
   if (!inGymkhana()) hideBust();
   setText('handling-status', practice ? `Practice · ${game.handling.name}` : game.handling.name);
@@ -1083,17 +1145,21 @@ function showResults() {
     setText('r-void', `${laps} not counted: ${formatNumber(r.forfeited)} points left out of the score.`);
   }
   const best = records.newBests;
+  $('results').dataset.best = (best.score || best.fastestLap || best.bestCombo) ? 'true' : 'false';
   $('new-score').hidden = !best.score;
   $('new-lap').hidden = !best.fastestLap;
   $('new-combo').hidden = !best.bestCombo;
 }
 
 const banner = { until: 0, serialCombo: 0, serialLap: 0, serialChallenge: 0 };
+let lapFlashUntil = 0;
+let lapFlashKind = '';
 let currentRunId = -1;
 
 function showBanner(kind, text, now) {
   const el = $('banner');
   el.dataset.kind = kind;
+  el.dataset.pop = el.dataset.pop === 'a' ? 'b' : 'a';
   el.textContent = text;
   el.hidden = false;
   banner.until = now + BANNER_TIME;
@@ -1103,10 +1169,11 @@ function updateBanners(now) {
   const { scoring, laps } = game;
   if (currentRunId !== game.runId) {
     currentRunId = game.runId;
-    banner.serialCombo = scoring.eventSerial;
-    banner.serialLap = game.lapEventSerial;
+    banner.serialCombo = 0;
+    banner.serialLap = 0;
     banner.serialChallenge = 0;
     banner.until = 0;
+    lapFlashUntil = 0;
   }
   // A challenge's own news comes first, so that a combo lost to the same cone has the last word.
   if (game.challenge && game.challenge.eventSerial !== banner.serialChallenge) {
@@ -1124,6 +1191,8 @@ function updateBanners(now) {
     banner.serialLap = game.lapEventSerial;
     if (game.lapEvent === 'lap') {
       const best = laps.lastLap === laps.bestLap && laps.completed > 1;
+      lapFlashKind = best ? 'best' : 'lap';
+      lapFlashUntil = now + 0.9;
       // With the saved reference chosen, a lap it saved (or failed to save) says so.
       const offered = referenceGhosts.lastResult;
       const thisLap = offered && offered.runId === game.runId && offered.time === laps.lastLap && game.ghostSource === 'reference';
@@ -1131,6 +1200,8 @@ function updateBanners(now) {
         : thisLap && (offered.reason === 'write failed' || offered.reason === 'too large') ? ' · REFERENCE NOT SAVED' : '';
       showBanner('lap', `LAP ${formatTime(laps.lastLap)}${best ? ' — BEST' : ''}${saved}`, now);
     } else {
+      lapFlashKind = 'void';
+      lapFlashUntil = now + 0.9;
       const lost = game.lastForfeit;
       showBanner('void', lost > 0 ? `LAP NOT COUNTED — ${formatNumber(lost)} POINTS LOST` : 'LAP NOT COUNTED — CHECKPOINT MISSED', now);
     }
@@ -1220,15 +1291,27 @@ function updateHud(now) {
   const shownSlip = car.speed > 3 && car.forwardSpeed > 0 ? Math.abs(car.slipAngle) * DEG : 0;
   setText('angle', `${Math.round(shownSlip)}°`);
   $('angle-needle').style.left = `calc(${Math.min(100, shownSlip / ANGLE_GAUGE_MAX * 100)}% - 1px)`;
+  const angleBox = document.querySelector('.angle');
+  if (angleBox) {
+    angleBox.dataset.driftZone = shownSlip >= 75 ? 'spin' : shownSlip >= 50 ? 'over' : shownSlip >= 25 ? 'sweet' : '';
+  }
 
   const comboEl = $('combo');
   const { combo } = scoring;
   comboEl.dataset.state = combo ? 'active' : 'idle';
   if (combo) {
+    const mult = currentMultiplier(combo);
+    comboEl.dataset.mult = String(mult);
+    comboEl.dataset.lowGrace = combo.grace < 0.55 ? 'true' : 'false';
     setText('combo-points', formatNumber(combo.points));
-    setText('combo-mult', `×${currentMultiplier(combo)}`);
+    setText('combo-mult', `×${mult}`);
     $('combo-grace-bar').style.transform = `scaleX(${Math.max(0, combo.grace / T.comboGrace)})`;
+  } else {
+    comboEl.dataset.mult = '1';
+    comboEl.dataset.lowGrace = 'false';
   }
+  const lapsPanel = document.querySelector('#hud .laps');
+  if (lapsPanel) lapsPanel.dataset.lapFlash = now < lapFlashUntil ? lapFlashKind : '';
   if (game.mode === 'gymkhana') gymkhana.updateHud(game);
   else hideBust();
   updateBanners(now);
@@ -1295,9 +1378,174 @@ function playSmashSounds() {
   }
 }
 
+// Cohesive R2 / R2b sound-effect cues: solid impacts, cones, apex curbs, pursuit/stealth
+// transitions, spotting radar, camera shutters, laps, combo tier-ups, Gymkhana gates/slalom/turn-zone,
+// banked drifts and mission/medal outcomes. Every event fires once per serial/tick; nothing queues.
+let fxRunId = -1;
+let fxChallengeSerial = 0;
+let fxScoreSerial = 0;
+let fxLapSerial = 0;
+let fxImpactTick = -1;
+let fxImpactCd = 0;
+let fxSpotCd = 0;
+let fxCurbCd = 0;
+let fxWrongWayCd = 0;
+let fxPrevMult = 1;
+let fxPrevGate = 0;
+let fxPrevSlalom = 0;
+let fxPrevReached = false;
+let fxFinished = false;
+function playFxSounds(dt) {
+  if (game.state === 'menu') {
+    fxRunId = -1;
+    return;
+  }
+  if (fxRunId !== game.runId) {
+    fxRunId = game.runId;
+    fxChallengeSerial = game.challenge?.eventSerial ?? 0;
+    fxScoreSerial = game.scoring.eventSerial;
+    fxLapSerial = game.lapEventSerial;
+    fxImpactTick = -1;
+    fxImpactCd = 0;
+    fxSpotCd = 0;
+    fxCurbCd = 0;
+    fxWrongWayCd = 0;
+    fxPrevMult = 1;
+    fxPrevGate = 0;
+    fxPrevSlalom = 0;
+    fxPrevReached = false;
+    fxFinished = false;
+  }
+  const active = game.state === 'racing' && !game.paused;
+  if (active) {
+    fxImpactCd = Math.max(0, fxImpactCd - dt);
+    fxSpotCd = Math.max(0, fxSpotCd - dt);
+    fxCurbCd = Math.max(0, fxCurbCd - dt);
+    fxWrongWayCd = Math.max(0, fxWrongWayCd - dt);
+    const hit = game.lastContact;
+    const freshObstacle = hit && hit.tick !== fxImpactTick && (game.ticks - hit.tick) <= 6 && hit.impact > 3;
+    const freshBarrier = !freshObstacle && game.lastImpact > 3 && game.ticks !== fxImpactTick;
+    if ((freshObstacle || freshBarrier) && fxImpactCd <= 0) {
+      fxImpactTick = freshObstacle ? hit.tick : game.ticks;
+      fxImpactCd = 0.14;
+      const impact = freshObstacle ? hit.impact : game.lastImpact;
+      audio.impact(Math.min(1, impact / 22), freshObstacle ? hit.kind : 'wall');
+    }
+    // Tactile apex curb rumble cadence on circuit curbs at speed.
+    if (!game.track.pad && game.car.surface === 'curb' && game.car.speed > 7 && fxCurbCd <= 0) {
+      const ratio = Math.min(1, game.car.speed / TUNING.topSpeed);
+      audio.curb(ratio);
+      fxCurbCd = 0.11 - 0.055 * ratio;
+    }
+    // Gentle wrong-way nudge on circuit runs.
+    if (game.mode === 'normal' && game.wrongWayTime > 1.2 && fxWrongWayCd <= 0) {
+      audio.cue('wrong-way');
+      fxWrongWayCd = 1.8;
+    }
+    // Combo multiplier step-up glint (×2 / ×3) across circuits & scored Gymkhana.
+    if (game.mode !== 'practice' && game.challengeDef?.mission !== 'driver') {
+      const mult = game.scoring.combo ? currentMultiplier(game.scoring.combo) : 1;
+      if (mult > fxPrevMult) audio.cue('combo-up', mult);
+      fxPrevMult = mult;
+    }
+    // Getaway Driver: subtle rising radar tick while a cruiser is locking on.
+    if (game.challenge?.police && !game.challenge.pursuing) {
+      const spotTime = game.challengeDef?.driverTuning?.spotTime ?? 0.5;
+      let maxFrac = 0;
+      for (const u of game.challenge.police) {
+        if (u.spotting > 0) maxFrac = Math.max(maxFrac, u.spotting / spotTime);
+      }
+      if (maxFrac > 0.05 && fxSpotCd <= 0) {
+        audio.cue('spotTick', maxFrac);
+        fxSpotCd = 0.16;
+      }
+    }
+  }
+  const run = game.mode === 'gymkhana' ? game.challenge : null;
+  const def = game.mode === 'gymkhana' ? game.challengeDef : null;
+  // Non-urban Gymkhana live milestone cues (turn-zone lock, drift gates, ascending slalom weave).
+  if (run && def && def.layout !== 'urban') {
+    if (def.layout === 'box' && run.reached && !fxPrevReached) {
+      fxPrevReached = true;
+      audio.cue('turn-zone');
+    } else if (def.layout === 'course' && run.nextGate > fxPrevGate) {
+      const idx = run.nextGate - 1;
+      fxPrevGate = run.nextGate;
+      if (idx < def.geometry.gates.length - 1) audio.cue('gate-pass', run.gates[idx]?.drifting ? 1 : 0);
+    } else if (def.layout === 'slalom' && run.next > fxPrevSlalom) {
+      fxPrevSlalom = run.next;
+      audio.cue('slalom-pass', run.next);
+    }
+  }
+  if (run && run.eventSerial !== fxChallengeSerial) {
+    fxChallengeSerial = run.eventSerial;
+    const ev = run.event;
+    if (ev?.type === 'cone') audio.cone();
+    else if (ev?.type === 'suspicious' || ev?.type === 'reported' || ev?.type === 'spotted'
+      || ev?.type === 'joined' || ev?.type === 'lost' || ev?.type === 'locked') {
+      audio.cue(ev.type);
+    } else if (ev?.type === 'shot') {
+      audio.cue('camera', ev.camera ?? 1);
+    } else if (ev?.type === 'arrived') {
+      const id = (run.result?.outcome ?? 'ghost').replace(/\s+/g, '-');
+      audio.cue(`outcome-${id}`);
+      fxFinished = true;
+    } else if (ev?.type === 'escaped') {
+      audio.cue('outcome-escaped');
+      fxFinished = true;
+    } else if (ev?.type === 'busted') {
+      if (!fxFinished) {
+        audio.cue('outcome-busted');
+        fxFinished = true;
+      }
+    }
+  }
+  // Circuit lap timing chimes (counted lap, best lap, or voided lap).
+  if (game.lapEventSerial !== fxLapSerial) {
+    fxLapSerial = game.lapEventSerial;
+    if (game.state !== 'finished') {
+      if (game.lapEvent === 'lap') {
+        const isBest = game.laps.lastLap === game.laps.bestLap && game.laps.completed > 1;
+        audio.cue(isBest ? 'lap-best' : 'lap');
+      } else if (game.lapEvent === 'void') {
+        audio.cue('lap-void');
+      }
+    }
+  }
+  if (!fxFinished && game.state === 'finished') {
+    fxFinished = true;
+    if (run && def) {
+      if (run.phase === 'complete') {
+        if (def.layout === 'urban') {
+          audio.cue('outcome-escaped');
+        } else {
+          const medal = medalFor(def, game.handling.id, run.result?.value);
+          audio.cue(medal ? `outcome-${medal}` : 'outcome-escaped');
+        }
+      } else {
+        audio.cue(run.reason === 'busted' ? 'outcome-busted' : 'outcome-failed');
+      }
+    } else if (game.mode === 'normal') {
+      const b = records.newBests;
+      audio.cue((b.score || b.fastestLap || b.bestCombo) ? 'outcome-record' : 'outcome-circuit');
+    }
+  }
+  if (game.scoring.eventSerial !== fxScoreSerial) {
+    fxScoreSerial = game.scoring.eventSerial;
+    const se = game.scoring.event;
+    if (game.challengeDef?.mission !== 'driver' && game.mode !== 'practice') {
+      if (se?.type === 'banked') {
+        const tier = se.points >= 600 ? 3 : se.points >= 250 ? 2 : 1;
+        audio.cue('bank', tier);
+      } else if (se?.type === 'lost') {
+        audio.cue('combo-lost');
+      }
+    }
+  }
+}
+
 // --- Loop ------------------------------------------------------------------
 let last = performance.now();
-let shownState = game.state;
 function frame(now) {
   const dt = Math.max(0, (now - last) / 1000);
   last = now;
@@ -1311,12 +1559,15 @@ function frame(now) {
     if (tutorial.phase === 'complete') finishTutorial();
     else if (game.state === 'finished') restart(); // three laps mustn't end a lesson with no time limit
   }
+  analytics?.frame({ runId: game.runId, category: analyticsCategory(), racing: game.state === 'racing' && !game.paused,
+    active: drivingActive(drivingInput) });
   if (game.state !== shownState) {
     shownState = game.state;
     syncScreens();
   }
   audio.update(game, dt);
   playSmashSounds();
+  playFxSounds(dt);
   const alpha = Math.min(1, game.accumulator / TUNING.simStep);
   drawFrame(renderer, game, alpha, dt, debug);
   if (game.state !== 'menu') updateHud(now / 1000);
@@ -1333,5 +1584,5 @@ $('tracks-open').focus();
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
   selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode,
   referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: challengePicker(), selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial),
-  smashSounds: () => ({ ...audio.smashes }) };
+  smashSounds: () => ({ ...audio.smashes }), fxAudio: () => ({ ...audio.fx }) };
 requestAnimationFrame(frame);

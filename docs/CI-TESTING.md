@@ -136,9 +136,14 @@ has no group to name. That is expected, and `test` still checks that nothing was
    `unassigned` group.
 
 The suite's own test file automatically selects the suite when it changes. If the suite
-exists in a pending PR, register it with `pending: 'PR #nn'`, as `test:analytics:browser` is
-for PR #37. A change that would select it then gets the full regression until the suite
-exists, and a unit test asks for `pending` to be removed once it does.
+exists in a pending PR, register it with `pending: 'PR #nn'` (as `test:analytics:browser`
+was until PR #37 arrived in v0.8.0). A change that would select it then gets the full
+regression until the suite exists, and a unit test asks for `pending` to be removed once it does.
+
+**New gameplay modes:** registering the mode's browser suites here is part of the feature's
+acceptance criteria. A mode is not ready for release until its suites appear in the tier 3
+run on `main`. Getaway Driver's `test:getaway-driver:browser` was registered with the mode
+in v0.8.0 R1.
 
 ## Shared dependencies
 
@@ -175,9 +180,9 @@ The browser suites run in four jobs, balanced by measured time (seconds on GitHu
 | Group | Suites | Measured |
 |---|---|---|
 | `circuits` | tracks, records, ghost, reference ghost, scoring, environment | 483 s |
-| `menus-input` | handling, controller, menus, the smoke test (+ analytics) | 421 s (500 s) |
+| `menus-input` | handling, controller, menus, the smoke test, analytics | 500 s |
 | `gymkhana-getaway` | gymkhana, medals, categories, getaway, showmanship, Getaway records, Dockyard/Slalom | 503 s |
-| `audio-lessons` | tutorial, gameplay audio, radio, wheelspin, audio lab, Coyote | 444 s |
+| `audio-lessons` | tutorial, gameplay audio, radio, wheelspin, audio lab, Coyote, Getaway Driver (in the shortest group, so the slowest job does not grow) | 498 s |
 
 Each job repeats the setup: about 25 s to start the Playwright container, a few seconds for
 checkout, Node and Playwright. Each job is its own virtual machine, so ports, artifacts and

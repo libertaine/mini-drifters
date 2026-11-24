@@ -9,7 +9,7 @@ two kinds of audio with different terms, summarized in LICENSE-AUDIO.md:
   license pages were checked on 2026-11-06. They are redistributed unmodified, and all
   trimming, seam treatment, filtering and pitch changes happen in memory.
 
-The game's public deployment includes `tire-foley.mp3`, the four Mustang loops and this
+The game's public deployment includes `tire-foley.mp3`, `busted-voice.wav`, the four Mustang loops and this
 file. The CC0 engine recordings below are used only by the development lab and aren't
 deployed.
 
@@ -55,6 +55,14 @@ deployed.
   normalization, playback-rate/gain changes and surface filtering. This is a
   provisional continuous playback experiment; gaps and repetition need listening.
 
+## Busted announcer voice
+
+- Work: Offline retro-arcade announcer callout ("BUSTED!")
+- Local file: `busted-voice.wav` (24 kHz mono PCM16 WAV, 0.892 s, 42,886 bytes)
+- Generator: Kokoro-82M v1.0 (`kokoro-v1.0.onnx` / `voices-v1.0.bin`, voice style blend `0.70 * am_santa + 0.30 * am_fenrir`), synthesized locally offline via `kokoro-onnx`
+- Source model & license: https://huggingface.co/hexgrad/Kokoro-82M (Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0)
+- Offline post-processing: `ffmpeg` formant-preserved pitch weight (`0.92`), broadcast EQ (`+4.8 dB @ 118 Hz`, `-3.2 dB @ 350 Hz`, `+4.5 dB @ 3.2 kHz`), compression, parallel soft-clip grit, custom dark plate reverb tail, and `-0.9 dBFS` peak normalization. No runtime TTS service or browser speech synthesis is used.
+
 ## Original-file SHA-256
 
 | Local file | SHA-256 |
@@ -62,6 +70,7 @@ deployed.
 | engine-low.wav | `69d74b106509037ce547429e4c3f9ae906b0fffe88d0bb8b3b5a8b0cfc239048` |
 | engine-high.wav | `e0c65476764931770e46308dec744a196d8ecf996f8c7675f125805d28609b34` |
 | tire-foley.mp3 | `af16113a4a279ca8a87b41727684afba2840a7ff00e8e7ba6b3291e8fead01fa` |
+| busted-voice.wav | `4f48470a2dce841a2b3a23394a1e1623c079b24314af79267f06359ddba60fd2` |
 
 ## Research exclusions and remaining asset needs
 
