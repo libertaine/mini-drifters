@@ -109,14 +109,20 @@
   </section>
 
   <section id="tracks-menu" class="overlay" role="dialog" aria-labelledby="tracks-title" hidden>
-    <div class="sheet small">
-      <h2 id="tracks-title" class="sheet-title">Tracks</h2>
+    <div class="sheet small tracks-sheet">
+      <div class="tracks-head">
+        <h2 id="tracks-title" class="sheet-title">Tracks</h2>
+        <p id="tracks-handling" class="stats-note tracks-handling-pill"></p>
+      </div>
       <div class="track-select">
         <span id="track-label" class="track-label">Track <span>&larr; &rarr;</span></span>
         <div id="tracks" class="tracks" role="radiogroup" aria-labelledby="track-label"></div>
       </div>
-      <section class="personal-bests" aria-labelledby="records-heading" aria-live="polite">
-        <h2 id="records-heading">Original — Personal bests</h2>
+      <section id="track-details" class="personal-bests" aria-labelledby="records-heading" aria-live="polite">
+        <div class="track-detail-head">
+          <h2 id="records-heading">Original — Personal bests</h2>
+          <span id="track-meta" class="track-meta"></span>
+        </div>
         <div class="track-info-row">
           <dl>
             <div><dt>Best score</dt><dd id="pb-score">--</dd></div>
@@ -134,7 +140,6 @@
         <p id="pb-legacy" class="records-legacy" title="Set under the earlier scoring rules. Kept for reference; not comparable with current scores."></p>
         <p id="records-note" class="records-note"></p>
       </section>
-      <p id="tracks-handling" class="stats-note"></p>
       <div class="actions">
         <button id="start" type="button">Start <span>Enter</span></button>
         <button id="practice" class="quiet" type="button">Practice Pad</button>

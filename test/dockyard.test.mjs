@@ -45,7 +45,8 @@ const ACCEPTED_DOCKYARD = [
 ];
 
 test('Dockyard is the third circuit, on the accepted prototype\'s control points', () => {
-  assert.deepEqual(TRACKS.map((t) => [t.id, t.name]), [['original', 'Original'], ['switchback', 'Switchback'], ['dockyard', 'Dockyard']]);
+  assert.deepEqual(TRACKS.slice(0, 3).map((t) => [t.id, t.name]), [['original', 'Original'], ['switchback', 'Switchback'], ['dockyard', 'Dockyard']]);
+  assert.equal(TRACKS.length, 7);
   assert.equal(DEFAULT_TRACK_ID, 'original');
   assert.equal(trackById('dockyard'), track, 'built once');
   assert.equal(track.id, 'dockyard');

@@ -373,7 +373,7 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 .track-select #tracks { flex-wrap: wrap; row-gap: 6px; min-width: 0; }
 .track { position: relative; display: block; cursor: pointer; transform: skewX(-10deg); }
 .track input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-.track span {
+.track > span {
   display: block;
   padding: clamp(5px, 0.9vh, 9px) 14px;
   box-shadow: inset 0 0 0 2px #6a6b72;
@@ -382,7 +382,7 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
   text-transform: uppercase;
   color: var(--ink);
 }
-.track:hover span { background: rgba(246, 241, 228, 0.12); }
+.track:hover > span { background: rgba(246, 241, 228, 0.12); }
 .track input:checked + span { background: var(--amber); box-shadow: none; color: var(--charcoal); }
 .track input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 3px; }
 /* Handling: the mode for the next run, styled as the track choice. Its label
@@ -432,25 +432,123 @@ button span { font: 700 12px var(--body); padding: 2px 7px; border-radius: 3px; 
 .title-menu button:focus-visible { outline-color: var(--ink); outline-offset: 3px; }
 .menu-pair { display: flex; gap: 12px; width: min(100%, 25vw + 90px); margin-left: 0.6vw; }
 .title-menu .menu-pair button { flex: 1 1 auto; width: auto; margin: 0; padding: 4px 10px; gap: 8px; justify-content: center; font-size: clamp(18px, 2.6vh, 28px); }
-#tracks-menu .sheet.small { width: min(560px, 100%); }
-#tracks-menu .track-select, #tracks-menu .personal-bests { margin-left: 0; max-width: none; }
+#tracks-menu .sheet.small { width: min(760px, calc(100vw - 48px)); }
+.tracks-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+#tracks-menu #tracks-title { margin: 0; }
+#tracks-menu .tracks-handling-pill {
+  margin: 0;
+  padding: 4px 10px;
+  background: rgba(246, 241, 228, 0.06);
+  border-left: 3px solid var(--amber);
+  font: 700 12px/1.3 var(--body);
+  letter-spacing: 0.03em;
+  color: #e4dfd2;
+}
+#tracks-menu .tracks-handling-pill[data-handling="revised"] { border-left-color: var(--orange); }
+#tracks-menu .track-select {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0 0 12px;
+  max-width: none;
+}
 #tracks-menu .track-label { min-width: 0; }
+#tracks-menu #tracks {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+#tracks-menu .track {
+  transform: none;
+  display: flex;
+  min-width: 0;
+}
+#tracks-menu .track > span.track-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 8px 7px 11px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 0 0 1.5px rgba(246, 241, 228, 0.16), inset 3px 0 0 var(--track-accent, var(--amber));
+  font: 400 13px/1.2 var(--body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+#tracks-menu .track:hover > span.track-card {
+  background: rgba(246, 241, 228, 0.11);
+  box-shadow: inset 0 0 0 1.5px rgba(246, 241, 228, 0.42), inset 3px 0 0 var(--track-accent, var(--amber));
+}
+#tracks-menu .track input:checked + span.track-card {
+  background: var(--amber);
+  box-shadow: inset 4px 0 0 var(--burnt);
+  color: var(--charcoal);
+}
+#tracks-menu .track input:focus-visible + span.track-card { outline: 3px solid var(--ink); outline-offset: 2px; }
+#tracks-menu .track input.controller-focus + span.track-card { outline: 3px solid var(--amber); outline-offset: 2px; }
+.track-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+.track-thumb { display: block; flex: none; width: 52px; height: 30px; }
+.track-thumb path { fill: none; stroke: rgba(246, 241, 228, 0.88); stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+.track-thumb circle { fill: var(--track-accent, var(--orange)); stroke: var(--charcoal); stroke-width: 1; }
+#tracks-menu .track input:checked + span.track-card .track-thumb path { stroke: var(--charcoal); }
+#tracks-menu .track input:checked + span.track-card .track-thumb circle { fill: var(--burnt); stroke: var(--amber); }
+.track-tag {
+  padding: 2px 5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  font: 700 10px/1.15 var(--body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#tracks-menu .track input:checked + span.track-card .track-tag {
+  background: rgba(24, 25, 28, 0.14);
+  color: rgba(24, 25, 28, 0.86);
+}
+.track-name {
+  display: block;
+  font: 400 clamp(14px, 1.9vh, 19px)/1.05 var(--poster);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink);
+  overflow-wrap: break-word;
+}
+#tracks-menu .track input:checked + span.track-card .track-name { color: var(--charcoal); }
+#tracks-menu .personal-bests {
+  margin: 0;
+  max-width: none;
+  padding: 10px 14px;
+  background: rgba(11, 12, 15, 0.46);
+  border: 1px solid rgba(246, 241, 228, 0.12);
+  border-left: 4px solid var(--track-accent, var(--amber));
+}
+.track-detail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+#tracks-menu .personal-bests h2 { margin: 0; }
+.track-meta { font: 700 11px/1.25 var(--body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .track-info-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .track-info-row dl { flex: 1 1 auto; min-width: 0; }
 .track-preview-card {
   flex: none;
-  width: 120px;
+  width: 132px;
   height: 76px;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: 3px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(246, 241, 228, 0.14);
 }
 #track-preview { display: block; width: 100%; height: 100%; }
-#track-preview-path { fill: none; stroke: rgba(246, 241, 228, 0.88); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
-#track-preview-start { fill: var(--orange); stroke: var(--charcoal); stroke-width: 1.2; }
-.track-blurb { margin: 6px 0 0; font: 400 13px/1.35 var(--body); color: var(--muted); }
+#track-preview-path { fill: none; stroke: rgba(246, 241, 228, 0.9); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+#track-preview-start { fill: var(--track-accent, var(--orange)); stroke: var(--charcoal); stroke-width: 1.2; }
+.track-blurb { margin: 6px 0 0; font: 400 13px/1.35 var(--body); color: #d6d1c4; }
 .track-blurb:empty { display: none; }
+#tracks-menu .actions button { margin-top: 14px; }
 #gymkhana-menu[data-category="getaway"] .sheet { width: min(600px, 100%); }
 #getaway-missions { margin-top: 14px; }
 #getaway-missions .pitch { margin-top: 8px; }
@@ -780,6 +878,22 @@ body[data-bust='busted'] #bust-vignette {
 .stats-note { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
 
 @media (max-height: 620px) {
+  #tracks-menu { padding-block: 10px; }
+  #tracks-menu .sheet.small { padding: 16px 22px 14px; }
+  #tracks-menu .sheet.small::before { margin: -16px -22px 10px; }
+  #tracks-menu #tracks-title { font-size: 32px; }
+  .tracks-head { margin-bottom: 6px; }
+  #tracks-menu .track-select { gap: 4px; margin-bottom: 8px; }
+  #tracks-menu #tracks { gap: 6px; }
+  #tracks-menu .track > span.track-card { padding: 5px 7px 5px 10px; gap: 3px; }
+  .track-thumb { width: 42px; height: 24px; }
+  .track-name { font-size: 14px; }
+  #tracks-menu .personal-bests { padding: 8px 12px; }
+  .track-detail-head { margin-bottom: 4px; }
+  .track-preview-card { width: 118px; height: 64px; }
+  .track-blurb { margin-top: 4px; font-size: 12px; }
+  #tracks-menu .actions button { margin-top: 10px; padding: 8px 18px; font-size: 21px; }
+  #tracks-menu .actions button.quiet { font-size: 18px; }
   #gymkhana-menu[data-category="getaway"] { padding-block: 12px; }
   #gymkhana-menu[data-category="getaway"] .howto li + li { margin-top: 2px; }
   .title { font-size: min(10.2vw, 16vh); }

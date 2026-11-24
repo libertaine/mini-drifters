@@ -9,7 +9,7 @@ import { createRecords, RECORDS_KEY, V2_RECORDS_KEY, LEGACY_RECORDS_KEY } from '
 import { SCORING_VERSION, LEGACY_SCORING_VERSION } from '../src/scoring.js';
 import { HANDLING_IDS } from '../src/handling.js';
 import { createGame, startRun, restartRun, returnToMenu, tick } from '../src/game.js';
-import { trackById } from '../src/track.js';
+import { trackById, TRACKS } from '../src/track.js';
 import { createScoring, bankCombo, loseCombo } from '../src/scoring.js';
 import { driftDriver } from './support/drivers.mjs';
 
@@ -31,7 +31,8 @@ const finish = (r, score = 100, bestCombo = 40, runId = 1, trackId = 'original',
 const entry3 = ({ score, fastestLap, bestCombo }) => ({ fastestLap,
   scoring: { [LEGACY_SCORING_VERSION]: { score: null, bestCombo: null }, [SCORING_VERSION]: { score, bestCombo } } });
 // The schema 3 save for a set of current Classic bests, every other partition empty.
-const savedClassic = (tracks) => ({ version: 3, tracks: Object.fromEntries(['original', 'switchback', 'dockyard'].map((t) => [t,
+const TRACK_IDS = TRACKS.map((t) => t.id);
+const savedClassic = (tracks) => ({ version: 3, tracks: Object.fromEntries(TRACK_IDS.map((t) => [t,
   Object.fromEntries(HANDLING_IDS.map((h) => [h, entry3(h === 'classic' && tracks[t] ? tracks[t] : blank)]))])) });
 function rig(trackId = 'original') {
   const storage = store(); const records = createRecords(() => storage);
@@ -191,7 +192,7 @@ test('invalid saved numbers become missing; known valid fields survive and unkno
     assert.deepEqual(r.forTrack('original', 'classic'), { score: null, bestCombo: null, fastestLap: 50 });
     assert.deepEqual(r.forTrack('fake', 'classic'), blank);
     start(r); finish(r);
-    assert.deepEqual(Object.keys(JSON.parse(s.raw).tracks), ['original', 'fake', 'switchback', 'dockyard']);
+    assert.deepEqual(Object.keys(JSON.parse(s.raw).tracks), ['original', 'fake', ...TRACK_IDS.slice(1)]);
     assert.deepEqual(JSON.parse(s.raw).tracks.fake, { classic: { score: 999 } });
     assert.deepEqual(JSON.parse(s.raw).tracks.original.classic, entry3({ score: 100, bestCombo: 40, fastestLap: 50 }));
   }

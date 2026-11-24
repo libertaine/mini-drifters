@@ -72,32 +72,52 @@ const renderer = createRenderer($('view'), game.track, trackById('original'));
 // The circuit for the next normal run. It isn't saved, so a new visit starts on Original.
 let selectedTrackId = DEFAULT_TRACK_ID;
 
-const trackInputs = TRACKS.map((track) => {
-  const label = document.createElement('label');
-  label.className = 'track';
-  const input = document.createElement('input');
-  input.type = 'radio';
-  input.name = 'track';
-  input.value = track.id;
-  const name = document.createElement('span');
-  name.textContent = track.name;
-  label.append(input, name);
-  $('tracks').append(label);
-  input.addEventListener('change', () => selectTrack(track.id));
-  return input;
+const TRACK_DETAILS = Object.freeze({
+  original: {
+    tag: 'Club',
+    venue: 'Grassroots Club Circuit',
+    accent: '#cf4a1b',
+    blurb: 'Grassroots club circuit · Fast sweepers, long bends and a tight hairpin.',
+  },
+  switchback: {
+    tag: 'Hillside',
+    venue: 'Wooded Hillside Pass',
+    accent: '#52a85a',
+    blurb: 'Hillside pass · Linked S-bends climbing into a tight hillside right.',
+  },
+  dockyard: {
+    tag: 'Harbor',
+    venue: 'Industrial Port Apron',
+    accent: '#d4b13b',
+    blurb: 'Harbor concrete apron · Technical Hook, chicane and sweeping Basin.',
+  },
+  'runway-27': {
+    tag: 'Airfield',
+    venue: 'Abandoned Airfield',
+    accent: '#e2642a',
+    blurb: 'Abandoned airfield · Wide sweeping bends and fast tarmac chutes that reward high-speed slides.',
+  },
+  'redline-mesa': {
+    tag: 'Desert',
+    venue: 'Desert Proving Ground',
+    accent: '#cc5e38',
+    blurb: 'Desert proving ground · Three wide opposing drift hairpins paired with a flowing canyon-rim return.',
+  },
+  'headland-run': {
+    tag: 'Coastal',
+    venue: 'Seaside Coastal Cliff',
+    accent: '#2e87b8',
+    blurb: 'Seaside coastal cliff · Fast cliff sweeper, deep marina cove and opening-radius lighthouse carousel.',
+  },
+  'nightshift-viaduct': {
+    tag: 'Night',
+    venue: 'Midnight Expressway',
+    accent: '#f0b330',
+    blurb: 'Midnight expressway · Headlights and sodium lamps light a 205° cloverleaf into a sweeping freight yard.',
+  },
 });
 
-const TRACK_BLURBS = {
-  original: 'Grassroots club circuit · Fast sweepers and a tight hairpin.',
-  switchback: 'Hillside pass · Linked S-bends climbing into a tight right.',
-  dockyard: 'Harbor concrete apron · Technical Hook, chicane and sweeping Basin.',
-};
-
-function updateTrackPreview(id) {
-  const pathEl = $('track-preview-path');
-  const dotEl = $('track-preview-start');
-  if (!pathEl || !dotEl) return;
-  const track = trackById(id);
+function trackSvgGeometry(track, width, height, pad, stride = 4) {
   const { points, start } = track;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const p of points) {
@@ -106,23 +126,81 @@ function updateTrackPreview(id) {
     if (p.y < minY) minY = p.y;
     if (p.y > maxY) maxY = p.y;
   }
-  const pad = 10;
-  const w = 120 - pad * 2;
-  const h = 76 - pad * 2;
+  const w = width - pad * 2;
+  const h = height - pad * 2;
   const scale = Math.min(w / Math.max(1, maxX - minX), h / Math.max(1, maxY - minY));
-  const ox = (120 - (maxX - minX) * scale) / 2;
-  const oy = (76 - (maxY - minY) * scale) / 2;
+  const ox = (width - (maxX - minX) * scale) / 2;
+  const oy = (height - (maxY - minY) * scale) / 2;
   const sx = (x) => (ox + (x - minX) * scale).toFixed(1);
   const sy = (y) => (oy + (y - minY) * scale).toFixed(1);
   const parts = [];
-  for (let i = 0; i < points.length; i += 4) {
+  for (let i = 0; i < points.length; i += stride) {
     parts.push(`${i === 0 ? 'M' : 'L'}${sx(points[i].x)} ${sy(points[i].y)}`);
   }
   parts.push('Z');
-  pathEl.setAttribute('d', parts.join(' '));
-  dotEl.setAttribute('cx', sx(start.x));
-  dotEl.setAttribute('cy', sy(start.y));
-  setText('track-blurb', TRACK_BLURBS[id] ?? '');
+  return { d: parts.join(' '), cx: sx(start.x), cy: sy(start.y) };
+}
+
+const SVG_NS = $('track-preview')?.namespaceURI ?? '';
+
+const trackInputs = TRACKS.map((track) => {
+  const built = trackById(track.id);
+  const meta = TRACK_DETAILS[track.id] ?? { tag: 'Circuit', venue: 'Circuit', accent: '#ffb627', blurb: '' };
+  const label = document.createElement('label');
+  label.className = 'track';
+  label.dataset.track = track.id;
+  label.style.setProperty('--track-accent', meta.accent);
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'track';
+  input.value = track.id;
+  const card = document.createElement('span');
+  card.className = 'track-card';
+  const top = document.createElement('span');
+  top.className = 'track-card-top';
+  if (SVG_NS) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'track-thumb');
+    svg.setAttribute('viewBox', '0 0 56 34');
+    svg.setAttribute('aria-hidden', 'true');
+    const geom = trackSvgGeometry(built, 56, 34, 4, 8);
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', geom.d);
+    const dot = document.createElementNS(SVG_NS, 'circle');
+    dot.setAttribute('cx', geom.cx);
+    dot.setAttribute('cy', geom.cy);
+    dot.setAttribute('r', '2.1');
+    svg.append(path, dot);
+    top.append(svg);
+  }
+  const tag = document.createElement('span');
+  tag.className = 'track-tag';
+  tag.textContent = meta.tag;
+  top.append(tag);
+  const name = document.createElement('strong');
+  name.className = 'track-name';
+  name.textContent = track.name;
+  card.append(top, name);
+  label.append(input, card);
+  $('tracks').append(label);
+  input.addEventListener('change', () => selectTrack(track.id));
+  return input;
+});
+
+function updateTrackPreview(id) {
+  const pathEl = $('track-preview-path');
+  const dotEl = $('track-preview-start');
+  if (!pathEl || !dotEl) return;
+  const track = trackById(id);
+  const meta = TRACK_DETAILS[id] ?? { venue: 'Circuit', accent: '#ffb627', blurb: '' };
+  const geom = trackSvgGeometry(track, 120, 76, 10, 4);
+  pathEl.setAttribute('d', geom.d);
+  dotEl.setAttribute('cx', geom.cx);
+  dotEl.setAttribute('cy', geom.cy);
+  const details = $('track-details');
+  if (details) details.style.setProperty('--track-accent', meta.accent);
+  setText('track-meta', `${meta.venue} · ${(track.length / 1000).toFixed(2)} km`);
+  setText('track-blurb', meta.blurb);
 }
 
 function selectTrack(id) {
@@ -397,6 +475,8 @@ const missionButtons = GETAWAY_SHEET.map((entry) => {
 });
 
 function showTracksHandling() {
+  const el = $('tracks-handling');
+  if (el) el.dataset.handling = selectedHandlingId;
   setText('tracks-handling', selectedHandling().name + ' handling.' + (instructionDevice === 'keyboard' ? ' Press H to change it.' : ''));
 }
 

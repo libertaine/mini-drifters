@@ -2,11 +2,10 @@ import { loadCoyote, createCoyote } from '../audio-lab/coyote.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { DEFAULTS, PRESETS, mapAudio, normalize } from '../audio-lab/model.js';
 import { AudioLab } from '../audio-lab/audio.js';
 import { prepareLoop, loadSamples } from '../audio-lab/voices.js';
+import { startLocalServer } from './support/local-server.mjs';
 
 test('stationary tires remain silent at every slip/grip and on both surfaces', () => {
   for (const surface of ['road', 'grass']) for (let slip = 0; slip <= 90; slip++) {
@@ -186,16 +185,9 @@ test('Pages keeps its explicit game-only deployment allowlist', async () => {
 });
 
 test('development server exposes only explicit lab files with correct audio MIME types', async () => {
-  const server = spawn(process.execPath, [fileURLToPath(new URL('../server.mjs', import.meta.url))], {
-    env: { ...process.env, PORT: '4195' }, stdio: ['ignore', 'pipe', 'inherit'],
-  });
+  const srv = await startLocalServer({ port: 0 });
   try {
-    await new Promise((resolve, reject) => {
-      server.once('error', reject);
-      server.once('exit', (code) => reject(new Error(`Server exited: ${code}`)));
-      server.stdout.once('data', resolve);
-    });
-    const base = 'http://127.0.0.1:4195';
+    const base = srv.base;
     const redirect = await fetch(`${base}/audio-lab`, { redirect: 'manual' });
     assert.equal(redirect.status, 308); assert.equal(redirect.headers.get('location'), '/audio-lab/');
     for (const [path, type] of [['/audio-lab/', 'text/html'], ['/audio-lab/lab.js', 'text/javascript'],
@@ -211,7 +203,7 @@ test('development server exposes only explicit lab files with correct audio MIME
       assert.equal((await fetch(`${base}${path}`)).status, 404, path);
     }
     assert.equal((await fetch(`${base}/audio-lab/`, { method: 'POST' })).status, 404);
-  } finally { server.kill(); }
+  } finally { await srv.stop(); }
 });
 
 

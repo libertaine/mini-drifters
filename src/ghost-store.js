@@ -40,17 +40,19 @@ export const ENTRY_FORMAT = 1;
 // defence only: R0 found they were identical between v0.5.0 and v0.6.0, although v0.6.0's
 // Dockyard drives up to 119 m differently. test/ghost-store.test.mjs pins the inputs this
 // version covers, so a change to them fails until it has been reviewed here. See docs/GHOST.md.
-//   1  v0.6.0's physics and circuit environments (aa46ea2), unchanged in v0.7.0.
+//   1  v0.6.0's physics and circuit environments (aa46ea2), unchanged in v0.7.0, v0.8.0 and v0.9.0
+//      (v0.9.0 added four new circuits without altering physics or the original three circuits).
 export const GHOST_COMPATIBILITY = 1;
 export const GHOST_COMPATIBILITY_BASELINE = 'v0.6.0';
 
 const TICK_RATE = Math.round(1 / TUNING.simStep);
 // Laps over five minutes aren't saved (they still play as the previous-lap ghost). That keeps the
-// worst case for all six slots near 0.9 MiB, well inside a typical 5 MiB origin quota.
+// worst case for all 14 slots near 2.44 MiB (and typical laps under 0.45 MiB), well inside a
+// typical 5 MiB origin quota.
 export const MAX_SAVED_TICKS = 5 * 60 * TICK_RATE;
 export const MAX_SAMPLES = Math.floor((MAX_SAVED_TICKS - 1) / SAMPLE_EVERY) + 2;
 export const MAX_ENTRY_CHARS = 160_000;   // one serialised entry
-export const MAX_STORE_CHARS = 2_000_000; // the whole key, before it is even parsed
+export const MAX_STORE_CHARS = 2_500_000; // the whole key, before it is even parsed
 const POS_Q = 100;   // centimetres
 const HEAD_Q = 1000; // milliradians
 const WORLD = 5000;  // metres from the origin; every circuit sits well inside 1 km

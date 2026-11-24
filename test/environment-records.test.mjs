@@ -28,7 +28,15 @@ test('v0.5.0 records read, retain and improve through v0.6.0 with the same ident
     const expected=structuredClone(before);
     expected.tracks.dockyard[handling].fastestLap=30;
     expected.tracks.dockyard[handling].scoring[SCORING_VERSION]={score:2000,bestCombo:300};
-    assert.deepEqual(after,expected,'only improved Dockyard handling partition changes');
+    assert.equal(after.version,expected.version);
+    for(const track of ['original','switchback','dockyard']) {
+      assert.deepEqual(after.tracks[track],expected.tracks[track],`only improved Dockyard handling partition changes (${track})`);
+    }
+    for(const track of ['runway-27','redline-mesa','headland-run','nightshift-viaduct']) {
+      for(const mode of ['classic','revised']) {
+        assert.deepEqual(records.forTrack(track,mode),{score:null,fastestLap:null,bestCombo:null});
+      }
+    }
     assert.ok(writes.length>0 && writes.every(k=>k===RECORDS_KEY));
     assert.equal(map.get('unrelated-owner-preference'),'keep');
     const reloaded=createRecords(()=>storage);

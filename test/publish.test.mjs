@@ -3,11 +3,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RADIO_FILES, STATIONS } from '../src/radio-stations.js';
+import { startLocalServer } from './support/local-server.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const sourceFiles = readdirSync(join(root, 'src')).map((name) => join(root, 'src', name));
@@ -213,23 +214,19 @@ test('the public fallback is never described as a recording', () => {
 });
 
 test('the local server serves the game and nothing else', async () => {
-  const port = 4193;
-  const server = spawn(process.execPath, [join(root, 'server.mjs')], {
-    env: { ...process.env, PORT: String(port) },
-    stdio: ['ignore', 'pipe', 'inherit'],
-  });
+  const srv = await startLocalServer({ port: 0 });
   try {
-    await new Promise((ready, failed) => {
-      server.stdout.once('data', ready);
-      server.once('error', failed);
-    });
-    const status = async (path) => (await fetch(`http://127.0.0.1:${port}${path}`)).status;
+    const status = async (path) => (await fetch(`${srv.base}${path}`)).status;
     assert.equal(await status('/'), 200);
     assert.equal(await status('/style.css'), 200);
     assert.equal(await status('/src/main.js'), 200);
     assert.equal(await status('/server.mjs'), 404);
     assert.equal(await status('/package.json'), 404);
     assert.equal(await status('/src/audio-telemetry.js'), 200);
+    assert.equal(await status('/src/scenery-runway.js'), 200);
+    assert.equal(await status('/src/scenery-mesa.js'), 200);
+    assert.equal(await status('/src/scenery-headland.js'), 200);
+    assert.equal(await status('/src/scenery-nightshift.js'), 200);
     assert.equal(await status('/radio/ATTRIBUTION.md'), 200);
     for (const file of RADIO_FILES) assert.equal(await status(`/${file}`), 200, file);
     for (const path of ['/radio/', '/radio/x.exe', '/radio/test-tracks/../../server.mjs', '/radio/test-tracks/Missing.wav']) assert.equal(await status(path), 404, path);
@@ -237,30 +234,23 @@ test('the local server serves the game and nothing else', async () => {
       assert.equal(await status(path), 404, path);
     }
   } finally {
-    server.kill();
+    await srv.stop();
   }
 });
 
-async function servedPage(port, env) {
-  const server = spawn(process.execPath, [join(root, 'server.mjs')], {
-    env: { ...process.env, PORT: String(port), ...env },
-    stdio: ['ignore', 'pipe', 'inherit'],
-  });
+async function servedPage(env) {
+  const srv = await startLocalServer({ port: 0, env });
   try {
-    await new Promise((ready, failed) => {
-      server.stdout.once('data', ready);
-      server.once('error', failed);
-    });
-    return await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    return await (await fetch(srv.url)).text();
   } finally {
-    server.kill();
+    await srv.stop();
   }
 }
 
 test('the published page plays Coyote, and COYOTE_LOCAL=off plays the fallback', async () => {
   const tag = /<meta name="mini-drifters-engine" content="coyote-local">/;
   assert.match(readFileSync(join(root, 'index.html'), 'utf8'), tag);
-  assert.match(await servedPage(4192, { COYOTE_LOCAL: '' }), tag);
-  assert.doesNotMatch(await servedPage(4191, { COYOTE_LOCAL: 'off' }), /mini-drifters-engine/);
+  assert.match(await servedPage({ COYOTE_LOCAL: '' }), tag);
+  assert.doesNotMatch(await servedPage({ COYOTE_LOCAL: 'off' }), /mini-drifters-engine/);
   for (const file of COYOTE_LOOPS) assert.ok(existsSync(join(root, file)), file);
 });

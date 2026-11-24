@@ -1,28 +1,20 @@
 // Real Web Audio, headless Chromium and Firefox. No subjective listening claims.
 // Optional argument: absolute path to an existing Playwright index.mjs.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { startLocalServer } from './support/local-server.mjs';
 
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
 const selectedBrowser = process.env.AUDIO_LAB_BROWSER;
 if (selectedBrowser && !['chromium', 'firefox'].includes(selectedBrowser)) throw new Error('AUDIO_LAB_BROWSER must be chromium or firefox');
 const root = new URL('../', import.meta.url);
-const port = 4194;
-const base = `http://127.0.0.1:${port}`;
-const server = spawn(process.execPath, [fileURLToPath(new URL('server.mjs', root))], {
-  env: { ...process.env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'inherit'],
-});
+const local = await startLocalServer({ port: 0 });
+const base = local.base;
 const report = [];
 const artifact = (name) => fileURLToPath(new URL(`artifacts/${name}`, root));
 
 try {
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.once('exit', (code) => reject(new Error(`Lab server exited: ${code}`)));
-    server.stdout.once('data', resolve);
-  });
   await mkdir(new URL('artifacts/', root), { recursive: true });
   for (const [name, engine] of [['chromium', chromium], ['firefox', firefox]]) {
     if (selectedBrowser && selectedBrowser !== name) continue;
@@ -190,4 +182,4 @@ try {
     } finally { await browser.close(); }
   }
   await writeFile(artifact('audio-lab-report.json'), JSON.stringify(report, null, 2) + '\n');
-} finally { server.kill(); }
+} finally { await local.stop(); }

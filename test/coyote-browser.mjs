@@ -1,15 +1,15 @@
 // Native browser checks. Synthetic fixtures are explicitly labeled when the
 // owner audio is absent (e.g. public CI); never a production audio fallback.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { startLocalServer } from './support/local-server.mjs';
 const { chromium, firefox } = await import(process.argv[2] ? pathToFileURL(process.argv[2]) : 'playwright');
-const root = new URL('../', import.meta.url), base = 'http://127.0.0.1:4196';
-const server = spawn(process.execPath, [fileURLToPath(new URL('server.mjs', root))], { env: { ...process.env, PORT: '4196' }, stdio: ['ignore', 'pipe', 'inherit'] });
+const root = new URL('../', import.meta.url);
+const local = await startLocalServer({ port: 0 });
+const base = local.base;
 const report = [];
 try {
-  await new Promise((resolve, reject) => { server.once('error', reject); server.once('exit', (code) => reject(new Error('Server exited: ' + code))); server.stdout.once('data', resolve); });
   await mkdir(new URL('artifacts/', root), { recursive: true });
   for (const [name, engine] of [['chromium', chromium], ['firefox', firefox]]) {
     const browser = await engine.launch({ headless: true });
@@ -166,4 +166,4 @@ try {
     } finally { await browser.close(); }
   }
   await writeFile(new URL('artifacts/coyote-report.json', root), JSON.stringify(report, null, 2) + '\n');
-} finally { server.kill(); }
+} finally { await local.stop(); }
