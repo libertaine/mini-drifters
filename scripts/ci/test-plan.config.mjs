@@ -52,7 +52,7 @@ export const SMOKE = 'test:browser';
 // What GitHub Pages publishes (the copy lines of the deploy job, checked by a unit test).
 export const DEPLOYED = Object.freeze([
   'index.html', 'style.css', 'src/**', 'radio/**',
-  'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/ATTRIBUTION.md', 'audio-lab/assets/coyote-local/idle.wav',
+  'audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/busted-voice.wav', 'audio-lab/assets/ATTRIBUTION.md', 'audio-lab/assets/coyote-local/idle.wav',
   'audio-lab/assets/coyote-local/mid.wav', 'audio-lab/assets/coyote-local/load.wav', 'audio-lab/assets/coyote-local/high.wav',
 ]);
 
@@ -107,9 +107,9 @@ export const RULES = Object.freeze([
     paths: ['src/audio-voices.js', 'src/audio-telemetry.js', 'src/coyote.js', 'src/coyote-model.js', 'src/getaway-sfx.js'],
     suites: ['test:gameplay-audio:browser', 'test:wheelspin:browser', 'test:showmanship:browser', 'test:radio:browser', 'test:r2-polish:browser'] },
   { id: 'audio-engine', tier: 2, paths: ['src/audio.js'], suites: AUDIO_SUITES, why: 'The sound engine, which several suites check the state of' },
-  { id: 'audio-assets', tier: 2, why: 'Published engine and tyre recordings',
-    paths: ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/coyote-local/**'],
-    suites: ['test:gameplay-audio:browser', 'test:coyote:browser', 'test:audio:browser', 'test:wheelspin:browser'] },
+  { id: 'audio-assets', tier: 2, why: 'Published engine, tyre and busted voice recordings',
+    paths: ['audio-lab/assets/tire-foley.mp3', 'audio-lab/assets/busted-voice.wav', 'audio-lab/assets/coyote-local/**'],
+    suites: ['test:gameplay-audio:browser', 'test:coyote:browser', 'test:audio:browser', 'test:wheelspin:browser', 'test:r2-polish:browser', 'test:getaway-driver:browser'] },
   { id: 'audio-lab', tier: 2, why: 'The development audio lab, which is not published',
     paths: ['audio-lab/*.js', 'audio-lab/*.html', 'audio-lab/*.css', 'audio-lab/assets/engine-*.wav'], suites: ['test:audio:browser', 'test:coyote:browser'] },
   { id: 'local-server', tier: 2, paths: ['server.mjs'], suites: ['test:audio:browser', 'test:coyote:browser', 'test:gameplay-audio:browser'], why: 'The local server, which these suites start' },

@@ -19,6 +19,10 @@ The Mini Drifters project owner ([libertaine](https://github.com/libertaine)) ow
 
 `tire-foley.mp3`, `engine-low.wav` and `engine-high.wav` in `audio-lab/assets/` are third-party recordings under CC0.
 
+## Busted announcer voice: Apache 2.0
+
+`audio-lab/assets/busted-voice.wav` is an offline-generated announcer callout produced locally with the open-weight Kokoro-82M v1.0 model (Apache License 2.0) and offline DSP mastering. See [`audio-lab/assets/ATTRIBUTION.md`](audio-lab/assets/ATTRIBUTION.md) for provenance and SHA-256 verification.
+
 ## Radio music: provisional loops
 
 The files in `radio/test-tracks/` are synthesized from scratch by `scripts/radio-test-tracks.mjs`. They contain no samples or third-party audio, and they're under the repository's MIT License, like the script. [`radio/ATTRIBUTION.md`](radio/ATTRIBUTION.md) lists them, and will record the source and terms of any music that replaces them.

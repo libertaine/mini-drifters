@@ -244,12 +244,62 @@ export const CUE_SFX = Object.freeze({
     { type: 'tone', wave: 'triangle', at: 0.2, freq: 587.33, dur: 0.46, attack: 0.015, gain: 0.52 },
   ]),
   'outcome-busted': Object.freeze([
-    // Heavy downward siren-cut & brass bust sting.
+    // Fallback synthesized sting if the offline spoken voice asset cannot load.
     { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 950, q: 1.1, at: 0, freq: 246.94, to: 185, dur: 0.28, glide: 0.12, gain: 0.52 },
     { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 760, q: 1.1, at: 0.18, freq: 185, to: 116.54, dur: 0.46, glide: 0.18, gain: 0.56 },
     { type: 'thump', at: 0.18, freq: 110, to: 52, dur: 0.32, gain: 0.58 },
   ]),
+  'outcome-failed': Object.freeze([
+    // Non-bust failure sting (out of time, missed camera, Gymkhana fail).
+    { type: 'tone', wave: 'sawtooth', filter: 'lowpass', cutoff: 900, q: 1.0, at: 0, freq: 233.08, to: 174.61, dur: 0.26, glide: 0.12, gain: 0.48 },
+    { type: 'tone', wave: 'triangle', at: 0.16, freq: 174.61, to: 116.54, dur: 0.4, glide: 0.16, gain: 0.46 },
+  ]),
 });
+
+// Plays the offline deep announcer "BUSTED!" voice asset with a tight sub-bass cabinet punch,
+// falling back to the synthesized bust sting when the sample is unavailable.
+export function playBustedVoice(ctx, destination, buffer) {
+  if (!buffer) {
+    const fallback = playCue(ctx, destination, 'outcome-busted');
+    return fallback ? { ...fallback, spoken: false } : null;
+  }
+  const t0 = ctx.currentTime;
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0.96, t0);
+  out.connect(destination);
+
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(out);
+  const voiceDur = Number.isFinite(buffer.duration) && buffer.duration > 0 ? buffer.duration : 0.9;
+  const voiceEnd = t0 + voiceDur;
+  src.start(t0);
+  src.stop(voiceEnd + 0.02);
+
+  // Subtle low cabinet punch right under the "B" plosive for retro arcade weight without mud.
+  const punch = playRecipe(ctx, destination, [
+    { type: 'thump', at: 0, freq: 108, to: 44, dur: 0.24, gain: 0.34 },
+  ], FX_LIMITS.cueLevel);
+
+  const cleanup = () => {
+    try { src.disconnect(); } catch { /* already gone */ }
+    try { out.disconnect(); } catch { /* already gone */ }
+  };
+  src.onended = cleanup;
+
+  let stopped = false;
+  return {
+    end: Math.max(voiceEnd, punch?.end ?? voiceEnd),
+    spoken: true,
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      try { src.stop(); } catch { /* already ended */ }
+      cleanup();
+      punch?.stop();
+    },
+  };
+}
 
 export function playCue(ctx, destination, kind, detail = 0) {
   if (kind === 'camera') {
@@ -356,11 +406,14 @@ export function createSirenVoice(ctx, destination) {
   sub.start();
 
   let phase = 0;
+  let currentLevel = 0.5;
+  let ducked = false;
   let stopped = false;
 
   return {
     update({ level, urgency, muffled, dt }) {
-      if (stopped) return;
+      if (stopped || ducked) return;
+      currentLevel = clamp01(level);
       const step = Math.min(0.1, Math.max(0, dt || 1 / 30));
       // Smoothly speed up sweep from classic Wail (~0.34 Hz) to urgent Yelp (~2.1 Hz).
       const rate = 0.34 + urgency * urgency * 1.78;
@@ -376,7 +429,19 @@ export function createSirenVoice(ctx, destination) {
       sub.frequency.setTargetAtTime(hz * 1.006, now, 0.025);
       toneFilter.frequency.setTargetAtTime(hz * 1.15, now, 0.03);
       occlude.frequency.setTargetAtTime(muffled ? 920 : 3200, now, 0.08);
-      out.gain.setTargetAtTime(FX_LIMITS.sirenLevel * clamp01(level) * (muffled ? 0.68 : 1), now, 0.06);
+      out.gain.setTargetAtTime(FX_LIMITS.sirenLevel * currentLevel * (muffled ? 0.68 : 1), now, 0.06);
+    },
+    // Briefly ducks and muffles the siren when the "BUSTED!" voice hits so speech dominates cleanly.
+    duck(factor = 0.22, fadeOut = 0.95) {
+      if (stopped || ducked) return;
+      ducked = true;
+      const now = ctx.currentTime;
+      const duckedGain = FX_LIMITS.sirenLevel * Math.max(0.3, currentLevel) * factor;
+      occlude.frequency.setTargetAtTime(920, now, 0.04);
+      out.gain.setTargetAtTime(duckedGain, now, 0.03);
+      out.gain.setTargetAtTime(0, now + 0.12, Math.max(0.08, fadeOut / 3.5));
+      main.frequency.setTargetAtTime(520, now + 0.08, 0.35);
+      sub.frequency.setTargetAtTime(523, now + 0.08, 0.35);
     },
     stop() {
       if (stopped) return;

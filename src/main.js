@@ -1387,13 +1387,16 @@ function playFxSounds(dt) {
       audio.cue('outcome-escaped');
       fxFinished = true;
     } else if (ev?.type === 'busted') {
-      audio.cue('outcome-busted');
-      fxFinished = true;
+      if (!fxFinished) {
+        audio.cue('outcome-busted');
+        fxFinished = true;
+      }
     }
   }
   if (!fxFinished && game.state === 'finished' && run) {
     fxFinished = true;
-    audio.cue(run.phase === 'complete' ? 'outcome-escaped' : 'outcome-busted');
+    audio.cue(run.phase === 'complete' ? 'outcome-escaped'
+      : run.reason === 'busted' ? 'outcome-busted' : 'outcome-failed');
   }
   if (game.scoring.eventSerial !== fxScoreSerial) {
     fxScoreSerial = game.scoring.eventSerial;

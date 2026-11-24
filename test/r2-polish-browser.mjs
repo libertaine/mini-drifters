@@ -299,8 +299,74 @@ async function check(name, engine) {
     await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === false, null, { timeout: 2000 });
     await audioPage.click('#sound'); // unmute
     await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().sirenActive === true, null, { timeout: 2000 });
-    ok('Live Web Audio siren, pursuit cues and impacts obey pause and mute cleanly');
+
+    // 3) Offline BUSTED voice asset decodes in Getaway, triggers once on actual bust with siren ducking,
+    //    and cancels immediately on retry (R).
+    await audioPage.waitForFunction(() => window.__miniDrifters.fxAudio().bustedState === 'ready', null, { timeout: 4000 });
+    await audioPage.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      const cop = g.challenge.police.find((u) => u.mode === 'pursue') ?? g.challenge.police[1];
+      cop.mode = 'pursue';
+      cop.lights = true;
+      cop.x = g.car.x;
+      cop.y = g.car.y;
+      cop.speed = 0;
+      g.car.vx = 0; g.car.vy = 0;
+      g.challenge.pursuing = true;
+      g.challenge.meter = 0.995;
+    });
+    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 3000 });
+    const bustedFx = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
+    assert.equal(bustedFx.bustedPlayed, 1, 'BUSTED triggers once on police bust');
+    assert.equal(bustedFx.bustedSpoken, 1, 'offline spoken busted-voice.wav played');
+    assert.equal(bustedFx.sirenDucked, true, 'siren ducks underneath the BUSTED voice');
+    // Stays strictly once over subsequent frames.
+    await audioPage.waitForTimeout(150);
+    assert.equal((await audioPage.evaluate(() => window.__miniDrifters.fxAudio().bustedPlayed)), 1);
+    // Retry (R) cancels remaining playback and ducked siren immediately.
+    await audioPage.keyboard.press('KeyR');
+    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'ready', null, { timeout: 2000 });
+    const afterRetry = await audioPage.evaluate(() => window.__miniDrifters.fxAudio());
+    assert.equal(afterRetry.sirenDucked, false, 'R retry cancels ducked siren immediately');
+
+    // Non-bust failure (out of time) never triggers the BUSTED voice.
+    await audioPage.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      g.state = 'racing';
+      g.challenge.time = g.challengeDef.timeLimit - 0.02;
+    });
+    await audioPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 2000 });
+    assert.equal((await audioPage.evaluate(() => window.__miniDrifters.fxAudio().bustedPlayed)), 1, 'out of time does not shout BUSTED');
+    ok('Live Web Audio siren, BUSTED offline voice, siren ducking, once-per-bust and R cancellation verified');
     await audioCtx.close();
+
+    // Missing busted-voice.wav (404) falls back cleanly with zero errors.
+    const fbCtx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+    const fbPage = await fbCtx.newPage();
+    fbPage.on('pageerror', (e) => errors.push(`${name}-fb: ${e.message}`));
+    await fbPage.route('**/busted-voice.wav', (route) => route.fulfill({ status: 404, body: 'missing' }));
+    await fbPage.goto(base);
+    await fbPage.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
+    await fbPage.click('#getaway');
+    await fbPage.click('#getaway-driver');
+    await fbPage.click('#gymkhana-start');
+    await fbPage.waitForFunction(() => window.__miniDrifters.fxAudio().bustedState === 'unavailable', null, { timeout: 4000 });
+    await fbPage.evaluate(() => {
+      const g = window.__miniDrifters.game;
+      const cop = g.challenge.police[1];
+      cop.mode = 'pursue'; cop.lights = true; cop.x = g.car.x; cop.y = g.car.y; cop.speed = 0;
+      g.car.vx = 0; g.car.vy = 0;
+      g.challenge.pursuing = true;
+      g.challenge.meter = 0.995;
+      g.state = 'racing';
+    });
+    await fbPage.waitForFunction(() => window.__miniDrifters.game.state === 'finished', null, { timeout: 3000 });
+    const fbFx = await fbPage.evaluate(() => window.__miniDrifters.fxAudio());
+    assert.equal(fbFx.bustedPlayed, 1);
+    assert.equal(fbFx.bustedSpoken, 0);
+    assert.equal(fbFx.bustedFallback, 1, 'missing voice falls back cleanly to synthesized sting');
+    ok('Unavailable busted-voice.wav falls back cleanly without breaking gameplay or audio');
+    await fbCtx.close();
 
     // --- 3. Reduced motion compliance ---
     const rmCtx = await browser.newContext({ viewport: { width: 1366, height: 768 }, reducedMotion: 'reduce' });

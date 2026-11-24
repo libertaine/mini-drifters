@@ -4,10 +4,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, startRun, restartRun, togglePause, returnToMenu } from '../src/game.js';
 import { GameAudio } from '../src/audio.js';
+import { loadBustedVoice } from '../src/audio-voices.js';
 import { GYMKHANA_CHALLENGES } from '../src/gymkhana.js';
 import { GETAWAY_DRIVER } from '../src/getaway-driver.js';
 import { GETAWAY_MISSIONS } from '../src/getaway-missions.js';
-import { CUE_SFX, FX_LIMITS, playImpact, playCone, playCue, sirenTarget, createSirenVoice } from '../src/getaway-sfx.js';
+import { CUE_SFX, FX_LIMITS, playImpact, playCone, playCue, playBustedVoice, sirenTarget, createSirenVoice } from '../src/getaway-sfx.js';
 
 function deepFreeze(obj, seen = new WeakSet()) {
   if (!obj || typeof obj !== 'object' || seen.has(obj)) return obj;
@@ -292,4 +293,176 @@ test('GameAudio enforces voice caps, keeps circuits siren-free, and cancels sire
   returnToMenu(game);
   audio.dispose();
   assert.equal(audio.fx.sirenActive, false);
+});
+
+test('loadBustedVoice and playBustedVoice handle decoded buffers, fallback, abort and clean node disposal', async () => {
+  const ctx = createMockAudioContext();
+  const fakeBuf = { duration: 0.892, sampleRate: 24000, numberOfChannels: 1, length: 21408 };
+  ctx.decodeAudioData = async () => fakeBuf;
+
+  let fetchedUrl = '';
+  const ok = await loadBustedVoice(ctx, new AbortController().signal, async (url) => {
+    fetchedUrl = String(url);
+    return { ok: true, arrayBuffer: async () => new ArrayBuffer(16) };
+  });
+  assert.match(fetchedUrl, /audio-lab\/assets\/busted-voice\.wav$/);
+  assert.equal(ok.buffer, fakeBuf);
+  assert.deepEqual(ok.failures, []);
+
+  // Missing asset fails quietly with a failure note and null buffer.
+  const missing = await loadBustedVoice(ctx, new AbortController().signal, async () => ({ ok: false, status: 404 }));
+  assert.equal(missing.buffer, null);
+  assert.match(missing.failures[0], /404/);
+
+  // Aborted load drops cleanly without reporting a failure.
+  const ac = new AbortController();
+  ac.abort();
+  const aborted = await loadBustedVoice(ctx, ac.signal, async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
+  assert.equal(aborted.buffer, null);
+  assert.deepEqual(aborted.failures, []);
+
+  // Spoken voice playback schedules buffer + sub punch and stops/disconnects cleanly.
+  const dest = ctx.createGain();
+  const srcBefore = ctx.sources.length;
+  const voice = playBustedVoice(ctx, dest, fakeBuf);
+  assert.equal(voice.spoken, true);
+  assert.ok(voice.end >= ctx.currentTime + 0.89);
+  assert.equal(ctx.sources.length, srcBefore + 1);
+  assert.equal(ctx.sources.at(-1).buffer, fakeBuf);
+  voice.stop();
+  assert.equal(ctx.sources.at(-1).stopped, true);
+  assert.equal(ctx.sources.at(-1).disconnected, true);
+
+  // Null buffer falls back to synthesized sting cleanly.
+  const fb = playBustedVoice(ctx, dest, null);
+  assert.equal(fb.spoken, false);
+  assert.ok(fb.end > ctx.currentTime);
+  fb.stop();
+});
+
+test('GameAudio loads BUSTED voice lazily in Getaway, ducks the siren on bust, cancels on restart/mute/focus/volume and falls back cleanly', async () => {
+  const fakeBuf = { duration: 0.892, sampleRate: 24000, numberOfChannels: 1, length: 21408 };
+  const contexts = [];
+  let bustedCalls = 0;
+  const audio = new GameAudio({
+    coyoteEnabled: false,
+    contextFactory: () => { const c = createMockAudioContext(); contexts.push(c); return c; },
+    storage: { getItem: () => null, setItem() {} },
+    tireLoader: () => Promise.resolve({ buffer: null, failures: [] }),
+    bustedLoader: async () => { bustedCalls += 1; return { buffer: fakeBuf, failures: [] }; },
+  });
+
+  // Circuit runs never request the Getaway busted voice asset.
+  const game = createGame();
+  startRun(game);
+  audio.newRun(game);
+  await flush();
+  game.state = 'racing';
+  audio.update(game, 1 / 60);
+  assert.equal(bustedCalls, 0, 'circuit makes zero busted-voice requests');
+  assert.equal(audio.fx.bustedState, 'idle');
+
+  // Starting Getaway Driver loads the asset once and decodes it to ready.
+  startRun(game, { mode: 'gymkhana', challenge: GETAWAY_DRIVER.environments[0] });
+  audio.newRun(game);
+  await flush();
+  assert.equal(bustedCalls, 1, 'Getaway loads busted voice once');
+  assert.equal(audio.fx.bustedState, 'ready');
+
+  // Engage pursuit siren, then bust: siren ducks smoothly while spoken voice plays.
+  game.state = 'racing';
+  const cop = game.challenge.police[0];
+  cop.lights = true; cop.mode = 'pursue'; cop.watching = true;
+  cop.x = game.car.x + 15; cop.y = game.car.y;
+  audio.update(game, 1 / 60);
+  assert.equal(audio.fx.sirenActive, true);
+
+  game.challenge.phase = 'failed';
+  game.challenge.reason = 'busted';
+  game.state = 'finished';
+  audio.update(game, 1 / 60);
+  audio.cue('outcome-busted');
+  assert.equal(audio.fx.sirenActive, false);
+  assert.equal(audio.fx.sirenDucked, true, 'siren ducks underneath the BUSTED voice');
+  assert.equal(audio.fx.bustedPlayed, 1);
+  assert.equal(audio.fx.bustedSpoken, 1);
+  assert.equal(audio.fx.bustedFallback, 0);
+  assert.equal(audio.session.outcomeVoices.length, 1);
+
+  // Restart cancels both the BUSTED voice and the ducked siren immediately.
+  restartRun(game, { mode: 'gymkhana', ghost: false });
+  audio.newRun(game);
+  assert.equal(audio.session.outcomeVoices.length, 0, 'restart stops BUSTED voice immediately');
+  assert.equal(audio.fx.sirenDucked, false, 'restart cancels ducked siren immediately');
+  assert.equal(audio.session.siren, null);
+  assert.equal(bustedCalls, 1, 'restarts reuse the cached decoded buffer');
+
+  // Focus loss, mute, and zero effects volume each cancel active BUSTED playback immediately.
+  for (const action of ['mute', 'blur', 'zeroVol']) {
+    game.state = 'racing';
+    game.challenge.phase = 'running';
+    game.challenge.reason = '';
+    const u = game.challenge.police[0];
+    u.lights = true; u.mode = 'pursue'; u.x = game.car.x + 15; u.y = game.car.y;
+    audio.update(game, 1 / 60);
+    game.challenge.phase = 'failed';
+    game.challenge.reason = 'busted';
+    game.state = 'finished';
+    audio.update(game, 1 / 60);
+    audio.cue('outcome-busted');
+    assert.equal(audio.session.outcomeVoices.length, 1, action);
+
+    if (action === 'mute') { audio.setMuted(true, game); }
+    if (action === 'blur') { audio.setPageActive(false, game); }
+    if (action === 'zeroVol') { audio.setEffectsVolume(0); }
+    assert.equal(audio.session.outcomeVoices.length, 0, `${action} stops BUSTED voice`);
+    assert.equal(audio.fx.sirenDucked, false, `${action} stops ducked siren`);
+
+    if (action === 'mute') audio.setMuted(false, game);
+    if (action === 'blur') audio.setPageActive(true, game);
+    if (action === 'zeroVol') audio.setEffectsVolume(100);
+  }
+
+  // After the duck window elapses naturally, the ducked siren stops itself cleanly.
+  game.state = 'racing';
+  game.challenge.phase = 'running';
+  game.challenge.reason = '';
+  audio.update(game, 1 / 60);
+  game.challenge.phase = 'failed';
+  game.challenge.reason = 'busted';
+  game.state = 'finished';
+  audio.update(game, 1 / 60);
+  audio.cue('outcome-busted');
+  assert.equal(audio.fx.sirenDucked, true);
+  contexts[0].advance(1.2);
+  audio.update(game, 1 / 60);
+  assert.equal(audio.fx.sirenDucked, false, 'ducked siren terminates once its short tail finishes');
+  assert.equal(audio.session.siren, null);
+
+  // Non-bust failure ('outcome-failed') never triggers the BUSTED voice counter.
+  const playedBefore = audio.fx.bustedPlayed;
+  audio.cue('outcome-failed');
+  assert.equal(audio.fx.bustedPlayed, playedBefore);
+  audio.dispose();
+
+  // Unavailable voice asset degrades gracefully to synthesized fallback without failing audio.
+  const fallbackAudio = new GameAudio({
+    coyoteEnabled: false,
+    contextFactory: () => createMockAudioContext(),
+    storage: { getItem: () => null, setItem() {} },
+    tireLoader: () => Promise.resolve({ buffer: null, failures: [] }),
+    bustedLoader: async () => ({ buffer: null, failures: ['busted-voice.wav: HTTP 404'] }),
+  });
+  startRun(game, { mode: 'gymkhana', challenge: GETAWAY_DRIVER.environments[0] });
+  fallbackAudio.newRun(game);
+  await flush();
+  assert.equal(fallbackAudio.failure, null);
+  assert.equal(fallbackAudio.fx.bustedState, 'unavailable');
+  game.challenge.phase = 'failed'; game.challenge.reason = 'busted'; game.state = 'finished';
+  fallbackAudio.update(game, 1 / 60);
+  fallbackAudio.cue('outcome-busted');
+  assert.equal(fallbackAudio.fx.bustedPlayed, 1);
+  assert.equal(fallbackAudio.fx.bustedSpoken, 0);
+  assert.equal(fallbackAudio.fx.bustedFallback, 1);
+  fallbackAudio.dispose();
 });

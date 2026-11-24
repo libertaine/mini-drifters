@@ -9,12 +9,12 @@
 // controls on those paths, and neither one touches the other's.
 import { createCoyote, loadCoyote } from './coyote.js';
 import { mapCoyote } from './coyote-model.js';
-import { createMixCompressor, createProcedural, createTireVoice, loadTire, mapProceduralEngine, smooth } from './audio-voices.js';
+import { createMixCompressor, createProcedural, createTireVoice, loadBustedVoice, loadTire, mapProceduralEngine, smooth } from './audio-voices.js';
 import { AUDIO_TUNING, createAudioState, engineParams, readTelemetry, resetAudioState, stepAudioState, tireParams } from './audio-telemetry.js';
 import { cleanVolume, readAudioPreferences, volumeGain, writeAudioPreferences, writeMuted } from './audio-preferences.js';
 import { MUSIC_FADE_MS, MUSIC_LEVEL, RadioPlayer, loadTrack } from './radio.js';
 import { RADIO_OFF, STATIONS, stationById } from './radio-stations.js';
-import { SMASH_SFX, FX_LIMITS, playSmash, playImpact, playCone, playCue, sirenTarget, createSirenVoice } from './getaway-sfx.js';
+import { SMASH_SFX, FX_LIMITS, playSmash, playImpact, playCone, playCue, playBustedVoice, sirenTarget, createSirenVoice } from './getaway-sfx.js';
 
 const RESUME_DEADLINE_MS = 8000;
 const LOAD_DEADLINE_MS = 12000;
@@ -39,6 +39,7 @@ export class GameAudio {
     coyoteEnabled = false,
     coyoteLoader = loadCoyote,
     tireLoader = loadTire,
+    bustedLoader = loadBustedVoice,
     trackLoader = loadTrack,
     stations = STATIONS,
     storage = browserStorage(),
@@ -50,6 +51,7 @@ export class GameAudio {
     this.coyoteEnabled = coyoteEnabled;
     this.coyoteLoader = coyoteLoader;
     this.tireLoader = tireLoader;
+    this.bustedLoader = bustedLoader;
     this.trackLoader = trackLoader;
     this.stations = stations;
     this.storage = storage;
@@ -69,8 +71,12 @@ export class GameAudio {
     this.audioState = createAudioState(tuning);
     this.sinceApply = Infinity;
     this.applied = null;
+    this.lastGame = null;
     this.smashes = { played: 0, dropped: 0, silent: 0 };
-    this.fx = { impacts: 0, cones: 0, cues: 0, sirenActive: false };
+    this.fx = {
+      impacts: 0, cones: 0, cues: 0, sirenActive: false, sirenDucked: false,
+      bustedPlayed: 0, bustedSpoken: 0, bustedFallback: 0, bustedState: 'idle',
+    };
   }
 
   // Getaway Drift (experimental, R4C): one short synthesized smash for a broken fruit stand or
@@ -126,7 +132,23 @@ export class GameAudio {
       if (outcome) {
         if (!this.audible() || (this.mode !== 'live' && this.mode !== 'fade')) return;
         this.stopOutcomeCues(s);
-        const voice = playCue(s.ctx, s.effects, kind, detail);
+        let voice;
+        if (kind === 'outcome-busted') {
+          if (s.siren && !s.sirenDuckUntil) {
+            s.siren.duck(0.22, 0.95);
+            s.sirenDuckUntil = s.ctx.currentTime + 1.0;
+            this.fx.sirenDucked = true;
+            this.fx.sirenActive = false;
+          }
+          voice = playBustedVoice(s.ctx, s.effects, s.bustedBuffer);
+          if (voice) {
+            this.fx.bustedPlayed += 1;
+            if (voice.spoken) this.fx.bustedSpoken += 1;
+            else this.fx.bustedFallback += 1;
+          }
+        } else {
+          voice = playCue(s.ctx, s.effects, kind, detail);
+        }
         if (voice) { s.outcomeVoices = [voice]; this.fx.cues += 1; }
         return;
       }
@@ -144,7 +166,9 @@ export class GameAudio {
       s.siren.stop();
       s.siren = null;
     }
+    if (s) s.sirenDuckUntil = 0;
     this.fx.sirenActive = false;
+    this.fx.sirenDucked = false;
   }
 
   stopOutcomeCues(s = this.session) {
@@ -152,7 +176,7 @@ export class GameAudio {
     if (s) s.outcomeVoices = [];
   }
 
-  stopSmashes(s = this.session) {
+  stopSmashes(s = this.session, { keepSiren = false } = {}) {
     for (const voice of s?.smashVoices ?? []) voice.stop();
     for (const voice of s?.impactVoices ?? []) voice.stop();
     for (const voice of s?.cueVoices ?? []) voice.stop();
@@ -161,7 +185,7 @@ export class GameAudio {
       s.impactVoices = [];
       s.cueVoices = [];
     }
-    this.stopSiren(s);
+    if (!keepSiren) this.stopSiren(s);
   }
 
   // --- What the game calls --------------------------------------------------
@@ -190,6 +214,7 @@ export class GameAudio {
   // A new run, from Enter, the Start button or R. Also a user gesture.
   newRun(game) {
     this.guard(() => {
+      this.lastGame = game;
       this.stopSmashes();
       this.stopOutcomeCues();
       resetAudioState(this.audioState, this.tuning);
@@ -197,6 +222,7 @@ export class GameAudio {
       this.sinceApply = Infinity;
       const continuing = this.session?.started;
       this.gesture(game);
+      if (this.session?.started) this.ensureBustedVoice(this.session, game);
       if (continuing && this.mode === 'live') this.dipGate();
     });
   }
@@ -264,6 +290,7 @@ export class GameAudio {
   // Once per rendered frame, after the simulation has advanced.
   update(game, dt) {
     this.guard(() => {
+      this.lastGame = game;
       if (game.state === 'menu') {
         if (this.session) this.sync(game);
         return;
@@ -273,6 +300,7 @@ export class GameAudio {
         stepAudioState(this.audioState, readTelemetry(game.car), dt, running, this.tuning);
       }
       this.sync(game);
+      if (this.session?.started) this.ensureBustedVoice(this.session, game);
       this.updateSiren(game, dt);
       this.sinceApply += dt;
       if (this.session && this.mode !== 'silent' && this.sinceApply >= APPLY_INTERVAL) {
@@ -284,7 +312,27 @@ export class GameAudio {
 
   updateSiren(game, dt) {
     const s = this.session;
-    if (!s || this.mode !== 'live' || s.ctx.state !== 'running' || this.effectsVolume === 0) {
+    if (!s || s.ctx.state !== 'running' || this.effectsVolume === 0 || this.mode === 'silent') {
+      this.stopSiren(s);
+      return;
+    }
+    if (this.mode === 'fade') {
+      const busted = game.challenge?.phase === 'failed' && game.challenge?.reason === 'busted';
+      if (busted && s.siren) {
+        if (!s.sirenDuckUntil) {
+          s.siren.duck(0.22, 0.95);
+          s.sirenDuckUntil = s.ctx.currentTime + 1.0;
+        }
+        if (s.ctx.currentTime < s.sirenDuckUntil) {
+          this.fx.sirenActive = false;
+          this.fx.sirenDucked = true;
+          return;
+        }
+      }
+      this.stopSiren(s);
+      return;
+    }
+    if (this.mode !== 'live') {
       this.stopSiren(s);
       return;
     }
@@ -294,8 +342,10 @@ export class GameAudio {
       return;
     }
     if (!s.siren) s.siren = createSirenVoice(s.ctx, s.master);
+    s.sirenDuckUntil = 0;
     s.siren.update({ ...target, dt });
     this.fx.sirenActive = true;
+    this.fx.sirenDucked = false;
   }
 
   dispose() {
@@ -395,6 +445,7 @@ export class GameAudio {
     const s = {
       ctx, nodes, abort: new AbortController(), started: false, resuming: false, nextResumeAt: 0,
       engine: null, engineKind: 'none', engineFailures: [], tire: null, tireState: 'waiting', tireFailures: [],
+      bustedBuffer: null, bustedState: 'idle', bustedFailures: [], sirenDuckUntil: 0,
       timers: new Set(),
     };
     this.session = s;
@@ -425,7 +476,8 @@ export class GameAudio {
     const s = this.session;
     if (!s) return;
     if (changed && next !== 'live') {
-      this.stopSmashes(s);
+      const bustedFade = next === 'fade' && game?.challenge?.phase === 'failed' && game?.challenge?.reason === 'busted';
+      this.stopSmashes(s, { keepSiren: bustedFade });
       if (next === 'silent') this.stopOutcomeCues(s);
     }
     if (next === 'live' || this.musicWanted()) {
@@ -523,6 +575,31 @@ export class GameAudio {
     Promise.allSettled([this.loadEngine(s), this.loadTireVoice(s)]).then(() => {
       clearTimeout(timeout); s.timers.delete(timeout);
     });
+    if (this.lastGame) this.ensureBustedVoice(s, this.lastGame);
+  }
+
+  // Loads the offline "BUSTED!" voice clip lazily on the first Getaway session so circuits make
+  // zero extra requests. Missing or corrupt files leave bustedBuffer null and fall back cleanly.
+  async ensureBustedVoice(s, game) {
+    if (!s || s.bustedState !== 'idle' || game?.mode !== 'gymkhana' || game?.challengeDef?.layout !== 'urban') return;
+    s.bustedState = 'loading';
+    this.fx.bustedState = 'loading';
+    try {
+      const { buffer, failures } = await this.bustedLoader(s.ctx, s.abort.signal);
+      if (this.session !== s) return;
+      s.bustedFailures.push(...(failures ?? []));
+      if (buffer) {
+        s.bustedBuffer = buffer;
+        s.bustedState = 'ready';
+      } else {
+        s.bustedState = 'unavailable';
+      }
+    } catch (error) {
+      if (this.session !== s) return;
+      s.bustedFailures.push(error.message);
+      s.bustedState = 'unavailable';
+    }
+    this.fx.bustedState = s.bustedState;
   }
 
   // Exactly one engine voice is ever built. The synthesized one is the fallback

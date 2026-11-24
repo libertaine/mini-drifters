@@ -154,6 +154,8 @@ export function prepareTireLoop(ctx, original) {
 
 // CC0 and redistributable: see audio-lab/assets/ATTRIBUTION.md.
 const TIRE_FILE = '../audio-lab/assets/tire-foley.mp3';
+// Locally generated offline announcer voice (Kokoro-82M, Apache 2.0): see audio-lab/assets/ATTRIBUTION.md.
+const BUSTED_FILE = '../audio-lab/assets/busted-voice.wav';
 
 export async function loadTire(ctx, signal, fetcher = fetch) {
   try {
@@ -164,6 +166,18 @@ export async function loadTire(ctx, signal, fetcher = fetch) {
     return { buffer: prepareTireLoop(ctx, original), failures: [] };
   } catch (error) {
     return { buffer: null, failures: signal.aborted ? [] : [`tire-foley.mp3: ${error.message}`] };
+  }
+}
+
+export async function loadBustedVoice(ctx, signal, fetcher = fetch) {
+  try {
+    const response = await fetcher(new URL(BUSTED_FILE, import.meta.url), { signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const buffer = await ctx.decodeAudioData(await response.arrayBuffer());
+    if (signal.aborted) return { buffer: null, failures: [] };
+    return { buffer, failures: [] };
+  } catch (error) {
+    return { buffer: null, failures: signal.aborted ? [] : [`busted-voice.wav: ${error.message}`] };
   }
 }
 
