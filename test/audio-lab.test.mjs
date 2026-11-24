@@ -177,7 +177,7 @@ test('Pages keeps its explicit game-only deployment allowlist', async () => {
   // Of the lab's folder, only the game's recordings and their attribution go out.
   const labCopies = workflow.split('\n').filter((line) => /\bcp\b/.test(line) && line.includes('audio-lab')).map((line) => line.trim());
   assert.deepEqual(labCopies, [
-    'cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/',
+    'cp audio-lab/assets/tire-foley.mp3 audio-lab/assets/busted-voice.wav audio-lab/assets/ATTRIBUTION.md _site/audio-lab/assets/',
     'cp audio-lab/assets/coyote-local/idle.wav audio-lab/assets/coyote-local/mid.wav audio-lab/assets/coyote-local/load.wav audio-lab/assets/coyote-local/high.wav _site/audio-lab/assets/coyote-local/',
   ]);
   for (const file of ['../src/main.js', '../index.html']) {

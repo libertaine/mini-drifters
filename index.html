@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mini Drifters v0.7.0</title>
+  <title>Mini Drifters v0.8.0</title>
   <link rel="stylesheet" href="style.css">
   <meta name="mini-drifters-engine" content="coyote-local">
 </head>
@@ -85,7 +85,7 @@
   <div id="prompt" class="prompt" aria-live="polite" hidden></div>
 
   <section id="menu" class="overlay title-screen">
-    <span class="release-version">v0.7.0</span>
+    <span class="release-version">v0.8.0</span>
     <div class="title-panel">
       <h1 class="title"><span>MINI</span> <span>DRIFTERS</span></h1>
       <p class="tagline">ONE OVERPOWERED CAR. ZERO GOOD IDEAS.</p>
@@ -117,11 +117,20 @@
       </div>
       <section class="personal-bests" aria-labelledby="records-heading" aria-live="polite">
         <h2 id="records-heading">Original — Personal bests</h2>
-        <dl>
-          <div><dt>Best score</dt><dd id="pb-score">--</dd></div>
-          <div><dt>Fastest lap</dt><dd id="pb-lap">--</dd></div>
-          <div><dt>Best combo</dt><dd id="pb-combo">--</dd></div>
-        </dl>
+        <div class="track-info-row">
+          <dl>
+            <div><dt>Best score</dt><dd id="pb-score">--</dd></div>
+            <div><dt>Fastest lap</dt><dd id="pb-lap">--</dd></div>
+            <div><dt>Best combo</dt><dd id="pb-combo">--</dd></div>
+          </dl>
+          <div class="track-preview-card" aria-hidden="true">
+            <svg id="track-preview" viewBox="0 0 120 76">
+              <path id="track-preview-path" d=""></path>
+              <circle id="track-preview-start" cx="0" cy="0" r="3.4"></circle>
+            </svg>
+          </div>
+        </div>
+        <p id="track-blurb" class="track-blurb"></p>
         <p id="pb-legacy" class="records-legacy" title="Set under the earlier scoring rules. Kept for reference; not comparable with current scores."></p>
         <p id="records-note" class="records-note"></p>
       </section>

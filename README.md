@@ -12,7 +12,7 @@ A small top-down arcade drifting game for the browser. Throw a muscle car sidewa
 
 It runs in a desktop browser with a keyboard or a standard-mapped controller. There's nothing to install and no account to create.
 
-**Current version: v0.7.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
+**Current version: v0.8.0.** The link above always plays the latest version. Earlier versions are listed under [Releases](#releases).
 
 ## What's in it
 
@@ -196,6 +196,7 @@ npm test
 
 | Version | Highlights |
 |---|---|
+| [v0.8.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.8.0) | Getaway Driver, dusk city/pursuit overhaul & Busted announcer voice, Tracks/Practice Pad/Gymkhana visual & audio polish, Umami analytics, tutorial steering hint, and risk-based CI |
 | [v0.7.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.7.0) | Gymkhana medals, saved reference ghosts, Getaway: Get the Footage, and Tracks, Gymkhana and Getaway menus |
 | [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0) | Functional environments: solid scenery on all three circuits |
 | [v0.5.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.5.0) | Dockyard, Slalom Sprint and Power wheelspin feedback |
@@ -224,6 +225,7 @@ Full notes for every version are on the [Releases page](https://github.com/liber
 | [RADIO](docs/RADIO.md) | The radio and its provisional music |
 | [ANALYTICS](docs/ANALYTICS.md) | What the published game counts, the event contract, and how to opt out |
 | [ROADMAP](docs/ROADMAP.md) | What each version contained, and what might come next |
+| [v0.8.0 release notes](docs/RELEASE-v0.8.0.md) | Getaway Driver, visual/audio polish across cities, circuits, Practice Pad & Gymkhana, analytics, compatibility and known limits |
 | [v0.7.0 release notes](docs/RELEASE-v0.7.0.md) | Medals, reference ghosts, Getaway and menus: compatibility and known limits |
 | [v0.6.0 release notes](docs/RELEASE-v0.6.0.md) | Functional environments, compatibility and known limits |
 | [R3-REVIEW](docs/R3-REVIEW.md) | The v0.5.0 scenery review and qualification record |
@@ -250,8 +252,11 @@ The published game counts visits, runs started and completed, valid laps and act
 
 ## License
 
-The code is [MIT](LICENSE). The audio recordings aren't: see [LICENSE-AUDIO.md](LICENSE-AUDIO.md).
+The code is [MIT](LICENSE). The audio assets aren't all MIT: see [LICENSE-AUDIO.md](LICENSE-AUDIO.md).
 In particular, the Mustang engine recordings are owned by the project owner, distributed
-with Mini Drifters by permission, and not licensed for other uses. The other recordings,
-including the tyre sound, are third-party CC0 recordings. The provisional radio music is
-synthesized by a script in this repository and covered by its MIT License.
+with Mini Drifters by permission, and not licensed for other uses. The tyre sound (and the
+development lab's unused engine samples) are third-party CC0 recordings. The offline Busted
+announcer voice (`audio-lab/assets/busted-voice.wav`) was generated locally with Kokoro-82M
+under the Apache License 2.0 (see [`audio-lab/assets/ATTRIBUTION.md`](audio-lab/assets/ATTRIBUTION.md)).
+The provisional radio music is synthesized by a script in this repository and covered by
+its MIT License.

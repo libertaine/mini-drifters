@@ -106,10 +106,21 @@ Version 0.7.0 contains:
 
 Physics, handling and scoring are unchanged from v0.6.0. Existing circuit and Gymkhana records keep their formats and identities. See [the release notes](RELEASE-v0.7.0.md).
 
+## Prototype 0.8: Getaway Driver and Polish (complete)
+
+Released as [v0.8.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.8.0):
+
+- **Getaway Driver** in Downtown: stealth-and-pursuit safehouse run with ATTENTION, cruising/investigating/pursuing police, losing-them escape mechanic, three outcome classifications (Ghost run, Low profile, Lost them) and local completion counts by handling mode. See [the Getaway Driver notes](GETAWAY-DRIVER.md).
+- **Urban city, pursuit and audio polish**: dusk street atmosphere, realistic patrol interceptors, pursuit telemetry/vignette, procedural sirens/impacts/cues, decluttered HUD, tiered results styling, and an offline retro-arcade **"BUSTED!"** announcer voice (Kokoro-82M, Apache License 2.0) with siren ducking.
+- **Tracks, Practice Pad and Gymkhana polish**: circuit-themed start/finish gantries with live race-light pods, corner rubber grooves, upgraded trackside scenery and ambient life, Dockyard weathered concrete apron and harbor seawall, `SKIDPAD 01` Practice Pad airfield with painted drill zones and minimap, 3D Gymkhana cones/corridors/apex curbs/weave guidance, SVG circuit previews, balanced 2×2 Gymkhana picker, combo heat and medal stripes, apex curb rumble and milestone/medal audio cues.
+- **Privacy-respecting Umami analytics** (`md_` event contract with `?analytics=off` opt-out and local/automation/DNT gating) and a **tutorial stationary-steering reminder**. See [the analytics notes](ANALYTICS.md).
+- **Risk-based parallel CI** running unit tests plus 26 Chromium and Firefox browser suites across four balanced groups. See [the CI testing notes](CI-TESTING.md).
+
+Physics, handling, scoring, medal thresholds, ghost compatibility and existing record formats are unchanged from v0.7.0. Dockyard's chicane shortcut remains an accepted TODO. See [the release notes](RELEASE-v0.8.0.md).
+
 ## Upcoming versions
 
-- **v0.8.0** prototypes and evaluates Getaway Driver.
 - **v0.9.0** plans approximately two additional racing tracks.
 - **v0.10.0** focuses on technical cleanup, code review and project direction.
 
-Gymkhana unlock progression is deferred. It is outside the automatic v0.8.0 scope.
+Gymkhana unlock progression remains deferred.
