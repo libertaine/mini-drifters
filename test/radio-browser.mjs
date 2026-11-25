@@ -520,6 +520,7 @@ async function run(browser, browserName) {
     const t = await open(browser);
     const { page } = t;
     await page.locator('#tracks-open').focus();
+    await page.keyboard.press('Tab'); // Circuit Tour (v0.9.0)
     await page.keyboard.press('Tab'); // Gymkhana
     await page.keyboard.press('Tab'); // Getaway
     assert.equal(await page.evaluate(() => document.activeElement.id), 'getaway');

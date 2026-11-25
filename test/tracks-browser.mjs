@@ -201,7 +201,7 @@ async function check(name, engine) {
     assert.equal(g.track, 'original');
     assert.equal(await focused(page), 'tracks-open', 'Tracks keeps the focus');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['TRACKS', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']);
+    assert.deepEqual(words, ['TRACKS', 'CIRCUIT TOUR', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']); // Circuit Tour: v0.9.0
     const poster = await stamp(page, POSTER);
     await chooseTracks(page);
     for (const [width, height] of SIZES) {

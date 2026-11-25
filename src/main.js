@@ -25,6 +25,9 @@ import { createReferenceGhosts, slotState } from './reference-ghost.js';
 import { readGhostPreference, writeGhostPreference } from './ghost-preferences.js';
 import { categoryOf } from './analytics.js';
 import { startAnalytics } from './analytics-tracker.js';
+import { createTour, recordRound, useRestart, leaveRound, retireTour, standings, jokerAllowed, tourOutcome } from './tour.js';
+import { createTourStore, bestsKey } from './tour-store.js';
+import { createTourUi } from './tour-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const MPH_PER_MS = 2.23694;
@@ -61,6 +64,7 @@ const game = createGame(undefined, { onRunEvent: (event) => {
   getawayRecords.handle(event);
   referenceGhosts.handle(event);
   driverRecords.handle(event, event.type === 'challenge' ? game.challenge?.result?.outcome ?? null : null);
+  tourRunEvent(event); // after the records, so a Tour round knows whether it set a new best
   if (event.type === 'start' || event.type === 'ghost') showReference();
   showPersonalBests();
   analytics?.runEvent(event, { lap: game.laps.completed, category: analyticsCategory() });
@@ -255,6 +259,7 @@ function selectHandling(id, { remember = true } = {}) {
   showPersonalBests();
   if (picker === 'tracks') showTracksHandling();
   if (challengePicker()) showGymkhanaMenu();
+  if (picker === 'tour') showTourMenu();
 }
 
 function stepHandling(direction) {
@@ -423,6 +428,7 @@ function beginRun() {
   picker = null;
   doneOpen = false;
   tutorial = null;
+  endTourSession();
   startRun(game, { track: trackById(selectedTrackId), handling: selectedHandling() });
   resetEffects(renderer, game.car);
   clearInput();
@@ -435,6 +441,7 @@ function beginPractice() {
   picker = null;
   doneOpen = false;
   tutorial = null;
+  endTourSession();
   startRun(game, { track: padTrack(), mode: 'practice', ghost: false, handling: selectedHandling() });
   resetEffects(renderer, game.car);
   clearInput();
@@ -445,9 +452,9 @@ function beginPractice() {
 // The category sheets share the same keyboard and controller navigation as Gymkhana.
 const PICKER_SHEETS = {
   tracks: 'tracks-menu', challenges: 'gymkhana-menu',
-  missions: 'getaway-menu', environments: 'gymkhana-menu',
+  missions: 'getaway-menu', environments: 'gymkhana-menu', tour: 'tour-menu',
 };
-const CATEGORY_BUTTON = { tracks: 'tracks-open', challenges: 'gymkhana', missions: 'getaway' };
+const CATEGORY_BUTTON = { tracks: 'tracks-open', tour: 'tour-open', challenges: 'gymkhana', missions: 'getaway' };
 let picker = null;
 let mission = null;
 const gymkhana = createGymkhanaUi({ records: gymkhanaRecords, getawayRecords, driverRecords, onChoose: () => showGymkhanaMenu() });
@@ -497,9 +504,11 @@ function openPicker(level, selectedMission = null) {
     showGymkhanaMenu();
   }
   if (picker === 'tracks') showTracksHandling();
+  if (picker === 'tour') showTourMenu();
   syncScreens();
   const first = {
     tracks: $('start'), challenges: $('gymkhana-start'), missions: missionButtons[0], environments: $('gymkhana-start'),
+    tour: picker === 'tour' ? tourPrimary() : null,
   };
   first[picker].focus();
 }
@@ -526,6 +535,7 @@ function stepChallenge(direction) {
 function pickerStops() {
   if (picker === 'tracks') return [trackInputs.find((input) => input.checked), $('start'), $('practice'), $('tracks-back')];
   if (picker === 'missions') return [...missionButtons, $('getaway-back')];
+  if (picker === 'tour') return tourMenuStops();
   return [gymkhana.inputs.find((input) => input.checked), $('gymkhana-start'), $('gymkhana-back')];
 }
 
@@ -533,6 +543,7 @@ function beginGymkhana() {
   picker = null;
   doneOpen = false;
   tutorial = null;
+  endTourSession();
   startRun(game, { mode: 'gymkhana', ghost: false, handling: selectedHandling(), challenge: gymkhana.selected() });
   resetEffects(renderer, game.car);
   clearInput();
@@ -548,6 +559,7 @@ function driveAgain() {
 
 // Same track, same mode, same kind of session: only the car and the run start over.
 function restart() {
+  if (tourRoundLive) { tourRestart(); return; }
   clearInput();
   const kind = tutorial ? 'tutorial' : game.mode;
   restartRun(game, { ghost: kind === 'normal', mode: kind }); // a lesson or the pad leaves no ghost behind
@@ -565,6 +577,7 @@ const DONE_KEY_GUARD_MS = 500; // the player was just driving, and may still be 
 
 function startTutorial() {
   doneOpen = false;
+  endTourSession();
   tutorial = createTutorial();
   // Always Classic, whichever mode is selected on the title; the selection itself is left alone.
   startRun(game, { ghost: false, track: trackById(LESSON_TRACK_ID), mode: 'tutorial', handling: LESSON_HANDLING });
@@ -577,6 +590,7 @@ function startTutorial() {
 // The single way out of a session: anything running or showing is discarded, and the game
 // is back in the state it opens in.
 function leaveSession() {
+  endTourSession();
   tutorial = null;
   picker = null;
   mission = null;
@@ -594,6 +608,8 @@ function leaveSession() {
 }
 
 function returnToTitle() {
+  // In a Tour round, leaving goes to the Tour sheet and may cost a restart (leaveTourRound).
+  if (tourRoundLive) { leaveTourRound(); return; }
   const button = inGetaway() ? $('getaway') : inGymkhana() ? $('gymkhana') : $('tracks-open');
   leaveSession();
   button.focus();
@@ -625,6 +641,385 @@ function skipTutorialStep() {
   clearInput();
   syncScreens();
   audio.gesture(game);
+}
+
+// --- Circuit Tour (v0.9.0) ---------------------------------------------------------------
+// A Tour round is an ordinary circuit run (mode 'normal'), so the records, reference ghosts,
+// audio, analytics and HUD treat it exactly like any run. This block chooses the next circuit,
+// shows the Tour's sheets, and hands each run's final counted score to tour.js. Saving is
+// tour-store.js, under its own key (docs/CIRCUIT-TOUR.md).
+const TOUR_SHEETS = Object.freeze({ intro: 'tour-round', result: 'tour-result', final: 'tour-final' });
+const TOUR_KEY_GUARD_MS = 500; // a sheet that appears by itself ignores Enter and Space this long
+const tourStore = createTourStore();
+const tourChoice = { length: 'sprint', field: 'club' };
+const tourUi = createTourUi({
+  $,
+  trackName: (id) => trackById(id).name,
+  trackMeta: (id) => TRACK_DETAILS[id] ?? { venue: 'Circuit', accent: '#ffb627', blurb: '' },
+  formatNumber: (n) => formatNumber(n),
+  onChoice: (group, id) => chooseTour(group, id),
+});
+let tour = null;            // the active Tour as last saved (or as played, if storage failed)
+let tourScreen = null;      // 'intro' | 'result' | 'final' | null
+let tourRoundLive = false;  // this session is a Tour round, from its sheet to its result
+let tourJoker = false;      // the Joker is selected for this round (spent only when the round is recorded)
+let tourDriving = null;     // the round whose car has moved (and so costs a restart to leave)
+let tourRunId = null;       // the run that is the round in play
+let tourBefore = null;      // the standings before this round, for the movement arrows
+let tourFinish = null;      // a finished round, settled after the frame's simulation steps
+let tourNotice = '';
+let tourLivePlace = null;   // where the HUD last placed the player, for the overtaking banners
+let tourPendingBanner = null;
+let tourShownAt = 0;
+let tourUnsaved = false;    // this Tour could not be saved when it began: it lives in this window only
+
+const tourActive = () => (tour && tour.status === 'active' ? tour : null);
+
+function endTourSession() {
+  tourRoundLive = false;
+  tourScreen = null;
+  tourJoker = false;
+  tourDriving = null;
+  tourRunId = null;
+  tourFinish = null;
+  tourLivePlace = null;
+  tourPendingBanner = null;
+}
+
+function loadTour() {
+  if (!tourStore) return { active: null, history: [], bests: {}, setAside: false };
+  const loaded = tourStore.load();
+  // A Tour that could not be saved is kept in this window, not replaced by what storage holds.
+  if (tourUnsaved && tourActive()) return { ...loaded, active: tour };
+  tourUnsaved = false;
+  tour = loaded.active;
+  return loaded;
+}
+
+// Every change to the active Tour goes through here. { ok, reason }: 'moved' means another tab
+// carried the Tour on; 'unsaved' and 'write failed' mean it carries on in this window only.
+function saveTour(previous, next) {
+  if (!tourStore || tourUnsaved) return { ok: false, reason: 'unsaved' };
+  return tourStore.update(previous, next);
+}
+
+const tourPrimary = () => (tourActive() ? $('tour-resume') : $('tour-start'));
+
+function tourMenuStops() {
+  const checked = (group) => tourUi.inputs[group].find((input) => input.checked);
+  return [...(tourActive() ? [$('tour-resume'), $('tour-retire')] : []), checked('length'), checked('field'),
+    $('tour-start'), $('tour-back')].filter(Boolean);
+}
+
+function tourStoreNote() {
+  if (!tourStore || tourStore.available === false) return 'Tour storage is unavailable: a Tour can be driven, but not saved or resumed.';
+  if (tourStore.readOnly) return 'Tours were saved by a newer version of Mini Drifters. They are kept, but cannot be continued here.';
+  return '';
+}
+
+function showTourMenu() {
+  const loaded = loadTour();
+  tourUi.renderMenu({ choice: tourChoice, handlingName: selectedHandling().name, handlingId: selectedHandlingId, active: tourActive(),
+    bests: loaded.bests, notice: tourNotice || (loaded.setAside ? 'A saved Tour could not be read, so it was set aside.' : ''),
+    storeNote: tourStoreNote(), device: instructionDevice });
+}
+
+function chooseTour(group, id) {
+  tourChoice[group] = id;
+  showTourMenu();
+}
+
+function stepTourChoice(el, direction) {
+  const list = tourUi.inputs[tourUi.groupOf(el)];
+  const next = list[(list.findIndex((input) => input.checked) + direction + list.length) % list.length];
+  next.click();
+  next.focus();
+}
+
+function newTourSeed() {
+  try { return crypto.getRandomValues(new Uint32Array(1))[0]; } catch { return Math.floor(Math.random() * 0x100000000) >>> 0; }
+}
+
+// A new Tour: with a new draw, or a rematch (the same seed and settings: the same circuits in the
+// same order, against the same posted scores).
+function startTour(seed = newTourSeed(), settings = { ...tourChoice, handling: selectedHandlingId }) {
+  const fresh = createTour({ seed, length: settings.length, field: settings.field, handling: settings.handling });
+  tourUnsaved = !(tourStore && tourStore.begin(fresh));
+  tour = fresh;
+  tourNotice = '';
+  beginTourRound();
+}
+
+// Continue the saved Tour. A round left while the car was moving (the page was closed, say)
+// costs what leaving it costs now: a restart, or a DNF with none left.
+function continueTour() {
+  loadTour();
+  const t = tourActive();
+  if (!t) { showTourMenu(); return; }
+  if (t.driving === t.round) {
+    const { tour: next, cost } = leaveRound({ ...t, driving: null }); // charged once, here
+    const saved = saveTour(t, next);
+    if (!saved.ok && saved.reason === 'moved') { tourNotice = 'This Tour was carried on elsewhere. Continue it again.'; showTourMenu(); return; }
+    tour = next;
+    tourNotice = cost === 'restart' ? `Round ${t.round + 1} was left while driving: that used a restart (${next.restartsLeft} left).`
+      : `Round ${t.round + 1} was left while driving with no restarts left: it counts as a DNF.`;
+    if (next.status === 'complete') { showTourFinalFromMenu(t); return; }
+  }
+  beginTourRound();
+}
+
+function retireActiveTour() {
+  const t = tourActive();
+  if (!t) return;
+  saveTour(t, retireTour(t));
+  tour = null;
+  tourUnsaved = false;
+  tourNotice = 'Tour retired. It is kept in your Tour history.';
+  showTourMenu();
+  syncScreens();
+  settleFocus($('tour-start'), true);
+}
+
+// The round's sheet over the grid: the car waits there, paused, until Drive.
+function beginTourRound() {
+  const t = tourActive();
+  if (!t) return;
+  picker = null;
+  doneOpen = false;
+  tutorial = null;
+  endTourSession();
+  tourRoundLive = true;
+  tourBefore = standings(t);
+  startRun(game, { track: trackById(t.lineup[t.round]), handling: handlingById(t.handling) });
+  tourRunId = game.runId;
+  if (!game.paused) togglePause(game);
+  resetEffects(renderer, game.car);
+  clearInput();
+  tourScreen = 'intro';
+  tourShownAt = performance.now();
+  showTourIntro();
+  syncScreens();
+  audio.newRun(game);
+}
+
+function showTourIntro() {
+  const t = tourActive();
+  if (!t) return;
+  tourUi.renderIntro(t, { jokerArmed: tourJoker, pb: records.forTrack(t.lineup[t.round], t.handling).score });
+}
+
+function tourDrive() {
+  if (tourScreen !== 'intro') return;
+  tourScreen = null;
+  if (game.paused) togglePause(game);
+  clearInput();
+  syncScreens();
+  audio.gesture(game);
+}
+
+function toggleTourJoker() {
+  const t = tourActive();
+  if (tourScreen !== 'intro' || !t || !jokerAllowed(t)) return;
+  tourJoker = !tourJoker;
+  showTourIntro();
+  if (tourJoker) audio.cue('combo-up', 2);
+}
+
+function markTourDriving() {
+  const t = tourActive();
+  if (!t) return;
+  tourDriving = t.round;
+  if (tourStore && !tourUnsaved) tourStore.setDriving(t, t.round);
+}
+
+// R in a Tour round. Before the car moves it is free; after, it uses one of the Tour's restarts.
+function tourRestart() {
+  const t = tourActive();
+  if (!t || tourScreen || game.state === 'finished') return;
+  const moved = tourDriving === t.round;
+  if (moved && t.restartsLeft <= 0) {
+    tourPendingBanner = { kind: 'void', text: 'NO RESTARTS LEFT' };
+    return;
+  }
+  if (moved) {
+    const next = useRestart(t);
+    const saved = saveTour(t, next);
+    if (!saved.ok && saved.reason === 'moved') { tourMovedElsewhere(); return; }
+    tour = next;
+  }
+  tourDriving = null;
+  tourLivePlace = null;
+  clearInput();
+  restartRun(game, { ghost: true, mode: 'normal' });
+  tourRunId = game.runId;
+  resetEffects(renderer, game.car);
+  syncScreens();
+  audio.newRun(game);
+  if (moved) tourPendingBanner = { kind: 'lap', text: `RESTART — ${tour.restartsLeft} LEFT` };
+}
+
+// Leaving a round: free before the car has moved, a restart (or a DNF) after it has.
+function leaveTourRound() {
+  const t = tourActive();
+  let notice = 'Tour saved. Continue it from here whenever you like.';
+  if (t && game.state !== 'finished' && tourDriving === t.round) {
+    const { tour: next, cost } = leaveRound(t);
+    const saved = saveTour(t, next);
+    if (!saved.ok && saved.reason === 'moved') { tourMovedElsewhere(); return; }
+    tour = next;
+    notice = cost === 'restart' ? `You left round ${t.round + 1} while driving: that used a restart (${next.restartsLeft} left).`
+      : `You left round ${t.round + 1} with no restarts left: it counts as a DNF.`;
+  }
+  leaveSession();
+  tourNotice = notice;
+  if (t && tour?.status === 'complete') { showTourFinalFromMenu(t); return; }
+  openPicker('tour');
+}
+
+function tourMovedElsewhere() {
+  leaveSession();
+  tourNotice = 'This Tour was carried on in another tab or window, so this round was not added to it.';
+  openPicker('tour');
+}
+
+// Esc and the controller's Back on a Tour sheet.
+function tourBack() {
+  if (tourScreen === 'intro') leaveTourRound();
+  else if (tourScreen) { leaveSession(); tourNotice = ''; openPicker('tour'); }
+}
+
+function tourRunEvent(event) {
+  if (!tourRoundLive || event.type !== 'finish' || event.runId !== tourRunId) return;
+  const r = game.results;
+  tourFinish = { score: r.score, newBests: records.newBests,
+    run: { bestLap: r.bestLap, bestCombo: r.bestCombo, spinouts: r.spinouts, voidedLaps: r.voidedLaps, forfeited: r.forfeited } };
+}
+
+// A round's run is over: record it, save it, and show what it was worth.
+function settleTourRound() {
+  const done = tourFinish;
+  tourFinish = null;
+  const t = tourActive();
+  if (!t || !tourRoundLive) return;
+  const next = recordRound(t, { score: done.score, joker: tourJoker, run: done.run });
+  const key = bestsKey(t);
+  const previousBest = tourStore ? tourStore.load().bests[key] ?? null : null;
+  const saved = saveTour(t, next);
+  if (!saved.ok && saved.reason === 'moved') { tourMovedElsewhere(); return; }
+  const notice = saved.ok ? '' : 'This round could not be saved: the Tour carries on in this window only.';
+  tour = next;
+  tourDriving = null;
+  tourShownAt = performance.now();
+  if (next.status === 'complete') {
+    tourScreen = 'final';
+    tourUi.renderFinal(next, { before: tourBefore, best: tourStore ? tourStore.load().bests[key] ?? null : null, previousBest, notice });
+  } else {
+    tourScreen = 'result';
+    tourUi.renderResult(next, { before: tourBefore, newBests: done.newBests, run: done.run, notice });
+  }
+  syncScreens();
+}
+
+// The final sheet, reached from the Tour menu when a DNF ends the last round.
+function showTourFinalFromMenu(before) {
+  const key = bestsKey(tour);
+  picker = null;
+  tourScreen = 'final';
+  tourShownAt = performance.now();
+  tourUi.renderFinal(tour, { before: standings(before), best: tourStore ? tourStore.load().bests[key] ?? null : null, previousBest: null, notice: tourNotice });
+  tourNotice = '';
+  syncScreens();
+}
+
+function tourTrophyCue() {
+  const trophy = tour?.status === 'complete' ? tourOutcome(tour).trophy : null;
+  return trophy ? `outcome-${trophy}` : 'outcome-circuit';
+}
+
+function tourPauseNote() {
+  const t = tourActive();
+  if (!t) return '';
+  const moved = tourDriving === t.round;
+  const controller = instructionDevice === 'controller';
+  const restarts = `${t.restartsLeft} ${t.restartsLeft === 1 ? 'restart' : 'restarts'} left for the Tour.`;
+  if (!moved) return `${controller ? 'Menu' : 'P'} to carry on. Nothing is lost by leaving from the grid. ${restarts}`;
+  return t.restartsLeft > 0
+    ? `${controller ? 'Menu' : 'P'} to carry on. Restarting or leaving this round uses a restart. ${restarts}`
+    : `${controller ? 'Menu' : 'P'} to carry on. No restarts left: leaving now ends this round as a DNF.`;
+}
+
+// The pause sheet's Restart and Return buttons say what they cost in a Tour round.
+function showTourPause() {
+  const restartButton = $('restart');
+  const leave = document.querySelector('#paused .return-title');
+  const t = tourRoundLive ? tourActive() : null;
+  const moved = t && tourDriving === t.round;
+  restartButton.firstChild.textContent = !moved ? 'Restart ' : t.restartsLeft > 0 ? `Restart (${t.restartsLeft} left) ` : 'No restarts left ';
+  restartButton.disabled = !!(moved && t.restartsLeft <= 0);
+  leave.textContent = !t ? 'Return to title' : !moved ? 'Save & leave' : t.restartsLeft > 0 ? 'Leave (uses a restart)' : 'Leave (DNF)';
+}
+
+const tourSheetButtons = () => [...$(TOUR_SHEETS[tourScreen]).querySelectorAll('button')].filter((el) => !el.disabled && el.getClientRects().length);
+const tourPrimaryButton = () => ({ intro: $('tour-drive'), result: $('tour-next'), final: $('tour-rematch') })[tourScreen];
+
+function tourKey(e) {
+  const plain = !(e.ctrlKey || e.metaKey || e.altKey);
+  const tooSoon = performance.now() - tourShownAt < TOUR_KEY_GUARD_MS;
+  const vertical = e.code === 'ArrowDown' || e.code === 'ArrowRight' ? 1 : e.code === 'ArrowUp' || e.code === 'ArrowLeft' ? -1 : 0;
+  if (vertical) {
+    e.preventDefault();
+    if (!e.repeat) moveMenuFocus(tourSheetButtons(), vertical);
+    return;
+  }
+  if (e.code === 'Space' || e.code === 'Enter') {
+    const onButton = e.target instanceof HTMLButtonElement && tourSheetButtons().includes(e.target);
+    if (e.repeat || tooSoon || !onButton) e.preventDefault();
+    if (!e.repeat && !tooSoon && !onButton && e.code === 'Enter' && plain) tourPrimaryButton().click();
+    return;
+  }
+  if (e.repeat || !plain) return;
+  if (e.code === 'Escape') { e.preventDefault(); tourBack(); }
+  else if (e.code === 'KeyN') audio.nextStation(game);
+  else if (e.code === 'KeyO') openOptions(document.activeElement instanceof HTMLButtonElement ? document.activeElement : null);
+}
+
+// The HUD panel, and a banner whenever the player passes (or drops behind) a posted score.
+function updateTourHud(now) {
+  const t = tourActive();
+  if (!t || tourScreen === 'result' || tourScreen === 'final') return;
+  const { combo } = game.scoring;
+  const comboValue = combo ? Math.round(combo.points * currentMultiplier(combo)) : 0;
+  const s = tourUi.updateHud(t, t.round, { score: countedScore(game), comboValue, jokerArmed: tourJoker });
+  const place = s.position;
+  if (game.state === 'racing' && tourLivePlace !== null && place !== tourLivePlace) {
+    const better = place < tourLivePlace;
+    const passed = better ? t.marks[t.round].slice(place - 1, tourLivePlace - 1) : [];
+    const names = passed.map((m) => (m.name.split(' ')[0] ?? m.name).toUpperCase());
+    const text = better ? `P${place} — PASSED ${names.length > 2 ? `${names.length} DRIVERS` : names.join(' & ')}` : `DOWN TO P${place}`;
+    const el = $('banner');
+    const justBanked = !el.hidden && el.dataset.kind === 'banked' && banner.until - now > BANNER_TIME - 0.1;
+    showBanner(better ? 'tour' : 'void', justBanked && better ? `${el.textContent} · ${text}` : text, now);
+    if (better) audio.cue('gate-pass', 1);
+  }
+  tourLivePlace = place;
+  if (tourPendingBanner) {
+    showBanner(tourPendingBanner.kind, tourPendingBanner.text, now);
+    tourPendingBanner = null;
+  }
+}
+
+{
+  $('tour-start').addEventListener('click', () => startTour());
+  $('tour-resume').addEventListener('click', continueTour);
+  $('tour-retire').addEventListener('click', retireActiveTour);
+  $('tour-drive').addEventListener('click', tourDrive);
+  $('tour-joker').addEventListener('click', toggleTourJoker);
+  $('tour-round-leave').addEventListener('click', leaveTourRound);
+  $('tour-next').addEventListener('click', beginTourRound);
+  $('tour-result-leave').addEventListener('click', tourBack);
+  $('tour-rematch').addEventListener('click', () => { const t = tour; startTour(t.seed, t); });
+  $('tour-new').addEventListener('click', () => { const t = tour; startTour(newTourSeed(), t); });
+  $('tour-exit').addEventListener('click', tourBack);
 }
 
 // --- Options --------------------------------------------------------------
@@ -728,6 +1123,10 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
+  if (tourScreen) {
+    tourKey(e);
+    return;
+  }
   if (picker) {
     const plain = !(e.ctrlKey || e.metaKey || e.altKey);
     const horizontal = e.code === 'ArrowRight' ? 1 : e.code === 'ArrowLeft' ? -1 : 0;
@@ -737,6 +1136,7 @@ window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       if (horizontal && picker === 'tracks') stepTrack(horizontal);
       else if (horizontal && challengePicker()) stepChallenge(horizontal);
+      else if (horizontal && picker === 'tour' && tourUi.groupOf(document.activeElement)) stepTourChoice(document.activeElement, horizontal);
       else moveMenuFocus(pickerStops(), vertical || horizontal);
     } else if (e.repeat) {
       e.preventDefault();
@@ -751,6 +1151,7 @@ window.addEventListener('keydown', (e) => {
       e.preventDefault();
       if (picker === 'tracks') beginRun();
       else if (challengePicker()) beginGymkhana();
+      else if (picker === 'tour') tourPrimary().click();
     }
     return;
   }
@@ -830,7 +1231,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const held = CODE_TO_KEY[e.code];
   if (!held) return;
-  if (optionsOpen || helpOpen || doneOpen || picker) {
+  if (optionsOpen || helpOpen || doneOpen || picker || tourScreen) {
     input[held] = false; // and Space stays free to press the focused control
     return;
   }
@@ -871,7 +1272,7 @@ $('practice').addEventListener('click', beginPractice);
 for (const [level, button] of Object.entries(CATEGORY_BUTTON)) {
   $(button).addEventListener('click', () => openPicker(level));
 }
-for (const id of ['tracks-back', 'getaway-back', 'gymkhana-back']) {
+for (const id of ['tracks-back', 'getaway-back', 'gymkhana-back', 'tour-back']) {
   $(id).addEventListener('click', (e) => closePicker({ restoreFocus: e.detail === 0 }));
 }
 $('gymkhana-start').addEventListener('click', beginGymkhana);
@@ -923,6 +1324,8 @@ function controllerFocus(el) {
 }
 
 function pauseOrResume() {
+  if (tourScreen === 'intro') { tourDrive(); return; }
+  if (tourScreen) return;
   togglePause(game);
   clearInput();
   syncScreens();
@@ -946,7 +1349,7 @@ window.addEventListener('gamepaddisconnected', (e) => {
 const resultsSheet = () => (game.mode === 'gymkhana' ? $('gymkhana-results') : $('results'));
 
 function controllerSheet() {
-  return optionsOpen ? $('options') : helpOpen ? $('help') : doneOpen ? $('tutorial-done') : picker ? pickerSheet()
+  return optionsOpen ? $('options') : helpOpen ? $('help') : tourScreen ? $(TOUR_SHEETS[tourScreen]) : doneOpen ? $('tutorial-done') : picker ? pickerSheet()
     : game.paused ? $('paused') : game.state === 'finished' ? resultsSheet() : game.state === 'menu' ? $('menu') : null;
 }
 
@@ -960,6 +1363,7 @@ function controllerMenu(pressed, sheet) {
   if (pressed.back) {
     if (optionsOpen) closeOptions();
     else if (helpOpen) closeHelp();
+    else if (tourScreen) tourBack();
     else if (picker) closePicker();
     else if (inGetaway() && game.state === 'finished') changeChallenge();
     else if (doneOpen || game.state === 'finished') returnToTitle();
@@ -971,7 +1375,7 @@ function controllerMenu(pressed, sheet) {
     }
     return;
   }
-  if (pressed.pause && game.paused && !optionsOpen) { pauseOrResume(); return; }
+  if (pressed.pause && game.paused && !optionsOpen && (!tourScreen || tourScreen === 'intro')) { pauseOrResume(); return; }
   const controls = menuControls(sheet);
   const current = controls.indexOf(document.activeElement);
   const horizontal = pressed.right ? 1 : pressed.left ? -1 : 0;
@@ -1009,7 +1413,8 @@ function controllerMenu(pressed, sheet) {
     controllerFocus(controls[next]);
     return;
   }
-  if (pressed.confirm && !(doneOpen && performance.now() - doneOpenedAt < DONE_KEY_GUARD_MS)) {
+  if (pressed.confirm && !(doneOpen && performance.now() - doneOpenedAt < DONE_KEY_GUARD_MS)
+    && !(tourScreen && performance.now() - tourShownAt < TOUR_KEY_GUARD_MS)) {
     const el = controls[current < 0 ? 0 : current];
     controllerFocus(el);
     el.click();
@@ -1115,7 +1520,9 @@ function fitTitle() {
   const padding = getComputedStyle(panel);
   const available = Math.min(innerHeight, panel.clientHeight) - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
   const heading = title.getBoundingClientRect();
-  const used = $('controller-note').getBoundingClientRect().bottom - heading.top;
+  // With Circuit Tour the menu has a fourth category button, which can push the analytics note
+  // off a short window, so the whole column is measured (v0.9.0).
+  const used = $('analytics-note').getBoundingClientRect().bottom - heading.top;
   if (used > available) {
     const scale = Math.max(0.2, (heading.height - (used - available) - 4) / heading.height);
     title.style.fontSize = `${parseFloat(getComputedStyle(title).fontSize) * scale}px`;
@@ -1127,7 +1534,7 @@ let shownState = game.state;
 function syncScreens() {
   const { state, paused } = game;
   shownState = state;
-  const context = optionsOpen ? 'options' : helpOpen ? 'help' : doneOpen ? 'done' : picker ? picker
+  const context = optionsOpen ? 'options' : helpOpen ? 'help' : tourScreen ? 'tour-' + tourScreen : doneOpen ? 'done' : picker ? picker
     : paused ? 'paused' : state === 'menu' || state === 'finished' ? state : 'driving';
   if (context !== controllerContext) {
     controllerContext = context;
@@ -1151,16 +1558,22 @@ function syncScreens() {
   if (!inGymkhana()) hideBust();
   setText('handling-status', practice ? `Practice · ${game.handling.name}` : game.handling.name);
   $('handling-status').title = `Handling: ${game.handling.name}. Change it on the title screen.`;
-  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen || picker !== null;
+  $('menu').hidden = state !== 'menu' || optionsOpen || helpOpen || doneOpen || picker !== null || tourScreen !== null;
   if (!$('menu').hidden) fitTitle();
   $('help').hidden = !helpOpen;
   $('tracks-menu').hidden = optionsOpen || picker !== 'tracks';
   $('getaway-menu').hidden = optionsOpen || picker !== 'missions';
   $('gymkhana-menu').hidden = optionsOpen || !challengePicker();
+  $('tour-menu').hidden = optionsOpen || picker !== 'tour';
+  for (const [screen, id] of Object.entries(TOUR_SHEETS)) $(id).hidden = optionsOpen || tourScreen !== screen;
+  $('tour-hud').hidden = !tourRoundLive || state === 'menu' || tourScreen === 'result' || tourScreen === 'final';
+  if (tourRoundLive) document.body.dataset.tour = 'round';
+  else delete document.body.dataset.tour;
+  showTourPause();
   $('tutorial-done').hidden = !doneOpen;
   $('tutorial-skip').hidden = !tutorial;
   $('ghost-status').hidden = !!tutorial;
-  setText('paused-note', inGymkhana()
+  setText('paused-note', tourRoundLive ? tourPauseNote() : inGymkhana()
     ? (instructionDevice === 'controller' ? `${game.challengeDef.name}. Menu to carry on, or Restart to try again.` : `${game.challengeDef.name}. Press P to carry on, or R to try again.`)
     : practice
     ? (instructionDevice === 'controller' ? 'Practice pad. Menu to carry on, or Restart to put the car back.' : 'Practice pad. Press P to carry on, or R to put the car back.')
@@ -1174,18 +1587,18 @@ function syncScreens() {
     $('banner').hidden = true;
   }
   $('hud').hidden = state === 'menu';
-  $('paused').hidden = !paused || optionsOpen;
+  $('paused').hidden = !paused || optionsOpen || tourScreen !== null;
   const finished = state === 'finished';
-  $('results').hidden = !finished || optionsOpen || game.mode === 'gymkhana';
+  $('results').hidden = !finished || optionsOpen || game.mode === 'gymkhana' || tourRoundLive;
   $('gymkhana-results').hidden = !finished || optionsOpen || game.mode !== 'gymkhana';
   $('options').hidden = !optionsOpen;
   if (finished && game.mode === 'gymkhana') {
     setText('gymkhana-change', inGetaway() ? 'Environments' : 'Challenges');
     gymkhana.showResults(game);
   }
-  else if (finished) showResults();
-  if (document.activeElement instanceof HTMLElement && state !== 'menu' && !finished && !optionsOpen) document.activeElement.blur();
-  startTabAt(optionsOpen ? null : paused ? $('paused') : finished ? resultsSheet() : null);
+  else if (finished && !tourRoundLive) showResults();
+  if (document.activeElement instanceof HTMLElement && state !== 'menu' && !finished && !optionsOpen && !tourScreen) document.activeElement.blur();
+  startTabAt(optionsOpen ? null : tourScreen ? $(TOUR_SHEETS[tourScreen]) : paused ? $('paused') : finished ? resultsSheet() : null);
 }
 
 // The title shows one partition: the selected track with the selected mode.
@@ -1395,6 +1808,7 @@ function updateHud(now) {
   if (game.mode === 'gymkhana') gymkhana.updateHud(game);
   else hideBust();
   updateBanners(now);
+  if (tourRoundLive) updateTourHud(now);
   updatePrompt();
   if (debug) updateDebug();
 }
@@ -1607,7 +2021,9 @@ function playFxSounds(dt) {
       }
     } else if (game.mode === 'normal') {
       const b = records.newBests;
-      audio.cue((b.score || b.fastestLap || b.bestCombo) ? 'outcome-record' : 'outcome-circuit');
+      // The last round of a Tour ends on the Tour's own result: its trophy, if it won one.
+      const trophy = tourScreen === 'final' ? tourTrophyCue() : null;
+      audio.cue(trophy ?? ((b.score || b.fastestLap || b.bestCombo) ? 'outcome-record' : 'outcome-circuit'));
     }
   }
   if (game.scoring.eventSerial !== fxScoreSerial) {
@@ -1634,6 +2050,8 @@ function frame(now) {
   if (arbiter.source === 'controller') instructionDevice = 'controller';
   else if (Object.values(input).some(Boolean)) instructionDevice = 'keyboard';
   advance(game, dt, drivingInput);
+  if (tourRoundLive && game.state === 'racing' && tourDriving === null) markTourDriving();
+  if (tourFinish) settleTourRound();
   if (tutorial) {
     updateTutorial(tutorial, game);
     if (tutorial.phase === 'complete') finishTutorial();
@@ -1664,5 +2082,7 @@ $('tracks-open').focus();
 window.__miniDrifters = { game, input, projectOnTrack, selectedTrack: () => selectedTrackId,
   selectedHandling: () => selectedHandlingId, sessionKind: () => game.mode,
   referenceGhost: () => ({ slot: referenceGhosts.slot && { ...referenceGhosts.slot, recording: undefined }, lastResult: referenceGhosts.lastResult, source: game.ghostSource, shown: !!game.ghostReference }), gymkhana: () => ({ open: challengePicker(), selected: gymkhana.selected().id }), drawnTrack: () => renderer.track.id, effects: () => effectsSnapshot(renderer), audio: () => audio.snapshot(), tutorial: () => tutorial && structuredClone(tutorial),
-  smashSounds: () => ({ ...audio.smashes }), fxAudio: () => ({ ...audio.fx }) };
+  smashSounds: () => ({ ...audio.smashes }), fxAudio: () => ({ ...audio.fx }),
+  tour: () => ({ screen: tourScreen, live: tourRoundLive, joker: tourJoker, driving: tourDriving,
+    state: tour && structuredClone(tour), choice: { ...tourChoice }, picker }) };
 requestAnimationFrame(frame);

@@ -111,9 +111,10 @@ async function run(engine, name) {
       await frames();
     };
     const pauseToTitle = async () => { await key('KeyP'); await page.locator('#paused .return-title').click(); await frames(); };
-    const categories = ['Tracks', 'Gymkhana', 'Getaway'];
+    // v0.9.0: Circuit Tour is a production category, second after Tracks.
+    const categories = ['Tracks', 'Circuit Tour', 'Gymkhana', 'Getaway'];
     await load();
-    assert.deepEqual(await page.locator('.title-menu button').allTextContents().then((names) => names.slice(0, 3)), categories);
+    assert.deepEqual(await page.locator('.title-menu button').allTextContents().then((names) => names.slice(0, 4)), categories);
     assert.equal(await page.locator('.tagline').textContent(), 'ONE OVERPOWERED CAR. ZERO GOOD IDEAS.');
 
     for (const [width, height] of sizes) {

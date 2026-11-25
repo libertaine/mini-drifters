@@ -194,6 +194,8 @@ async function check(name, engine) {
   };
   const openTutorial = async (page) => {
     await page.keyboard.press('ArrowDown');
+    assert.equal(await focused(page), 'tour-open', 'v0.9.0: Circuit Tour sits under Tracks');
+    await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'gymkhana');
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'getaway');
@@ -266,6 +268,7 @@ async function check(name, engine) {
 
     // --- Getting in -------------------------------------------------------------------
     page = await open();
+    await page.keyboard.press('ArrowDown'); // Circuit Tour (v0.9.0)
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');

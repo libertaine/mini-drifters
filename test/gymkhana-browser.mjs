@@ -141,21 +141,23 @@ async function check(name, engine) {
 
     // --- 1. The title --------------------------------------------------------------------
     await p.load();
-    assert.deepEqual(await menuWords(), ['Tracks', 'Gymkhana', 'Getaway', 'How to play', 'Options']);
+    assert.deepEqual(await menuWords(), ['Tracks', 'Circuit Tour', 'Gymkhana', 'Getaway', 'How to play', 'Options']); // Circuit Tour: v0.9.0
     for (const sel of ['#gymkhana-menu', '#gymkhana-results', '#gym-panel']) assert.equal(await shown(sel), false, `${sel} is not showing on the title`);
     assert.equal(await focused(), 'tracks-open');
     assert.equal(await value((k) => localStorage.getItem(k), KEY), null, 'nothing is written on load');
-    await p.sizes('the title menu', ['#tracks-open', '#gymkhana', '#getaway', '#how-to-play', '.title-menu .options-open', '#controller-note', '.title'], 'title');
+    await p.sizes('the title menu', ['#tracks-open', '#tour-open', '#gymkhana', '#getaway', '#how-to-play', '.title-menu .options-open', '#controller-note', '.title'], 'title');
     // No leftover development switch: the old query parameter is just a query parameter.
     await page.goto(`${base}?gymkhana=180`);
     await page.waitForFunction(() => window.__miniDrifters, null, { polling: 50 });
     await frames();
     assert.equal((await status()).state, 'menu');
-    assert.deepEqual(await menuWords(), ['Tracks', 'Gymkhana', 'Getaway', 'How to play', 'Options']);
+    assert.deepEqual(await menuWords(), ['Tracks', 'Circuit Tour', 'Gymkhana', 'Getaway', 'How to play', 'Options']); // Circuit Tour: v0.9.0
     await p.load();
     ok('title: Gymkhana is a primary category, fits from 1024x600 to 1920x1080, and nothing else of the mode shows');
 
     // --- 2. The sheet, by keyboard -------------------------------------------------------
+    await key('ArrowDown');
+    assert.equal(await focused(), 'tour-open', 'v0.9.0: Circuit Tour sits under Tracks');
     await key('ArrowDown');
     assert.equal(await focused(), 'gymkhana');
     await key('Enter');
