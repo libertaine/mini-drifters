@@ -462,7 +462,14 @@ async function check(name, engine) {
     assert.equal(r.lastResult.saved, false);
     assert.equal(r.lastResult.reason, 'write failed');
     assert.equal(r.shown, false, 'nothing claimed');
-    await p.waitForTimeout(150);
+    // The lap banner is written by the game's next animation frame after drive() returns, and a
+    // busy headless Firefox can take longer than a fixed pause to draw it (hosted run 45506358469
+    // attempt 1 read an empty banner after 150 ms). So wait, frame by frame and for at most 5 s,
+    // for the banner to say so. Its text stays until another banner replaces it (the 1.9 s
+    // lifetime only hides it), and the lap is the last banner a frame writes, so a per-frame
+    // check cannot miss it. A timeout is not a pass: the assertion below still decides.
+    await p.waitForFunction(() => /REFERENCE NOT SAVED/.test(document.getElementById('banner').textContent),
+      null, { polling: 'raf', timeout: 5000 }).catch(() => {});
     assert.match(await p.locator('#banner').textContent(), /REFERENCE NOT SAVED/);
     assert.equal(await stored(p), null);
     assert.ok(JSON.parse(await stored(p, RECORDS_KEY)).tracks.dockyard.classic.fastestLap > 0, 'the lap record still saved');
