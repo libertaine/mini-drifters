@@ -86,10 +86,22 @@ and adds **Circuit Tour**, a short championship against five rival drifters.
 
 ## Qualification
 
-The release candidate is integrated through a stack of two pull requests:
+The release was integrated through a stack of two pull requests, each merged with a merge commit:
 
+- [PR #47](https://github.com/libertaine/mini-drifters/pull/47) (R3: Circuit Tour, the Joker
+  explanation and release preparation) into the R1 branch
 - [PR #46](https://github.com/libertaine/mini-drifters/pull/46) (R1: the four circuits and the
-  Tracks redesign)
-- the R3 pull request (Circuit Tour), stacked on it
+  Tracks redesign, now carrying R3) into `main`
 
-Final results are recorded in the R3 pull request.
+The final candidate was qualified on its exact commit before release: the full unit suite, all 28
+browser suites in both Chromium and Firefox, and the publishing, analytics and desktop layout
+checks, locally and in the full hosted workflow. The one accepted `TODO` is the Dockyard chicane
+regression test described under Known limits. The totals and hosted run links are recorded in the
+pull requests and the GitHub release.
+
+One test reliability fix was made during final qualification. A hosted Firefox run read the
+reference-ghost suite's *REFERENCE NOT SAVED* banner after a fixed 150 ms pause, before the
+game's next animation frame had written it. The check now waits for the banner, frame by frame
+and for at most 5 seconds, then asserts the same text. No game code changed.
+
+The README title image is now a v0.9.0 capture.

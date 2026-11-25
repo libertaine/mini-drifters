@@ -219,7 +219,7 @@ npm test
 
 | Version | Highlights |
 |---|---|
-| v0.9.0 | Four new circuits (Runway 27, Redline Mesa, Headland Run, Nightshift Viaduct) for seven in all, a redesigned Tracks sheet, and Circuit Tour: a championship against five rivals with a Joker and a double-points final |
+| [v0.9.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.9.0) | Four new circuits (Runway 27, Redline Mesa, Headland Run, Nightshift Viaduct) for seven in all, a redesigned Tracks sheet, and Circuit Tour: a championship against five rivals with a Joker and a double-points final |
 | [v0.8.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.8.0) | Getaway Driver, dusk city/pursuit overhaul & Busted announcer voice, Tracks/Practice Pad/Gymkhana visual & audio polish, Umami analytics, tutorial steering hint, and risk-based CI |
 | [v0.7.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.7.0) | Gymkhana medals, saved reference ghosts, Getaway: Get the Footage, and Tracks, Gymkhana and Getaway menus |
 | [v0.6.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.6.0) | Functional environments: solid scenery on all three circuits |

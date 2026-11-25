@@ -118,9 +118,9 @@ Released as [v0.8.0](https://github.com/libertaine/mini-drifters/releases/tag/v0
 
 Physics, handling, scoring, medal thresholds, ghost compatibility and existing record formats are unchanged from v0.7.0. Dockyard's chicane shortcut remains an accepted TODO. See [the release notes](RELEASE-v0.8.0.md).
 
-## Prototype 0.9: Seven circuits and Circuit Tour (release candidate)
+## Prototype 0.9: Seven circuits and Circuit Tour (complete)
 
-Version 0.9.0 contains:
+Released as [v0.9.0](https://github.com/libertaine/mini-drifters/releases/tag/v0.9.0):
 
 - **Four more racing circuits**, for seven in all: **Runway 27** (abandoned airfield), **Redline Mesa** (desert proving ground), **Headland Run** (seaside cliff) and **Nightshift Viaduct** (midnight expressway). Each is a three-lap circuit in Classic and Power, with its own records and saved reference ghosts. See [the v0.9.0 circuit notes](CIRCUITS-v0.9.0.md).
 - **A redesigned Tracks sheet**: a grid of seven circuit cards with silhouettes and settings, above a panel for the selected circuit's description, personal bests and the Practice Pad.
@@ -133,7 +133,7 @@ Physics, handling, drift scoring, record formats, ghost compatibility and the an
 
 ## Upcoming versions
 
-- **v0.10.0** focuses on technical cleanup, an architectural review and project direction.
+- **v0.10.0** focuses on technical cleanup, an architectural review, test reliability and project direction.
 
 ### Research candidates
 
