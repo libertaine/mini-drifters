@@ -1707,7 +1707,8 @@ function drawStartGantry(r, game) {
   ctx.translate(-3.1, 0);
 
   // Side support towers outside the white road lines.
-  const pillarFill = id === 'switchback' ? '#5c4632' : id === 'dockyard' ? '#364142' : '#2a2d33';
+  const custom = r.course.landscape?.gantry;
+  const pillarFill = custom?.pillar ?? (id === 'switchback' ? '#5c4632' : id === 'dockyard' ? '#364142' : '#2a2d33');
   ctx.fillStyle = '#14161a';
   ctx.fillRect(-1.55, -half - 1.5, 3.1, 2.6);
   ctx.fillRect(-1.55, half - 1.1, 3.1, 2.6);
@@ -1718,11 +1719,16 @@ function drawStartGantry(r, game) {
   // Main overhead steel bridge truss.
   ctx.fillStyle = '#181a1f';
   ctx.fillRect(-1.25, -half, 2.5, span);
-  ctx.fillStyle = id === 'dockyard' ? '#2c3537' : id === 'switchback' ? '#323836' : '#23262c';
+  ctx.fillStyle = custom?.bridge ?? (id === 'dockyard' ? '#2c3537' : id === 'switchback' ? '#323836' : '#23262c');
   ctx.fillRect(-1.0, -half + 0.3, 2.0, span - 0.6);
 
   // Circuit-signature gantry livery stripe.
-  if (id === 'dockyard') {
+  if (custom?.stripes) {
+    for (const [col, sx, sw] of custom.stripes) {
+      ctx.fillStyle = col;
+      ctx.fillRect(sx, -half + 1.0, sw, span - 2.0);
+    }
+  } else if (id === 'dockyard') {
     ctx.fillStyle = '#e6c542';
     ctx.fillRect(-0.85, -half + 0.6, 1.7, 3.2);
     ctx.fillRect(-0.85, half - 3.8, 1.7, 3.2);
@@ -1875,6 +1881,105 @@ function drawTracksideLife(r, game, land, yard, view) {
       ctx.restore();
     }
   }
+
+  // 4. Airfield windsock streaming in the crosswind.
+  if (land?.windsocks?.length) {
+    for (let i = 0; i < land.windsocks.length; i += 1) {
+      const w = land.windsocks[i];
+      if (Math.abs(w.x - view.x) > view.hw + 12 || Math.abs(w.y - view.y) > view.hh + 12) continue;
+      const sway = titleStill ? 0 : Math.sin(fxTime * 3.8 + i) * 0.16;
+      ctx.save();
+      ctx.translate(w.x, w.y);
+      ctx.rotate(-0.45 + sway);
+      const bands = ['#e24c26', '#f4f0e4', '#e24c26', '#f4f0e4', '#e24c26'];
+      bands.forEach((col, bi) => {
+        const x0 = 0.8 + bi * 1.05;
+        const h0 = 1.05 - bi * 0.13;
+        ctx.fillStyle = col;
+        ctx.fillRect(x0, -h0 / 2, 1.05, h0);
+      });
+      ctx.restore();
+    }
+  }
+
+  // 5. Desert mesa warm dust motes drifting across the proving ground.
+  if (land?.style === 'mesa' && !titleStill) {
+    ctx.save();
+    const spanX = view.hw * 2 + 16;
+    const spanY = view.hh * 2 + 16;
+    for (let i = 0; i < 12; i += 1) {
+      const seed = i * 43.3;
+      const wx = ((seed * 17 + fxTime * (4.4 + (i % 3) * 1.1)) % spanX + spanX) % spanX + view.x - view.hw - 8;
+      const wy = ((seed * 11 + fxTime * 1.3 + Math.sin(fxTime * 1.7 + i) * 1.8) % spanY + spanY) % spanY + view.y - view.hh - 8;
+      ctx.fillStyle = 'rgba(235,204,158,0.34)';
+      ctx.beginPath();
+      ctx.arc(wx, wy, 0.32 + (i % 2) * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 6. Coastal headland lighthouse rotating beacon sweep & gliding seabirds.
+  if (land?.lighthouses?.length) {
+    for (const lh of land.lighthouses) {
+      if (Math.abs(lh.x - view.x) > view.hw + 70 || Math.abs(lh.y - view.y) > view.hh + 70) continue;
+      const angle = titleStill ? -0.65 : fxTime * 0.65;
+      ctx.save();
+      ctx.translate(lh.x, lh.y);
+      ctx.rotate(angle);
+      const grad = ctx.createLinearGradient(0, 0, 58, 0);
+      grad.addColorStop(0, 'rgba(255,244,186,0.36)');
+      grad.addColorStop(0.55, 'rgba(255,238,168,0.12)');
+      grad.addColorStop(1, 'rgba(255,238,168,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, -1.2);
+      ctx.lineTo(58, -15);
+      ctx.lineTo(58, 15);
+      ctx.lineTo(0, 1.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    if (!titleStill) {
+      const seaS = r.track.bounds.maxY + 14;
+      if (view.y + view.hh > seaS - 10) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(246,250,252,0.58)';
+        ctx.lineWidth = 0.25;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 4; i += 1) {
+          const gx = r.track.bounds.minX + (((i * 128 + fxTime * (8.2 + i * 1.2)) % 520) + 520) % 520;
+          const gy = seaS + 6 + i * 11 + Math.sin(fxTime * 1.4 + i * 2) * 4;
+          if (Math.abs(gx - view.x) > view.hw + 8 || Math.abs(gy - view.y) > view.hh + 8) continue;
+          const flap = Math.sin(fxTime * 5.6 + i * 1.7) * 0.48;
+          ctx.beginPath();
+          ctx.moveTo(gx - 1.2, gy - flap);
+          ctx.quadraticCurveTo(gx - 0.5, gy - 0.65, gx, gy);
+          ctx.quadraticCurveTo(gx + 0.5, gy - 0.65, gx + 1.2, gy - flap);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  // 7. Night viaduct pulsing red hazard beacons on high-mast towers.
+  if (land?.beacons?.length) {
+    const pulse = titleStill ? 0.7 : 0.35 + 0.65 * Math.max(0, Math.sin(fxTime * 2.8));
+    for (const b of land.beacons) {
+      if (Math.abs(b.x - view.x) > view.hw + 14 || Math.abs(b.y - view.y) > view.hh + 14) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.52 * pulse;
+      ctx.drawImage(r.glowRed, b.x - 6, b.y - 6, 12, 12);
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#ff4b42';
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 }
 
 // Draw one frame. `alpha` blends between the last two physics steps.
@@ -1930,10 +2035,10 @@ export function drawFrame(r, game, alpha, dt, debug) {
     drawDockyardSceneryPolished(ctx, yard, view);
   } else if (land) {
     if (land.style === 'grassroots') drawGrass(r);
-    drawLandscapeBelow(ctx, r.track, land, view);
+    drawLandscapeBelow(ctx, r.track, land, view, r.fxTime, r.titleStill);
   } else drawGrass(r);
   if (r.track.pad) drawPad(ctx, r.track);
-  else drawRoad(ctx, r.course, COLORS, false, r.lapFlash);
+  else drawRoad(ctx, r.course, land?.roadColors ?? COLORS, false, r.lapFlash);
   // A gymkhana challenge paints its gates, zones and cones on its pad.
   if (game.mode === 'gymkhana' && game.challenge) drawChallenge(ctx, game, view, r.fxTime, r.titleStill);
   drawSkids(r);
@@ -1955,9 +2060,19 @@ export function drawFrame(r, game, alpha, dt, debug) {
   } else if (game.challenge?.pursuer) {
     drawPolice(r, game.challenge.pursuer, blend, liveLights, 1);
   }
-  drawCar(ctx, car, pose, !!urban, r.exhaust.pop);
+  drawCar(ctx, car, pose, !!urban || !!land?.night, r.exhaust.pop);
   drawSmoke(r);
   drawSparksAndPapers(r);
+  if (land?.night && land.lamps?.length) {
+    ctx.save();
+    for (const lamp of land.lamps) {
+      const rad = lamp.glow;
+      if (Math.abs(lamp.x - view.x) > view.hw + rad || Math.abs(lamp.y - view.y) > view.hh + rad) continue;
+      ctx.globalAlpha = 0.42;
+      ctx.drawImage(r.glowWarm, lamp.x - rad, lamp.y - rad, rad * 2, rad * 2);
+    }
+    ctx.restore();
+  }
   if (!r.track.pad) drawStartGantry(r, game);
   if (urban) drawUrbanAbove(ctx, urban, game.challenge, view, r.fxTime);
   else if (land) drawLandscapeAbove(ctx, land, view);

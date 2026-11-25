@@ -15,6 +15,10 @@
 import { projectOnTrack } from './track.js';
 import { buildOriginalScenery } from './scenery-original.js';
 import { buildSwitchbackScenery } from './scenery-switchback.js';
+import { buildRunwayScenery } from './scenery-runway.js';
+import { buildMesaScenery } from './scenery-mesa.js';
+import { buildHeadlandScenery } from './scenery-headland.js';
+import { buildNightshiftScenery } from './scenery-nightshift.js';
 
 // The placement rules, checked by test/scenery-r2.test.mjs.
 export const SCENERY_RULES = Object.freeze({
@@ -38,10 +42,16 @@ export const KINDS = Object.freeze({
   // Nature.
   tree: { raised: true, hit: 0.55 }, pine: { raised: true, hit: 0.5 }, rock: { raised: true, hit: 0.85 },
   stand: { raised: true }, outcrop: { raised: true },
+  // Venue-specific structures and landmarks (v0.9.0 circuits).
+  hangar: { raised: true }, bunker: { raised: true }, lighthouse: { raised: true, hit: 0.95 },
+  tank: { raised: true, hit: 0.95 }, pylon: { raised: true }, lamppost: { raised: true, hit: 0.9 },
+  cactus: { raised: true, hit: 0.72 }, windsock: { raised: true, hit: 0.8 }, aircraft: { raised: true, hit: 0.85 },
   // Flat: drawn on the ground, never solid.
   paved: { raised: false }, road: { raised: false }, parking: { raised: false }, gravel: { raised: false },
   wear: { raised: false }, earth: { raised: false }, meadow: { raised: false }, path: { raised: false },
   wash: { raised: false }, water: { raised: false }, mound: { raised: false }, paint: { raised: false },
+  pier: { raised: false }, boat: { raised: false }, runway: { raised: false }, rail: { raised: false },
+  sand: { raised: false }, decal: { raised: false },
 });
 
 export const isSolidKind = (kind) => KINDS[kind]?.raised === true;
@@ -215,12 +225,22 @@ function freezeDeep(value) {
   return value;
 }
 
-const BUILDERS = { original: buildOriginalScenery, switchback: buildSwitchbackScenery };
+const BUILDERS = {
+  original: buildOriginalScenery,
+  switchback: buildSwitchbackScenery,
+  'runway-27': buildRunwayScenery,
+  'redline-mesa': buildMesaScenery,
+  'headland-run': buildHeadlandScenery,
+  'nightshift-viaduct': buildNightshiftScenery,
+};
 
 // A fresh copy of a circuit's layout (null for a circuit without one). sceneryFor keeps one each.
 export function buildScenery(track) {
   if (!track || !BUILDERS[track.id] || track.pad) return null;
-  const layout = BUILDERS[track.id](track, { seeded, convexHull, roundOutline, fillStand, offsetLine, clearanceOf, insidePolygon, rules: SCENERY_RULES });
+  const layout = BUILDERS[track.id](track, {
+    seeded, convexHull, roundOutline, fillStand, offsetLine, clearanceOf, insidePolygon,
+    isSolidKind, solidShapes, rules: SCENERY_RULES,
+  });
   return freezeDeep({ ...layout, id: track.id, solids: solidShapes(layout.props) });
 }
 

@@ -86,10 +86,10 @@ test('a typical lap is about 15k characters, and the longest saved lap fits the 
   const size = JSON.stringify(entry).length;
   assert.ok(size < MAX_ENTRY_CHARS, `${size} characters`);
   assert.equal(decodeEntry(entry, EXPECT).ok, true);
-  // All six slots at that worst case, in UTF-16, under 1.5 MiB of a typical 5 MiB origin.
+  // All 14 slots at that worst case, in UTF-16, under 3 MiB of a typical 5 MiB origin.
   const slots = TRACKS.length * HANDLING_IDS.length;
-  assert.equal(slots, 6);
-  assert.ok(slots * size * 2 < 1.5 * 1024 * 1024, `${(slots * size * 2 / 1024 / 1024).toFixed(2)} MiB`);
+  assert.equal(slots, 14);
+  assert.ok(slots * size * 2 < 3 * 1024 * 1024, `${(slots * size * 2 / 1024 / 1024).toFixed(2)} MiB`);
   assert.ok(slots * MAX_ENTRY_CHARS < MAX_STORE_CHARS);
 });
 
@@ -217,7 +217,11 @@ test('R0\'s gap: the fingerprints alone cannot tell v0.5.0 from v0.6.0, the expl
     'original/classic': '8c54f401/744865a6', 'original/revised': '8c54f401/8eeb8829',
     'switchback/classic': '88a3c237/744865a6', 'switchback/revised': '88a3c237/8eeb8829',
     'dockyard/classic': '97b9e1ef/744865a6', 'dockyard/revised': '97b9e1ef/8eeb8829',
-  }, 'the same values R0 measured for v0.5.0');
+    'runway-27/classic': '8f978414/744865a6', 'runway-27/revised': '8f978414/8eeb8829',
+    'redline-mesa/classic': '09ec62f8/744865a6', 'redline-mesa/revised': '09ec62f8/8eeb8829',
+    'headland-run/classic': '058d8bcd/744865a6', 'headland-run/revised': '058d8bcd/8eeb8829',
+    'nightshift-viaduct/classic': '6a3f9ff3/744865a6', 'nightshift-viaduct/revised': '6a3f9ff3/8eeb8829',
+  }, 'v0.5.0-v0.8.0 circuits keep identical identities; v0.9.0 circuits have permanent distinct identities');
   // A lap saved before the explicit version existed carries none, and is never shown.
   const legacy = good();
   delete legacy.compatibility;
@@ -229,12 +233,18 @@ test('R0\'s gap: the fingerprints alone cannot tell v0.5.0 from v0.6.0, the expl
 // judged here: if it can move the car or change how a lap is timed or judged, raise
 // GHOST_COMPATIBILITY in src/ghost-store.js and add a new row; if it can't (a comment, say),
 // update this row. Never edit a row's values without that review. See docs/GHOST.md.
+// Reviewed for v0.9.0 R1: adding four new circuits left physics, tuning, handling, lap rules,
+// and Original / Switchback / Dockyard geometry and colliders bit-for-bit identical to v0.6.0,
+// so GHOST_COMPATIBILITY remains 1 and existing saved ghosts on the original three circuits stay valid.
+const BASELINE_THREE = ['original', 'switchback', 'dockyard'];
 const REVIEWED = {
   1: {
     baseline: 'v0.6.0',
-    drive: '58f07dfe5e47bb5b7e0bb66fd3b5edba650697a4f0f9724300d0e5dd42354b99',
-    geometry: 'ea5f7664d1bf50ae8fb8cfd0eb6bc5b631dc071c15fb29db7c652998796ad2ae',
-    sources: 'e1fcf948c9e1ecf21287d9249f101ca534efae69179d8bfe2f605379d2395c07',
+    baselineDrive: '58f07dfe5e47bb5b7e0bb66fd3b5edba650697a4f0f9724300d0e5dd42354b99',
+    baselineGeometry: 'ea5f7664d1bf50ae8fb8cfd0eb6bc5b631dc071c15fb29db7c652998796ad2ae',
+    drive: '55a2f626c349285a2081cb34417ca21147fbf90fdf49bcf6e758773539808849',
+    geometry: '4f034d15eb88558b1b923afd14f21f060c25495d68f55f363c2be7dd63e4371a',
+    sources: 'c3142f0657f08e250dc9753c83ba3f45540e6c5f0675e747ef6aa9409ff83c0f',
   },
 };
 const REVIEW = 'Review GHOST_COMPATIBILITY in src/ghost-store.js (see docs/GHOST.md, "Compatibility")';
@@ -247,10 +257,12 @@ test('the compatibility version names the v0.6.0 physics and environments', () =
 });
 
 test('how the car drives and laps are judged on every circuit and mode is what the version was reviewed against', () => {
+  assert.equal(driveHash(BASELINE_THREE), REVIEWED[GHOST_COMPATIBILITY].baselineDrive, `Baseline-3 scripted drives changed. ${REVIEW}.`);
   assert.equal(driveHash(), REVIEWED[GHOST_COMPATIBILITY].drive, `The scripted drives changed. ${REVIEW}.`);
 });
 
 test('circuit geometry and solid scenery are what the version was reviewed against', () => {
+  assert.equal(geometryHash(BASELINE_THREE), REVIEWED[GHOST_COMPATIBILITY].baselineGeometry, `Baseline-3 geometry or scenery changed. ${REVIEW}.`);
   assert.equal(geometryHash(), REVIEWED[GHOST_COMPATIBILITY].geometry, `A circuit or its scenery changed. ${REVIEW}.`);
 });
 

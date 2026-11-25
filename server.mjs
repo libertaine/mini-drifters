@@ -14,7 +14,7 @@ const LAB = new Set(['index.html', 'lab.css', 'lab.js', 'model.js', 'audio.js', 
   .map((file) => `/audio-lab/${file}`));
 const SOURCE = /^\/src\/[a-z]+(-[a-z]+)*\.js$/;
 const RADIO = /^\/radio\/(ATTRIBUTION\.md|[a-z0-9-]+\/[a-z0-9-]+\.(wav|mp3))$/;
-const port = Number(process.env.PORT || 4190);
+const port = process.env.PORT !== undefined && process.env.PORT !== '' ? Number(process.env.PORT) : 4190;
 
 // The page asks for the Coyote recordings because of this tag. COYOTE_LOCAL=off removes
 // it, to hear the synthesized fallback engine that plays if the recordings can't load.
@@ -47,8 +47,8 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
-    console.log(`Port ${port} is already in use, so the game may already be running.`);
-    console.log(`Try http://127.0.0.1:${port}`);
+    console.error(`Port ${port} is already in use, so the game may already be running.`);
+    console.error(`Try http://127.0.0.1:${port}`);
   } else {
     console.error(error);
   }
@@ -56,6 +56,7 @@ server.on('error', (error) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Mini Drifters: http://127.0.0.1:${port}`);
+  const boundPort = server.address().port;
+  console.log(`Mini Drifters: http://127.0.0.1:${boundPort}`);
   console.log('Leave this window open while you play. Close it to stop the game.');
 });

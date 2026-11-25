@@ -17,11 +17,12 @@ import { obstaclesFor } from '../../src/obstacles.js';
 import { gripDriver, recklessDriver } from './drivers.mjs';
 
 export const SIMULATION_SOURCES = ['physics.js', 'tuning.js', 'handling.js', 'laps.js', 'track.js', 'obstacles.js',
-  'controls.js', 'dockyard-scenery.js', 'scenery.js', 'scenery-original.js', 'scenery-switchback.js'];
+  'controls.js', 'dockyard-scenery.js', 'scenery.js', 'scenery-original.js', 'scenery-switchback.js',
+  'scenery-helpers.js', 'scenery-runway.js', 'scenery-mesa.js', 'scenery-headland.js', 'scenery-nightshift.js'];
 
-export function driveHash() {
+export function driveHash(trackIds = TRACKS.map((t) => t.id)) {
   const hash = createHash('sha256');
-  for (const { id } of TRACKS) {
+  for (const id of trackIds) {
     for (const handling of HANDLING_MODES) {
       for (const makeDriver of [gripDriver, recklessDriver]) {
         const game = createGame(trackById(id));
@@ -39,9 +40,9 @@ export function driveHash() {
   return hash.digest('hex');
 }
 
-export function geometryHash() {
+export function geometryHash(trackIds = TRACKS.map((t) => t.id)) {
   const hash = createHash('sha256');
-  for (const { id } of TRACKS) {
+  for (const id of trackIds) {
     const track = trackById(id);
     const { name, ...shape } = track;
     hash.update(JSON.stringify(shape));

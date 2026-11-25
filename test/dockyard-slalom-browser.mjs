@@ -215,8 +215,10 @@ async function check(name, engine) {
     await load();
     assert.doesNotMatch(await text('.release-version'), /PROTOTYPE/i);
     assert.doesNotMatch(await page.title(), /PROTOTYPE/i);
-    assert.deepEqual(await value(() => [...document.querySelectorAll('#tracks input')].map((i) => i.value)), ['original', 'switchback', 'dockyard']);
-    assert.deepEqual(await page.locator('#tracks label').allInnerTexts().then((t) => t.map((x) => x.trim().toUpperCase())), ['ORIGINAL', 'SWITCHBACK', 'DOCKYARD']);
+    const ALL_TRACK_IDS = ['original', 'switchback', 'dockyard', 'runway-27', 'redline-mesa', 'headland-run', 'nightshift-viaduct'];
+    const ALL_TRACK_NAMES = ['ORIGINAL', 'SWITCHBACK', 'DOCKYARD', 'RUNWAY 27', 'REDLINE MESA', 'HEADLAND RUN', 'NIGHTSHIFT VIADUCT'];
+    assert.deepEqual(await value(() => [...document.querySelectorAll('#tracks input')].map((i) => i.value)), ALL_TRACK_IDS);
+    assert.deepEqual(await page.locator('#tracks .track-name').allInnerTexts().then((t) => t.map((x) => x.trim().toUpperCase())), ALL_TRACK_NAMES);
     let s = await status();
     assert.equal(s.selected, 'revised', 'the saved handling choice (Power) is read');
     await sizes('the category title', ['.title', '#handlings', '#tracks-open', '#gymkhana', '#getaway', '.release-version'], 'title');
@@ -317,10 +319,13 @@ async function check(name, engine) {
     await value(() => { window.__pads = [window.__newPad()]; window.__frames(3); });
     await chooseTracks(page);
     await frames(2);
-    // D-pad Left and Right walk the three circuits and wrap, as Left and Right do on the keyboard.
+    // D-pad Left and Right walk all seven circuits and wrap, as Left and Right do on the keyboard.
     const walked = [];
-    for (const button of [15, 15, 15, 14, 14, 14]) { await press(button); walked.push((await status()).chosenTrack); }
-    assert.deepEqual(walked, ['original', 'switchback', 'dockyard', 'switchback', 'original', 'dockyard']);
+    for (const button of [15, 15, 15, 15, 15, 15, 15, 14, 14, 14, 14, 14, 14, 14]) { await press(button); walked.push((await status()).chosenTrack); }
+    assert.deepEqual(walked, [
+      'runway-27', 'redline-mesa', 'headland-run', 'nightshift-viaduct', 'original', 'switchback', 'dockyard',
+      'switchback', 'original', 'nightshift-viaduct', 'headland-run', 'redline-mesa', 'runway-27', 'dockyard',
+    ]);
     assert.equal(await value(() => document.activeElement.id), 'start', 'and the focus stays on Start');
     await press(0); // A on Start driving
     s = await status();

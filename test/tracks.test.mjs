@@ -16,8 +16,12 @@ const DEG = Math.PI / 180;
 const steps = (seconds) => Math.round(seconds / T.simStep);
 
 // --- The choice of circuits ----------------------------------------------------------
-test('there are three circuits with stable ids, and Original is the default', () => {
-  assert.deepEqual(TRACKS.map((t) => [t.id, t.name]), [['original', 'Original'], ['switchback', 'Switchback'], ['dockyard', 'Dockyard']]);
+test('there are seven circuits with stable ids, and Original is the default', () => {
+  assert.deepEqual(TRACKS.map((t) => [t.id, t.name]), [
+    ['original', 'Original'], ['switchback', 'Switchback'], ['dockyard', 'Dockyard'],
+    ['runway-27', 'Runway 27'], ['redline-mesa', 'Redline Mesa'],
+    ['headland-run', 'Headland Run'], ['nightshift-viaduct', 'Nightshift Viaduct'],
+  ]);
   assert.equal(DEFAULT_TRACK_ID, 'original');
   assert.equal(createGame().track, original);
   assert.equal(trackById('switchback'), track, 'each circuit is built once');

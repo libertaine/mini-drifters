@@ -19,6 +19,10 @@ const OUTLINE = '#2d3331';
 const TREE_TONES = {
   grassroots: { dark: ['#1f6a35', '#246f39', '#2b6331'], light: ['#2d8644', '#36904a', '#3c7f3c'] },
   hillside: { dark: ['#22603a', '#2b693c', '#355f37'], light: ['#367a45', '#418249', '#4f7b40'] },
+  airfield: { dark: ['#3b5936', '#46613b', '#385234'], light: ['#557348', '#5f7c4f', '#4e6b43'] },
+  mesa: { dark: ['#5c6838', '#68703b', '#4d5c32'], light: ['#7a8648', '#848f4e', '#697841'] },
+  headland: { dark: ['#1d5b44', '#23664b', '#1b503c'], light: ['#2f7859', '#388261', '#2b6c50'] },
+  nightshift: { dark: ['#162624', '#1a2c29', '#132120'], light: ['#223834', '#27403b', '#1e322f'] },
 };
 const PINE_TONES = { dark: ['#1b4a36', '#205339', '#18432f'], light: ['#2a6146', '#2f6a4a', '#285a40'] };
 
@@ -366,23 +370,25 @@ function rockOutline(p) {
 
 function rock(paint, p) {
   const outline = rockOutline(p);
+  const [edge, fill, hi] = p.palette ?? ['#5d5f59', '#8d8f87', '#a8aaa1'];
   paint.add('shadow', { fill: SHADOW }, roundBox(p, 2), polyPath(outline, 0.6, 0.7));
-  paint.add('body', { fill: '#5d5f59' }, roundBox(p, 0.3), polyPath(outline.map(([x, y]) => [p.x + (x - p.x) * 1.08, p.y + (y - p.y) * 1.08])));
-  paint.add('body', { fill: '#8d8f87' }, roundBox(p), polyPath(outline));
-  paint.add('detail', { fill: '#a8aaa1' }, roundBox(p), polyPath(outline.slice(0, Math.ceil(outline.length / 2))
+  paint.add('body', { fill: edge }, roundBox(p, 0.3), polyPath(outline.map(([x, y]) => [p.x + (x - p.x) * 1.08, p.y + (y - p.y) * 1.08])));
+  paint.add('body', { fill }, roundBox(p), polyPath(outline));
+  paint.add('detail', { fill: hi }, roundBox(p), polyPath(outline.slice(0, Math.ceil(outline.length / 2))
     .map(([x, y]) => [p.x - p.r * 0.12 + (x - p.x) * 0.62, p.y - p.r * 0.12 + (y - p.y) * 0.62]).concat([[p.x - p.r * 0.1, p.y - p.r * 0.1]])));
 }
 
 function outcrop(paint, p) {
   const box = pointsBox(p.points, 1);
+  const [edge, fill, hi, crack] = p.palette ?? ['#5d5f59', '#8a8b83', '#a6a79e', '#6c6d66'];
   paint.add('shadow', { fill: SHADOW }, pointsBox(p.points, 3), polyPath(p.points, 1.4, 1.7));
-  paint.add('body', { fill: '#5d5f59' }, box, polyPath(p.points));
+  paint.add('body', { fill: edge }, box, polyPath(p.points));
   const cx = p.points.reduce((a, q) => a + q[0], 0) / p.points.length;
   const cy = p.points.reduce((a, q) => a + q[1], 0) / p.points.length;
   const inner = p.points.map(([x, y]) => [cx + (x - cx) * 0.9, cy + (y - cy) * 0.9]);
-  paint.add('body', { fill: '#8a8b83' }, box, polyPath(inner));
-  paint.add('detail', { fill: '#a6a79e' }, box, polyPath([...inner.slice(0, 3), [cx - 1, cy - 1]]));
-  paint.add('detail', { stroke: '#6c6d66', width: 0.3 }, box, (path) => {
+  paint.add('body', { fill }, box, polyPath(inner));
+  paint.add('detail', { fill: hi }, box, polyPath([...inner.slice(0, 3), [cx - 1, cy - 1]]));
+  paint.add('detail', { stroke: crack, width: 0.3 }, box, (path) => {
     inner.forEach(([x, y], i) => { if (i % 2 === 0) { path.moveTo(cx, cy); path.lineTo(x, y); } });
   });
 }
@@ -545,7 +551,7 @@ function flat(paint, p) {
 
 // Gravel shoulders to `shoulder` metres from the centreline, a ditch beyond them and speckles of
 // stone in them: laid out in 32 m pieces of the lap, so only the pieces in view are drawn.
-function addShoulders(paint, track, shoulder) {
+function addShoulders(paint, track, shoulder, theme = null) {
   const pts = track.points;
   const n = pts.length;
   const at = (i, shift) => {
@@ -553,13 +559,17 @@ function addShoulders(paint, track, shoulder) {
     return [p.x - p.ty * shift, p.y + p.tx * shift];
   };
   const piece = 16;
+  const ditch = theme?.ditch ?? '#2f5a31';
+  const base = theme?.base ?? '#9e9682';
+  const dark = theme?.dark ?? '#857d69';
+  const light = theme?.light ?? '#b8af98';
   const styles = [
-    [{ stroke: '#2f5a31', width: 1.1, join: 'round', cap: 'round' }, [-shoulder - 0.6, shoulder + 0.6]],
-    [{ stroke: '#9e9682', width: shoulder * 2, join: 'round', cap: 'round' }, [0]],
-    [{ stroke: '#857d69', width: 0.32, dash: [0.3, 1.7] }, [-13.6]],
-    [{ stroke: '#b8af98', width: 0.32, dash: [0.25, 2.3] }, [-11.4]],
-    [{ stroke: '#857d69', width: 0.32, dash: [0.25, 2.9] }, [11.4]],
-    [{ stroke: '#b8af98', width: 0.32, dash: [0.3, 1.9] }, [13.6]],
+    [{ stroke: ditch, width: 1.1, join: 'round', cap: 'round' }, [-shoulder - 0.6, shoulder + 0.6]],
+    [{ stroke: base, width: shoulder * 2, join: 'round', cap: 'round' }, [0]],
+    [{ stroke: dark, width: 0.32, dash: [0.3, 1.7] }, [-13.6]],
+    [{ stroke: light, width: 0.32, dash: [0.25, 2.3] }, [-11.4]],
+    [{ stroke: dark, width: 0.32, dash: [0.25, 2.9] }, [11.4]],
+    [{ stroke: light, width: 0.32, dash: [0.3, 1.9] }, [13.6]],
   ];
   for (const [style, shifts] of styles) {
     for (let i = 0; i < n; i += piece) {
@@ -605,7 +615,7 @@ function bakeHill(e, grid) {
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(w, h);
-  const stops = [[0, [63, 138, 69]], [0.45, [77, 149, 72]], [1, [121, 160, 82]]];
+  const stops = e.palette ?? [[0, [63, 138, 69]], [0.45, [77, 149, 72]], [1, [121, 160, 82]]];
   for (let j = 0; j < h; j += 1) {
     for (let i = 0; i < w; i += 1) {
       const x = x0 + i * step;
@@ -638,6 +648,8 @@ function addContours(paint, e, grid) {
   const { z, w, h, x0, y0, step } = grid;
   const k = 2;
   const cell = step * k;
+  const minor = e.contour ? { stroke: e.contour, width: 0.3 } : CONTOUR;
+  const major = e.contourIndex ? { stroke: e.contourIndex, width: 0.42 } : CONTOUR_INDEX;
   const crossing = (level, a, d, ax, ay, dx, dy) => {
     const t = (level - a) / (d - a);
     return [ax + (dx - ax) * t, ay + (dy - ay) * t];
@@ -662,12 +674,131 @@ function addContours(paint, e, grid) {
           if ((a < level) !== (d < level)) hits.push(crossing(level, a, d, ax, ay, dx, dy));
         }
         if (hits.length < 2) continue;
-        paint.add('contour', n % 4 === 0 ? CONTOUR_INDEX : CONTOUR, [sx, sy, sx + cell, sy + cell], (path) => {
+        paint.add('contour', n % 4 === 0 ? major : minor, [sx, sy, sx + cell, sy + cell], (path) => {
           path.moveTo(...hits[0]); path.lineTo(...hits[1]);
           if (hits.length === 4) { path.moveTo(...hits[2]); path.lineTo(...hits[3]); }
         });
       }
     }
+  }
+}
+
+// --- Extended venue props (airfield, desert mesa, seaside headland, midnight viaduct) ---------------
+
+function venueProp(paint, p) {
+  if (p.kind === 'hangar') {
+    const [x, y] = block(paint, p, p.roof ?? '#6d7578', [1.8, 2.2]);
+    // Arched corrugated steel ribs & sunlit crown along the barrel roof.
+    paint.add('detail', { fill: 'rgba(255,255,255,0.14)' }, boxOf(p), rectPath(x + 1.5, y + p.h * 0.28, p.w - 3, p.h * 0.18));
+    paint.add('detail', { fill: 'rgba(0,0,0,0.16)' }, boxOf(p), rectPath(x + 1, y + p.h * 0.68, p.w - 2, p.h * 0.28));
+    paint.add('detail', { stroke: '#23282b', width: 0.28 }, boxOf(p), (path) => {
+      for (let k = x + 3; k < x + p.w - 1; k += 3.5) { path.moveTo(k, y + 0.6); path.lineTo(k, y + p.h - 0.6); }
+    });
+    if (p.stripe) paint.add('detail', { fill: p.stripe }, boxOf(p), rectPath(x + 2, y + 0.7, p.w - 4, 1.4));
+    if (p.label) label(paint, p, p.label, 2.1, '#ebe6d6');
+  } else if (p.kind === 'bunker') {
+    const [x, y] = block(paint, p, p.roof ?? '#b89f82', [1.4, 1.7]);
+    paint.add('detail', { fill: '#957e63' }, boxOf(p), rectPath(x + 1.2, y + 1.2, p.w - 2.4, p.h - 2.4));
+    paint.add('detail', { fill: '#2a2b2d' }, boxOf(p), rectPath(x + 2.4, y + p.h - 2.4, p.w - 4.8, 1.4));
+    paint.add('detail', { stroke: '#e8d7bc', width: 0.25 }, boxOf(p), rectPath(x + 0.6, y + 0.6, p.w - 1.2, p.h - 1.2));
+    if (p.label) label(paint, { ...p, y: p.y - 0.6 }, p.label, 1.45, '#f4ebd8');
+  } else if (p.kind === 'lighthouse') {
+    const box = roundBox(p, 3.5);
+    paint.add('shadow', { fill: 'rgba(10,24,28,0.42)' }, box, circlePath(p.x + 2.1, p.y + 2.4, p.r * 1.02));
+    paint.add('body', { fill: '#24292e' }, roundBox(p, 0.4), circlePath(p.x, p.y, p.r + 0.35));
+    paint.add('body', { fill: '#f5f1e6' }, roundBox(p), circlePath(p.x, p.y, p.r));
+    paint.add('detail', { fill: '#cc362b' }, roundBox(p), circlePath(p.x, p.y, p.r * 0.74));
+    paint.add('detail', { fill: '#f5f1e6' }, roundBox(p), circlePath(p.x, p.y, p.r * 0.5));
+    paint.add('detail', { fill: '#20262b' }, roundBox(p), circlePath(p.x, p.y, p.r * 0.3));
+    paint.add('detail', { fill: '#ffe792' }, roundBox(p), circlePath(p.x, p.y, p.r * 0.16));
+  } else if (p.kind === 'tank') {
+    const box = roundBox(p, 2.5);
+    paint.add('shadow', { fill: SHADOW }, box, circlePath(p.x + 1.3, p.y + 1.5, p.r));
+    paint.add('body', { fill: OUTLINE }, roundBox(p, 0.35), circlePath(p.x, p.y, p.r + 0.3));
+    paint.add('body', { fill: p.color ?? '#c5c7c2' }, roundBox(p), circlePath(p.x, p.y, p.r));
+    paint.add('detail', { stroke: '#6c7274', width: 0.25 }, roundBox(p), circlePath(p.x, p.y, p.r * 0.72));
+    paint.add('detail', { fill: 'rgba(255,255,255,0.22)' }, roundBox(p), circlePath(p.x - p.r * 0.22, p.y - p.r * 0.22, p.r * 0.38));
+    if (p.stripe) paint.add('detail', { fill: p.stripe }, roundBox(p), rectPath(p.x - p.r * 0.65, p.y - 0.55, p.r * 1.3, 1.1));
+  } else if (p.kind === 'pylon') {
+    const [x, y] = block(paint, p, p.color ?? '#4a5258', [1.5, 1.8]);
+    paint.add('detail', { stroke: '#7b858d', width: 0.35 }, boxOf(p), rectPath(x + 0.6, y + 0.6, p.w - 1.2, p.h - 1.2));
+    paint.add('detail', { fill: '#e8b638' }, boxOf(p), rectPath(x + 0.9, y + p.h - 1.2, p.w - 1.8, 0.5));
+  } else if (p.kind === 'lamppost') {
+    const box = roundBox(p, 1.5);
+    paint.add('shadow', { fill: 'rgba(0,0,0,0.4)' }, box, circlePath(p.x + 0.4, p.y + 0.5, p.r));
+    paint.add('body', { fill: '#454c54' }, box, circlePath(p.x, p.y, p.r));
+    paint.add('detail', { fill: '#ffdf8c' }, box, circlePath(p.x, p.y, p.r * 0.55));
+  } else if (p.kind === 'cactus') {
+    const box = roundBox(p, 1.5);
+    paint.add('shadow', { fill: 'rgba(55,34,18,0.32)' }, box, circlePath(p.x + 0.5, p.y + 0.65, p.r));
+    paint.add('body', { fill: '#2c5230' }, box, circlePath(p.x, p.y, p.r));
+    paint.add('detail', { fill: '#477643' }, box, circlePath(p.x - p.r * 0.2, p.y - p.r * 0.2, p.r * 0.56));
+    paint.add('detail', { fill: '#6c995b' }, box, circlePath(p.x - p.r * 0.25, p.y - p.r * 0.25, p.r * 0.24));
+  } else if (p.kind === 'windsock') {
+    const box = roundBox(p, 2);
+    paint.add('body', { fill: '#d6d4cc' }, box, circlePath(p.x, p.y, 1.05));
+    paint.add('detail', { fill: '#e04f26' }, box, circlePath(p.x, p.y, 0.55));
+  } else if (p.kind === 'aircraft') {
+    const s = p.scale ?? 1;
+    const box = [p.x - 12 * s, p.y - 12 * s, p.x + 12 * s, p.y + 12 * s];
+    const ca = Math.cos(p.angle ?? 0);
+    const sa = Math.sin(p.angle ?? 0);
+    const pt = (lx, ly) => [p.x + (lx * ca - ly * sa) * s, p.y + (lx * sa + ly * ca) * s];
+    const fuse = [pt(8.5, 0), pt(5.5, 1.2), pt(-8.5, 0.9), pt(-9.5, 0), pt(-8.5, -0.9), pt(5.5, -1.2)];
+    const wing = [pt(2.4, -10.5), pt(-1.1, -10.5), pt(-2.2, 0), pt(-1.1, 10.5), pt(2.4, 10.5), pt(3.2, 0)];
+    const tail = [pt(-6.8, -3.6), pt(-8.8, -3.6), pt(-9.2, 0), pt(-8.8, 3.6), pt(-6.8, 3.6), pt(-6.2, 0)];
+    paint.add('shadow', { fill: SHADOW }, box, polyPath(wing, 1.2, 1.5));
+    paint.add('shadow', { fill: SHADOW }, box, polyPath(fuse, 1.2, 1.5));
+    paint.add('body', { fill: '#353a3d' }, box, polyPath(wing));
+    paint.add('body', { fill: p.color ?? '#c8c3b4' }, box, polyPath(wing));
+    paint.add('body', { fill: p.color ?? '#d5d1c3' }, box, polyPath(tail));
+    paint.add('body', { fill: p.color ?? '#dbd7ca' }, box, polyPath(fuse));
+    paint.add('detail', { fill: p.stripe ?? '#c84528' }, box, polyPath([pt(2, -10.2), pt(0.2, -10.2), pt(0.2, -7.8), pt(2, -7.8)]));
+    paint.add('detail', { fill: p.stripe ?? '#c84528' }, box, polyPath([pt(2, 7.8), pt(0.2, 7.8), pt(0.2, 10.2), pt(2, 10.2)]));
+    paint.add('detail', { fill: '#223342' }, box, polyPath([pt(5.8, -0.7), pt(3.2, -0.7), pt(3.2, 0.7), pt(5.8, 0.7)]));
+  } else if (p.kind === 'pier') {
+    const x = p.x - p.w / 2;
+    const y = p.y - p.h / 2;
+    paint.add('ground', { fill: 'rgba(10,30,42,0.38)' }, boxOf(p, 2), rectPath(x + 1.2, y + 1.5, p.w, p.h));
+    paint.add('ground', { fill: '#8a6c4c' }, boxOf(p), rectPath(x, y, p.w, p.h));
+    paint.add('ground', { stroke: '#624a31', width: 0.22 }, boxOf(p), (path) => {
+      if (p.w >= p.h) for (let k = x + 1.2; k < x + p.w; k += 1.4) { path.moveTo(k, y); path.lineTo(k, y + p.h); }
+      else for (let k = y + 1.2; k < y + p.h; k += 1.4) { path.moveTo(x, k); path.lineTo(x + p.w, k); }
+    });
+  } else if (p.kind === 'boat') {
+    const box = [p.x - p.len, p.y - p.len, p.x + p.len, p.y + p.len];
+    const ca = Math.cos(p.angle ?? 0);
+    const sa = Math.sin(p.angle ?? 0);
+    const hl = p.len / 2;
+    const hw = p.beam / 2;
+    const pt = (lx, ly) => [p.x + lx * ca - ly * sa, p.y + lx * sa + ly * ca];
+    const hull = [pt(hl, 0), pt(hl * 0.35, hw), pt(-hl, hw * 0.8), pt(-hl, -hw * 0.8), pt(hl * 0.35, -hw)];
+    const deck = [pt(hl * 0.55, 0), pt(hl * 0.1, hw * 0.65), pt(-hl * 0.75, hw * 0.55), pt(-hl * 0.75, -hw * 0.55), pt(hl * 0.1, -hw * 0.65)];
+    paint.add('ground', { fill: 'rgba(8,26,38,0.34)' }, box, polyPath(hull, 0.8, 1.0));
+    paint.add('ground', { fill: p.color ?? '#f2efe6' }, box, polyPath(hull));
+    paint.add('ground', { fill: p.cabin ?? '#2a5a82' }, box, polyPath(deck));
+  } else if (p.kind === 'runway') {
+    const box = pointsBox(p.points, p.width ?? 1);
+    paint.add('ground', { fill: p.fill ?? '#6a6e6b' }, box, polyPath(p.points));
+    if (p.border) paint.add('ground', { stroke: p.border, width: 0.45 }, box, polyPath(p.points));
+  } else if (p.kind === 'rail') {
+    const box = pointsBox(p.points, 4);
+    paint.add('ground', { stroke: '#232830', width: 3.4, join: 'round' }, box, linePath(p.points));
+    paint.add('ground', { stroke: '#3a3734', width: 2.8, dash: [0.35, 1.1] }, box, linePath(p.points));
+    paint.add('ground', { stroke: '#7a848e', width: 0.24 }, box, linePath(p.points, 0, -0.75));
+    paint.add('ground', { stroke: '#7a848e', width: 0.24 }, box, linePath(p.points, 0, 0.75));
+  } else if (p.kind === 'sand') {
+    const box = pointsBox(p.points, 2);
+    paint.add('ground', { fill: p.fill ?? '#d6c394' }, box, polyPath(p.points));
+    paint.add('ground', { stroke: 'rgba(182,160,112,0.45)', width: 1.4, join: 'round' }, box, polyPath(p.points));
+  } else if (p.kind === 'decal') {
+    const box = [p.x - 16, p.y - 16, p.x + 16, p.y + 16];
+    if (p.bars) {
+      paint.add('ground', { fill: p.color ?? 'rgba(240,236,222,0.5)' }, box, (path) => {
+        for (const [rx, ry, rw, rh] of p.bars) path.rect(p.x + rx, p.y + ry, rw, rh);
+      });
+    }
+    if (p.text) paint.text('ground', { x: p.x, y: p.y, text: p.text, size: p.size ?? 6, color: p.color ?? 'rgba(240,236,222,0.48)', angle: p.angle ?? 0 }, box);
   }
 }
 
@@ -677,14 +808,16 @@ function addContours(paint, e, grid) {
 export const DRAWN_KINDS = Object.freeze(['tree', 'pine', 'stand', 'rock', 'tyres', 'outcrop', 'van', 'trailer', 'truck',
   'car', 'tractor', 'gazebo', 'garage', 'tower', 'grandstand', 'shed', 'cabin', 'building', 'hoarding', 'marker', 'marshal',
   'sign', 'chevron', 'bench', 'tyrewall', 'retaining', 'fence', 'guardrail',
-  'road', 'parking', 'gravel', 'paved', 'wear', 'mound', 'path', 'wash', 'meadow', 'earth']);
+  'road', 'parking', 'gravel', 'paved', 'wear', 'mound', 'path', 'wash', 'meadow', 'earth',
+  'hangar', 'bunker', 'lighthouse', 'tank', 'pylon', 'lamppost', 'cactus', 'windsock', 'aircraft',
+  'pier', 'boat', 'runway', 'rail', 'sand', 'decal']);
 
 export function buildLandscape(track, scenery) {
   const paint = createPainter();
   const tones = TREE_TONES[scenery.style] ?? TREE_TONES.grassroots;
   const grid = scenery.elevation ? heightGrid(track, scenery.elevation) : null;
   if (grid) addContours(paint, scenery.elevation, grid);
-  if (scenery.shoulder) addShoulders(paint, track, scenery.shoulder);
+  if (scenery.shoulder) addShoulders(paint, track, scenery.shoulder, scenery.shoulderTheme);
   for (const p of scenery.props) {
     switch (p.kind) {
       case 'tree': canopy(paint, p, tones); break;
@@ -705,18 +838,38 @@ export function buildLandscape(track, scenery) {
       case 'garage': case 'tower': case 'grandstand': case 'shed': case 'cabin': case 'building': structure(paint, p); break;
       case 'hoarding': case 'marker': case 'marshal': case 'sign': case 'chevron': case 'bench': signs(paint, p); break;
       case 'tyrewall': case 'retaining': case 'fence': case 'guardrail': lineProp(paint, p); break;
+      case 'hangar': case 'bunker': case 'lighthouse': case 'tank': case 'pylon': case 'lamppost':
+      case 'cactus': case 'windsock': case 'aircraft': case 'pier': case 'boat': case 'runway':
+      case 'rail': case 'sand': case 'decal': venueProp(paint, p); break;
       default: flat(paint, p);
     }
   }
   const marshals = scenery.props
     .filter((p) => p.kind === 'marshal')
     .map((p) => ({ x: p.x + p.w / 2 + 0.2, y: p.y - p.h / 2 - 1.25 }));
+  const lamps = scenery.props
+    .filter((p) => p.kind === 'lamppost')
+    .map((p) => ({ x: p.x, y: p.y, glow: p.glow ?? 18 }));
+  const lighthouses = scenery.props
+    .filter((p) => p.kind === 'lighthouse')
+    .map((p) => ({ x: p.x, y: p.y, r: p.r }));
+  const windsocks = scenery.props
+    .filter((p) => p.kind === 'windsock')
+    .map((p) => ({ x: p.x, y: p.y }));
   return {
     style: scenery.style,
     wall: scenery.wall,
     shoulder: scenery.shoulder ?? 0,
     painter: paint,
     marshals,
+    lamps,
+    lighthouses,
+    windsocks,
+    beacons: scenery.beacons ?? null,
+    ground: scenery.ground ?? null,
+    roadColors: scenery.roadColors ?? null,
+    gantry: scenery.gantry ?? null,
+    night: Boolean(scenery.night),
     hill: grid ? bakeHill(scenery.elevation, grid) : null,
   };
 }
@@ -725,7 +878,7 @@ function viewBox(view) {
   return { minX: view.x - view.hw - 2, minY: view.y - view.hh - 2, maxX: view.x + view.hw + 2, maxY: view.y + view.hh + 2 };
 }
 
-// The ground for a hillside circuit: the baked hill, then the forest floor beyond the guardrail.
+// The ground for a hillside or baked-elevation circuit: the baked terrain, then the outer strip.
 function drawHillside(ctx, track, land, view) {
   const { x, y, hw, hh } = view;
   const { canvas, x0, y0, scale } = land.hill;
@@ -734,7 +887,7 @@ function drawHillside(ctx, track, land, view) {
   // The bake reaches 140 m past the guardrail; a view wider than that (an ultrawide window, or the
   // debug overview) gets the valley colour under it first.
   if (left < x0 || top < y0 || x + hw + 1 > x0 + canvas.width * scale || y + hh + 1 > y0 + canvas.height * scale) {
-    ctx.fillStyle = '#3f8a45';
+    ctx.fillStyle = land.ground?.fallback ?? '#3f8a45';
     ctx.fillRect(left, top, hw * 2 + 2, hh * 2 + 2);
   }
   ctx.imageSmoothingEnabled = false;
@@ -743,7 +896,7 @@ function drawHillside(ctx, track, land, view) {
   const b = track.bounds;
   const right = x + hw + 1;
   const bottom = y + hh + 1;
-  ctx.fillStyle = 'rgba(16,46,24,0.34)';
+  ctx.fillStyle = land.ground?.outer ?? 'rgba(16,46,24,0.34)';
   if (top < b.minY) ctx.fillRect(left, top, right - left, b.minY - top);
   if (bottom > b.maxY) ctx.fillRect(left, b.maxY, right - left, bottom - b.maxY);
   const t = Math.max(top, b.minY);
@@ -751,6 +904,100 @@ function drawHillside(ctx, track, land, view) {
   if (u > t && left < b.minX) ctx.fillRect(left, t, b.minX - left, u - t);
   if (u > t && right > b.maxX) ctx.fillRect(b.maxX, t, right - b.maxX, u - t);
   ctx.imageSmoothingEnabled = true;
+}
+
+// Custom flat ground for themed venues (airfield, seaside headland, midnight industrial yard).
+function drawThemedGround(ctx, track, land, view, time, still) {
+  const { x, y, hw, hh } = view;
+  const left = x - hw - 1;
+  const top = y - hh - 1;
+  const right = x + hw + 1;
+  const bottom = y + hh + 1;
+  const b = track.bounds;
+  const g = land.ground;
+
+  ctx.fillStyle = g.fill;
+  ctx.fillRect(left, top, right - left, bottom - top);
+
+  if (g.stripe) {
+    ctx.fillStyle = g.stripe;
+    const band = g.band ?? 28;
+    const first = Math.floor(left / band);
+    const last = Math.ceil(right / band);
+    for (let i = first; i <= last; i += 1) {
+      if (i % 2 === 0) ctx.fillRect(i * band, top, band, bottom - top);
+    }
+  }
+  if (g.grid) {
+    const slab = g.grid;
+    const sx0 = Math.floor(left / slab);
+    const sx1 = Math.ceil(right / slab);
+    const sy0 = Math.floor(top / slab);
+    const sy1 = Math.ceil(bottom / slab);
+    ctx.strokeStyle = g.gridColor ?? 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 0.16;
+    ctx.beginPath();
+    for (let sx = sx0 * slab; sx <= sx1 * slab; sx += slab) { ctx.moveTo(sx, top); ctx.lineTo(sx, bottom); }
+    for (let sy = sy0 * slab; sy <= sy1 * slab; sy += slab) { ctx.moveTo(left, sy); ctx.lineTo(right, sy); }
+    ctx.stroke();
+  }
+  if (g.outer) {
+    ctx.fillStyle = g.outer;
+    if (top < b.minY) ctx.fillRect(left, top, right - left, b.minY - top);
+    if (bottom > b.maxY) ctx.fillRect(left, b.maxY, right - left, bottom - b.maxY);
+    const t = Math.max(top, b.minY);
+    const u = Math.min(bottom, b.maxY);
+    if (u > t && left < b.minX) ctx.fillRect(left, t, b.minX - left, u - t);
+    if (u > t && right > b.maxX) ctx.fillRect(b.maxX, t, right - b.maxX, u - t);
+  }
+  // Animated coastal ocean outside selected perimeter sides (Headland Run).
+  if (g.ocean) {
+    const drawSea = (wx, wy, ww, wh, foamEdge) => {
+      if (ww <= 0 || wh <= 0) return;
+      ctx.fillStyle = g.ocean.deep ?? '#16546b';
+      ctx.fillRect(wx, wy, ww, wh);
+      ctx.fillStyle = g.ocean.shallow ?? '#257d94';
+      const shore = 14;
+      if (foamEdge === 'top') ctx.fillRect(wx, wy, ww, Math.min(wh, shore));
+      else if (foamEdge === 'right') ctx.fillRect(wx + Math.max(0, ww - shore), wy, Math.min(ww, shore), wh);
+      else if (foamEdge === 'left') ctx.fillRect(wx, wy, Math.min(ww, shore), wh);
+      const phase = still ? 0 : time * 1.4;
+      ctx.strokeStyle = 'rgba(218,244,250,0.28)';
+      ctx.lineWidth = 0.42;
+      ctx.beginPath();
+      const stepY = 8;
+      const startY = Math.floor(wy / stepY) * stepY;
+      for (let ry = startY; ry < wy + wh; ry += stepY) {
+        const shift = Math.sin(phase + ry * 0.22) * 2.8;
+        const startX = Math.floor(wx / 20) * 20;
+        for (let rx = startX; rx < wx + ww; rx += 20) {
+          const x0 = rx + shift + ((Math.round(ry) * 7) % 11);
+          ctx.moveTo(x0, ry);
+          ctx.lineTo(x0 + 8.5, ry);
+        }
+      }
+      ctx.stroke();
+      // Gentle white surf line hugging the headland rock edge.
+      const surfShift = still ? 0 : Math.sin(phase * 1.3) * 0.8;
+      ctx.strokeStyle = 'rgba(244,250,252,0.56)';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      if (foamEdge === 'top') { ctx.moveTo(wx, wy + 2.2 + surfShift); ctx.lineTo(wx + ww, wy + 2.2 + surfShift); }
+      else if (foamEdge === 'right') { ctx.moveTo(wx + ww - 2.2 - surfShift, wy); ctx.lineTo(wx + ww - 2.2 - surfShift, wy + wh); }
+      else if (foamEdge === 'left') { ctx.moveTo(wx + 2.2 + surfShift, wy); ctx.lineTo(wx + 2.2 + surfShift, wy + wh); }
+      ctx.stroke();
+    };
+    const pad = 2.6;
+    if (g.ocean.south && bottom > b.maxY + pad) drawSea(left, b.maxY + pad, right - left, bottom - (b.maxY + pad), 'top');
+    if (g.ocean.west && left < b.minX - pad) {
+      const y1 = g.ocean.south ? Math.min(bottom, b.maxY + pad) : bottom;
+      drawSea(left, top, b.minX - pad - left, y1 - top, 'right');
+    }
+    if (g.ocean.east && right > b.maxX + pad) {
+      const y1 = g.ocean.south ? Math.min(bottom, b.maxY + pad) : bottom;
+      drawSea(b.maxX + pad, top, right - (b.maxX + pad), y1 - top, 'left');
+    }
+  }
 }
 
 function drawWallStyle(ctx, track, style) {
@@ -765,6 +1012,23 @@ function drawWallStyle(ctx, track, style) {
     ctx.strokeStyle = '#555c58'; ctx.lineWidth = 1.2; rect(0.6);
     ctx.strokeStyle = '#c7ccc8'; ctx.lineWidth = 0.7; rect(0.45);
     ctx.strokeStyle = '#eef0ec'; ctx.lineWidth = 0.18; rect(0.3);
+  } else if (style === 'chainlink') {
+    ctx.strokeStyle = '#484e4c'; ctx.lineWidth = 1.1; rect(0.75);
+    ctx.strokeStyle = '#a8b0aa'; ctx.lineWidth = 0.35; rect(0.65);
+    ctx.strokeStyle = '#d6c656'; ctx.lineWidth = 0.75; ctx.setLineDash([0.45, 3.6]); rect(0.75);
+  } else if (style === 'jersey') {
+    ctx.strokeStyle = '#5e4c3b'; ctx.lineWidth = 1.5; rect(0.75);
+    ctx.strokeStyle = '#c9b89c'; ctx.lineWidth = 1.0; rect(0.65);
+    ctx.strokeStyle = '#e8dec9'; ctx.lineWidth = 0.25; rect(0.5);
+    ctx.strokeStyle = '#b43f26'; ctx.lineWidth = 0.45; ctx.setLineDash([1.6, 4.4]); rect(0.65);
+  } else if (style === 'seawall') {
+    ctx.strokeStyle = '#464d52'; ctx.lineWidth = 1.8; rect(0.95);
+    ctx.strokeStyle = '#b6b8b2'; ctx.lineWidth = 1.15; rect(0.8);
+    ctx.strokeStyle = '#f2efe6'; ctx.lineWidth = 0.35; ctx.setLineDash([2.2, 2.8]); rect(0.75);
+  } else if (style === 'viaduct') {
+    ctx.strokeStyle = '#0e1116'; ctx.lineWidth = 1.7; rect(0.85);
+    ctx.strokeStyle = '#434b56'; ctx.lineWidth = 1.05; rect(0.7);
+    ctx.strokeStyle = '#ffb838'; ctx.lineWidth = 0.42; ctx.setLineDash([0.7, 5.3]); rect(0.62);
   } else {
     // A guardrail on timber posts.
     ctx.strokeStyle = '#5b4730'; ctx.lineWidth = 1.3; ctx.setLineDash([0.35, 2.15]); rect(0.9);
@@ -777,11 +1041,13 @@ function drawWallStyle(ctx, track, style) {
 
 // Everything under the road: the ground (Switchback's own; Original's grass is drawn by render.js
 // first), flat props, the perimeter, shadows and raised props.
-export function drawLandscapeBelow(ctx, track, land, view) {
+export function drawLandscapeBelow(ctx, track, land, view, time = 0, still = false) {
   const v = viewBox(view);
-  if (land.style === 'hillside') {
+  if (land.hill) {
     drawHillside(ctx, track, land, view);
     paintLayer(ctx, land.painter, 'contour', v);
+  } else if (land.ground) {
+    drawThemedGround(ctx, track, land, view, time, still);
   }
   paintLayer(ctx, land.painter, 'ground', v);
   paintLayer(ctx, land.painter, 'shoulder', v);

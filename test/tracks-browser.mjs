@@ -191,14 +191,17 @@ async function check(name, engine) {
     // --- The selector on a fresh visit ---------------------------------------------------
     // Reduced motion holds the poster still, so its pixels can be compared exactly.
     page = await open({ reducedMotion: 'reduce' });
-    assert.deepEqual(await page.locator('#tracks label').allInnerTexts().then((t) => t.map((s) => s.trim().toUpperCase())), ['ORIGINAL', 'SWITCHBACK', 'DOCKYARD']);
-    assert.equal(await checked(page), 'original* switchback dockyard');
+    const ALL_TRACK_NAMES = ['ORIGINAL', 'SWITCHBACK', 'DOCKYARD', 'RUNWAY 27', 'REDLINE MESA', 'HEADLAND RUN', 'NIGHTSHIFT VIADUCT'];
+    const ALL_TRACK_IDS = ['original', 'switchback', 'dockyard', 'runway-27', 'redline-mesa', 'headland-run', 'nightshift-viaduct'];
+    const expectChecked = (selected) => ALL_TRACK_IDS.map((id) => `${id}${id === selected ? '*' : ''}`).join(' ');
+    assert.deepEqual(await page.locator('#tracks .track-name').allInnerTexts().then((t) => t.map((s) => s.trim().toUpperCase())), ALL_TRACK_NAMES);
+    assert.equal(await checked(page), expectChecked('original'));
     let g = await game(page);
     assert.equal(g.selected, 'original');
     assert.equal(g.track, 'original');
     assert.equal(await focused(page), 'tracks-open', 'Tracks keeps the focus');
     const words = await page.locator('.title-menu button').evaluateAll((buttons) => buttons.map((b) => b.childNodes[0].textContent.trim().toUpperCase()));
-    assert.deepEqual(words, ['TRACKS', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']);
+    assert.deepEqual(words, ['TRACKS', 'CIRCUIT TOUR', 'GYMKHANA', 'GETAWAY', 'HOW TO PLAY', 'OPTIONS']); // Circuit Tour: v0.9.0
     const poster = await stamp(page, POSTER);
     await chooseTracks(page);
     for (const [width, height] of SIZES) {
@@ -224,19 +227,23 @@ async function check(name, engine) {
     }
     await page.setViewportSize({ width: 1366, height: 768 });
     await frames(page);
-    step('a fresh visit offers Original, Switchback and Dockyard, with Original chosen and the menu as before');
+    step('a fresh visit offers all seven circuits, with Original chosen and the menu as before');
 
     await page.keyboard.press('ArrowRight');
-    assert.equal(await checked(page), 'original switchback* dockyard');
+    assert.equal(await checked(page), expectChecked('switchback'));
     assert.equal(await focused(page), 'start', 'choosing does not move the focus off Start');
+    for (const id of ALL_TRACK_IDS.slice(2)) {
+      await page.keyboard.press('ArrowRight');
+      assert.equal(await checked(page), expectChecked(id));
+    }
     await page.keyboard.press('ArrowRight');
-    assert.equal(await checked(page), 'original switchback dockyard*');
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await checked(page), 'original* switchback dockyard', 'Right wraps');
+    assert.equal(await checked(page), expectChecked('original'), 'Right wraps');
     await page.keyboard.press('ArrowLeft');
-    assert.equal(await checked(page), 'original switchback dockyard*', 'Left wraps');
-    await page.keyboard.press('ArrowLeft');
-    assert.equal(await checked(page), 'original switchback* dockyard');
+    assert.equal(await checked(page), expectChecked('nightshift-viaduct'), 'Left wraps');
+    for (const id of [...ALL_TRACK_IDS.slice(1, -1)].reverse()) {
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await checked(page), expectChecked(id));
+    }
     await page.keyboard.press('ArrowDown');
     assert.equal(await focused(page), 'practice', 'Up and Down still walk the menu');
     await page.keyboard.press('ArrowUp');
@@ -247,15 +254,15 @@ async function check(name, engine) {
     await page.keyboard.press('Shift+Tab');
     assert.equal(await focused(page), 'switchback', 'Tab reaches the chosen circuit');
     await page.keyboard.press('ArrowLeft');
-    assert.equal(await checked(page), 'original* switchback dockyard');
+    assert.equal(await checked(page), expectChecked('original'));
     assert.equal(await focused(page), 'original', 'and the focus follows the choice');
     await page.keyboard.press('Space');
-    assert.equal(await checked(page), 'original* switchback dockyard');
+    assert.equal(await checked(page), expectChecked('original'));
     assert.deepEqual((await game(page)).input, NO_KEYS, 'Space on the choice is not the handbrake');
     await page.locator('#tracks label', { hasText: 'Switchback' }).click();
-    assert.equal(await checked(page), 'original switchback* dockyard', 'a click chooses');
+    assert.equal(await checked(page), expectChecked('switchback'), 'a click chooses');
     await page.locator('#tracks label', { hasText: 'Original' }).click();
-    assert.equal(await checked(page), 'original* switchback dockyard');
+    assert.equal(await checked(page), expectChecked('original'));
     await page.locator('#tracks label', { hasText: 'Switchback' }).click();
     assert.equal((await game(page)).selected, 'switchback');
     await frames(page);
@@ -329,7 +336,7 @@ async function check(name, engine) {
     await page.keyboard.press('KeyP');
     await page.locator('#paused .return-title').click();
     assert.ok(await visible(page, 'menu'));
-    assert.equal(await checked(page), 'original switchback* dockyard', 'the title remembers the choice for this visit');
+    assert.equal(await checked(page), expectChecked('switchback'), 'the title remembers the choice for this visit');
     await frames(page);
     assert.equal(await stamp(page, POSTER), poster, 'the poster is still the original hairpin');
     step('Return to Title keeps the choice, and the poster is unchanged after driving Switchback');
@@ -344,7 +351,7 @@ async function check(name, engine) {
     assert.ok(g.atStart);
     await page.keyboard.press('Escape');
     assert.ok(await visible(page, 'menu'));
-    assert.equal(await checked(page), 'original switchback* dockyard', 'leaving the lesson keeps the choice');
+    assert.equal(await checked(page), expectChecked('switchback'), 'leaving the lesson keeps the choice');
     step('the lesson uses Original while Switchback is chosen, and leaves the choice alone');
 
     // --- Drive Again, and going back to Original --------------------------------------------

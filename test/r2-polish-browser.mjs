@@ -247,7 +247,7 @@ async function check(name, engine) {
     await page.locator('#paused .return-title').click(); await frames(3);
     await page.click('#tracks-open'); await frames(3);
     const previewChecks = [];
-    for (const id of ['original', 'switchback', 'dockyard']) {
+    for (const id of ['original', 'switchback', 'dockyard', 'runway-27', 'redline-mesa', 'headland-run', 'nightshift-viaduct']) {
       await page.locator(`#tracks input[value="${id}"]`).click({ force: true });
       await frames(2);
       previewChecks.push(await page.evaluate(() => ({
@@ -257,7 +257,7 @@ async function check(name, engine) {
       })));
     }
     assert.ok(previewChecks.every((c) => c.path.startsWith('M') && c.blurb.length > 10), 'every circuit renders an SVG silhouette and blurb');
-    assert.equal(new Set(previewChecks.map((c) => c.path)).size, 3, 'all three circuit silhouettes are distinct');
+    assert.equal(new Set(previewChecks.map((c) => c.path)).size, 7, 'all seven circuit silhouettes are distinct');
     await page.click('#tracks-back'); await frames(2);
 
     // Gymkhana menu uses a balanced 2-column grid for its 4 challenges.

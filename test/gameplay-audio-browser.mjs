@@ -1,5 +1,6 @@
 import { startTrackWithEnter } from './support/track-menu.mjs';
 import { openTracks } from './support/track-menu.mjs';
+import { startLocalServer } from './support/local-server.mjs';
 // Gameplay audio in real browsers, using real key presses and real Web Audio. It
 // measures the graph's output level. That proves signal or silence reached the
 // destination; it does not prove anything sounded good, and no human listened here.
@@ -11,7 +12,6 @@ import { openTracks } from './support/track-menu.mjs';
 // Optional argument: absolute path to an existing Playwright index.mjs.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
@@ -46,16 +46,8 @@ async function serveLikePages() {
   return { url: `http://127.0.0.1:${server.address().port}/mini-drifters/`, stop: () => server.close() };
 }
 
-async function serveLocal(port) {
-  const server = spawn(process.execPath, [fileURLToPath(new URL('server.mjs', root))], {
-    env: { ...process.env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'inherit'],
-  });
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.once('exit', (code) => reject(new Error(`Server exited: ${code}`)));
-    server.stdout.once('data', resolve);
-  });
-  return { url: `http://127.0.0.1:${port}/`, stop: () => server.kill() };
+async function serveLocal(port = 0) {
+  return startLocalServer({ port });
 }
 
 // A labelled synthetic mono PCM16 WAV: a plain sine, never heard as a recording.
@@ -571,7 +563,7 @@ for (const key of COYOTE_FILES) {
 }
 
 const pages = await serveLikePages();
-const local = await serveLocal(4199);
+const local = await serveLocal(0);
 try {
   for (const [name, engine] of [['chromium', chromium], ['firefox', firefox]]) {
     console.log(`Checking ${name}...`);
@@ -590,7 +582,7 @@ try {
   }
 } finally {
   pages.stop();
-  local.stop();
+  await local.stop();
 }
 
 for (const run of report.runs) {

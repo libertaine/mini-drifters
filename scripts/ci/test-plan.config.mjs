@@ -39,10 +39,16 @@ export const SUITES = Object.freeze({
   'test:getaway-driver:browser': { file: 'test/getaway-driver-browser.mjs', group: 'audio-lessons', seconds: 54, about: 'Getaway Driver: the sheet, outcomes, completion counts and storage' },
   // v0.8.0 R2 polish checks, placed in the shortest group (`circuits`) to keep parallel CI balanced.
   'test:r2-polish:browser': { file: 'test/r2-polish-browser.mjs', group: 'circuits', seconds: 30, about: 'v0.8.0 R2 presentation, HUD polish, procedural SFX/siren lifecycle and reduced motion' },
+  // v0.9.0 R1 four-circuit production integration checks, placed in `circuits` to keep parallel CI balanced.
+  'test:circuits-r1:browser': { file: 'test/circuits-r1-browser.mjs', group: 'circuits', seconds: 32, about: 'v0.9.0 R1 seven-circuit Tracks UI, four new circuits gameplay, records, reference ghosts and layouts' },
+  // v0.9.0 Circuit Tour, a production mode since R3. The hosted figure is an estimate until a
+  // hosted run measures it. In the shortest group.
+  'test:tour:browser': { file: 'test/tour-browser.mjs', group: 'audio-lessons', seconds: 40, about: 'v0.9.0 Circuit Tour: title button, sheets, the Joker, rounds, restarts, resume, rematch, records and storage' },
 });
 
 // The parallel jobs, in the order they are listed in the run. Measured totals (s): circuits 483,
-// menus-input 500, gymkhana-getaway 503, audio-lessons 498 (444 + 54 for Getaway Driver).
+// menus-input 500, gymkhana-getaway 503, audio-lessons 498 (444 + 54 for Getaway Driver), plus
+// an estimated 40 for the Circuit Tour suite in audio-lessons.
 export const GROUPS = Object.freeze(['circuits', 'menus-input', 'gymkhana-getaway', 'audio-lessons']);
 
 // Run in every tier 2 change, and in tier 1 when a published file changes: the whole game
@@ -64,7 +70,7 @@ const AUDIO_SUITES = ['test:gameplay-audio:browser', 'test:radio:browser', 'test
 // Suites that drive a mocked Gamepad (navigator.getGamepads).
 const CONTROLLER_SUITES = ['test:controller:browser', 'test:categories:browser', 'test:dockyard-slalom:browser', 'test:getaway:browser',
   'test:gymkhana:browser', 'test:handling:browser', 'test:medals:browser', 'test:records:browser', 'test:reference-ghost:browser',
-  'test:getaway-driver:browser'];
+  'test:getaway-driver:browser', 'test:circuits-r1:browser'];
 // Everything that opens the Gymkhana or Getaway sheets, HUD or results.
 const CHALLENGE_SUITES = ['test:gymkhana:browser', 'test:medals:browser', 'test:categories:browser', 'test:getaway:browser',
   'test:showmanship:browser', 'test:getaway-records:browser', 'test:dockyard-slalom:browser', 'test:getaway-driver:browser',
@@ -91,13 +97,15 @@ export const RULES = Object.freeze([
   { id: 'simulation', tier: 3, why: 'Driving physics, handling, tuning, the session lifecycle, input commands or scoring',
     paths: ['src/physics.js', 'src/tuning.js', 'src/handling.js', 'src/game.js', 'src/controls.js', 'src/scoring.js', 'src/laps.js'] },
   { id: 'circuits', tier: 3, why: 'Circuit, pad or scenery geometry, which the simulation collides with',
-    paths: ['src/track.js', 'src/practice-pad.js', 'src/obstacles.js', 'src/scenery.js', 'src/scenery-original.js', 'src/scenery-switchback.js', 'src/dockyard-scenery.js'] },
+    paths: ['src/track.js', 'src/practice-pad.js', 'src/obstacles.js', 'src/scenery.js', 'src/scenery-original.js', 'src/scenery-switchback.js',
+      'src/scenery-helpers.js', 'src/scenery-runway.js', 'src/scenery-mesa.js', 'src/scenery-headland.js', 'src/scenery-nightshift.js', 'src/dockyard-scenery.js'] },
   { id: 'challenges', tier: 3, why: 'Gymkhana and Getaway rules, missions, police, city and medals',
     paths: ['src/gymkhana.js', 'src/getaway-urban.js', 'src/getaway-city.js', 'src/getaway-nav.js', 'src/getaway-pursuer.js', 'src/getaway-missions.js', 'src/getaway-driver*.js', 'src/medals.js'] },
   { id: 'persistence', tier: 3, why: 'Saved records, ghosts or preferences, and their storage formats',
     paths: ['src/records.js', 'src/gymkhana-records.js', 'src/getaway-records.js', 'src/getaway-driver-records.js', 'src/ghost.js', 'src/ghost-store.js', 'src/reference-ghost.js',
       'src/ghost-preferences.js', 'src/handling-preferences.js', 'src/audio-preferences.js'] },
   { id: 'radio-catalogue', tier: 3, paths: ['src/radio-stations.js'], why: 'The radio file list, which most browser suites serve files from' },
+  { id: 'tour', tier: 3, paths: ['src/tour.js', 'src/tour-store.js'], why: 'Circuit Tour: what a round is worth, the Joker, and its saved Tours' },
 
   // --- Tier 2: bounded areas -------------------------------------------------------------------
   { id: 'tutorial', tier: 2, paths: ['src/tutorial.js'], suites: ['test:tutorial:browser'], why: 'The driving lesson: only main.js reads it, only while a lesson runs' },
@@ -115,10 +123,11 @@ export const RULES = Object.freeze([
   { id: 'local-server', tier: 2, paths: ['server.mjs'], suites: ['test:audio:browser', 'test:coyote:browser', 'test:gameplay-audio:browser'], why: 'The local server, which these suites start' },
   { id: 'controller', tier: 2, paths: ['src/controller.js'], suites: CONTROLLER_SUITES, why: 'Gamepad reading, used by the suites that mock a controller' },
   { id: 'tyre-effects', tier: 2, paths: ['src/tyre-effects.js'], suites: ['test:wheelspin:browser'], why: 'Smoke and rubber drawing, measured by the wheelspin suite' },
-  { id: 'scenery-draw', tier: 2, paths: ['src/scenery-draw.js'], suites: ['test:environment:browser', 'test:tracks:browser', 'test:dockyard-slalom:browser', 'test:r2-polish:browser'], why: 'Drawing of circuit scenery (not its collision shapes)' },
+  { id: 'scenery-draw', tier: 2, paths: ['src/scenery-draw.js'], suites: ['test:environment:browser', 'test:tracks:browser', 'test:dockyard-slalom:browser', 'test:r2-polish:browser', 'test:circuits-r1:browser'], why: 'Drawing of circuit scenery (not its collision shapes)' },
   { id: 'challenge-ui', tier: 2, paths: ['src/gymkhana-ui.js', 'src/gymkhana-draw.js'], suites: [...CHALLENGE_SUITES, 'test:menus:browser', 'test:controller:browser'],
     why: 'The Gymkhana and Getaway sheets, HUD, results and drawing' },
   { id: 'getaway-draw', tier: 2, paths: ['src/getaway-urban-draw.js'], suites: GETAWAY_SUITES, why: 'Drawing of the Getaway city' },
+  { id: 'tour-ui', tier: 2, paths: ['src/tour-ui.js'], suites: ['test:tour:browser', 'test:analytics:browser'], why: 'The Circuit Tour sheets, Joker panel and HUD panel (the analytics suite drives a Tour round)' },
 
   // --- Tier 1: nothing the browser runs changes --------------------------------------------------
   { id: 'docs', tier: 1, paths: ['README.md', 'docs/**', 'LICENSE', 'LICENSE-AUDIO.md'], why: 'Documentation, README media and licences (the publishing checks read some of them)' },

@@ -1,6 +1,6 @@
 {
   "name": "mini-drifters",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "description": "A tiny browser-based arcade drifting game. Slide through corners, chain drifts, and chase your best score.",
@@ -32,6 +32,8 @@
     "test:getaway-records:browser": "node test/getaway-records-browser.mjs",
     "test:analytics:browser": "node test/analytics-browser.mjs",
     "test:getaway-driver:browser": "node test/getaway-driver-browser.mjs",
-    "test:r2-polish:browser": "node test/r2-polish-browser.mjs"
+    "test:r2-polish:browser": "node test/r2-polish-browser.mjs",
+    "test:circuits-r1:browser": "node test/circuits-r1-browser.mjs",
+    "test:tour:browser": "node test/tour-browser.mjs"
   }
 }
